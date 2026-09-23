@@ -1,0 +1,38 @@
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify repository structure
+        run: |
+          test -f README.md
+          test -f .env.example
+          test -d docs
+          test -d frontend
+          test -d backend
+          test -d ai
+
+      - name: Reject committed .env files
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$'; then
+            echo "A real .env file appears to be committed."
+            exit 1
+          fi
+
+      - name: Check for merge-conflict markers
+        run: |
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- . ':!*.lock'; then
+            echo "Merge conflict markers found."
+            exit 1
+          fi
