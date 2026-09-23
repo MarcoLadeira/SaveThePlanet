@@ -11,16 +11,15 @@ python backend/server.py
 ```
 
 Open http://127.0.0.1:8080. See [backend setup](../backend/README.md) for full instructions.
-The backend serves the frontend and `/api/v1/forecast` on the same origin.
+The backend serves the frontend and `/api/v1/scenario` on the same origin.
 
-Overview and Forecast use real model predictions from the latest historical dataset
+All four product screens use real model predictions from the latest historical dataset
 issue time. They share a 30/60-minute horizon selection and explicit flexible-load
 capacity scenario in MW. `model.js` handles fetching and these views; `app.js`
-retains navigation, settings and the other demo screens. Charts use the two actual
+retains navigation and settings. `scenario.js` renders Charging and Impact using backend-derived results. Charts use the two actual
 forecast points rather than extrapolating a day of forecasts.
 
-Charging and Impact remain hard-coded demo screens. Settings are in-memory UI
-preferences; charging rules do not control the model's flexible-load scenario.
+Charging accepts total and flexible demand in kWh; Impact displays projected recovery and remaining energy from that same scenario. Each horizon is an alternative, not an additive schedule. Demand inputs reset to example defaults on reload. Settings remain in-memory UI preferences; the shared scenario power input in MW is authoritative.
 
 The former `python -m http.server 5173` command can still serve static files, but
-cannot provide the product API: Overview and Forecast will show an error there.
+cannot provide the product API: the product screens will show an error there.

@@ -5,10 +5,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
 import os
+import socket
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
+from scenario import build_scenario, validate_demand
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_URL = os.environ.get('GRID_TO_EV_API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')
@@ -82,6 +84,16 @@ def fetch_forecast(capacity):
         return normalize(json.load(response), capacity)
 
 
+class ProductServer(ThreadingHTTPServer):
+    # Windows SO_REUSEADDR permits two servers to bind the same address, routing
+    # requests to an obsolete process. Require one owner of the listening port.
+    allow_reuse_address = os.name != 'nt'
+
+    def server_bind(self):
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
 class Handler(SimpleHTTPRequestHandler):
     def send_json(self, status, body):
         encoded = json.dumps(body, allow_nan=False).encode()
@@ -94,18 +106,24 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path)
-        if route.path == '/api/v1/forecast':
+        if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
             try:
                 query = parse_qs(route.query)
                 if query.get('region', ['Ireland']) != ['Ireland']:
                     raise ValueError('Only Ireland is supported')
                 capacity = float(query.get('capacityMw', ['100'])[0])
                 number(capacity, 'capacity', minimum=0.001, maximum=10000)
+                total = float(query.get('totalDemandKwh', ['1000'])[0])
+                flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
+                validate_demand(total, flexible)
             except (ValueError, TypeError):
-                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland and a capacity between 0.001 and 10000 MW.'}})
+                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001–10000 MW, and demand 0–1000000000 kWh with flexible demand no greater than total demand.'}})
                 return
             try:
-                self.send_json(200, fetch_forecast(capacity))
+                forecast = fetch_forecast(capacity)
+                if route.path == '/api/v1/scenario':
+                    forecast['scenario'] = build_scenario(forecast, total, flexible)
+                self.send_json(200, forecast)
             except (URLError, TimeoutError, OSError):
                 self.send_json(502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model API. Start GridToEv on port 8000, then retry.'}})
             except (ValueError, KeyError, TypeError, OverflowError):
@@ -119,7 +137,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(os.environ.get('API_PORT', '8080'))
-    server = ThreadingHTTPServer(('127.0.0.1', port), partial(Handler, directory=str(ROOT / 'frontend')))
+    server = ProductServer(('127.0.0.1', port), partial(Handler, directory=str(ROOT / 'frontend')))
     # print(f'Open http://127.0.0.1:{port} (model: {MODEL_URL})', flush=True)
     print(f"""
           ==========================

@@ -104,3 +104,15 @@ class HttpTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
+class PortOwnershipTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows exclusive port ownership')
+    def test_second_backend_cannot_bind_same_port(self):
+        from server import ProductServer
+        first = ProductServer(('127.0.0.1', 0), Handler)
+        try:
+            with self.assertRaises(OSError):
+                second = ProductServer(first.server_address, Handler)
+                second.server_close()
+        finally:
+            first.server_close()
