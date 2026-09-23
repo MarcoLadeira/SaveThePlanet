@@ -1,17 +1,26 @@
 # Frontend
 
-Desktop UI prototype for the renewable energy and EV charging planner. It includes Overview, Forecast, Charging, Impact, and Settings screens based on the product designs.
+Vanilla HTML/CSS/JS desktop UI with Overview, Forecast, Charging, Impact and Settings.
 
-## Run locally
+## Integrated local run
 
-From this directory, run:
+Start the GridToEv model API on port 8000, then from the SaveThePlanet root:
 
-```sh
-python -m http.server 5173 --bind 127.0.0.1
+```powershell
+python backend/server.py
 ```
 
-Open <http://127.0.0.1:5173/>. No package installation or build step is required.
+Open http://127.0.0.1:8080. See [backend setup](../backend/README.md) for full instructions.
+The backend serves the frontend and `/api/v1/forecast` on the same origin.
 
-## Scope
+Overview and Forecast use real model predictions from the latest historical dataset
+issue time. They share a 30/60-minute horizon selection and explicit flexible-load
+capacity scenario in MW. `model.js` handles fetching and these views; `app.js`
+retains navigation, settings and the other demo screens. Charts use the two actual
+forecast points rather than extrapolating a day of forecasts.
 
-This is a UI-only prototype. Forecast, charging, and impact figures are demo values. Navigation, settings controls, and explanatory dialogs are presentational; no API or backend is connected. The desktop layout scales to fit the browser viewport without page scrolling.
+Charging and Impact remain hard-coded demo screens. Settings are in-memory UI
+preferences; charging rules do not control the model's flexible-load scenario.
+
+The former `python -m http.server 5173` command can still serve static files, but
+cannot provide the product API: Overview and Forecast will show an error there.

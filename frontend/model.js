@@ -1,0 +1,54 @@
+// Overview and Forecast share one backend snapshot. Other screens remain demo-only.
+const modelState = {data:null, loading:true, error:'', horizon:30, capacity:100};
+let modelRequest = 0;
+function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function modelNumber(value){return new Intl.NumberFormat('en-IE',{maximumFractionDigits:2}).format(value)}
+function modelTime(value, date=false){return new Intl.DateTimeFormat('en-IE',{timeZone:settings.timezone,...(date?{day:'2-digit',month:'short',year:'numeric'}:{}),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value))}
+function selectedPrediction(){return modelState.data.predictions.find(p=>p.horizonMinutes===modelState.horizon)}
+function modelControls(){return `<div class="filter-row model-controls"><span class="model-region">${icon('map',21)} Ireland</span><label>Forecast ahead <select id="model-horizon"><option value="30" ${modelState.horizon===30?'selected':''}>30 minutes</option><option value="60" ${modelState.horizon===60?'selected':''}>60 minutes</option></select></label><form id="model-capacity-form"><label>Flexible capacity <input id="model-capacity" type="number" min="0.001" max="10000" step="any" required value="${modelState.capacity}" aria-label="Flexible capacity in MW"> MW</label><button class="secondary-button" ${modelState.loading?'disabled':''}>${modelState.loading?'Loading…':'Refresh forecast'}</button></form></div>`}
+function modelHeader(page){return `<header class="page-head"><div><h1>${page==='overview'?'Overview':'Forecast'}</h1><p>Irish renewable dispatch-down and potential flexible-load recovery</p></div><div class="status model-status"><span class="status-meta">${modelState.data?'Fetched '+escapeHtml(modelTime(modelState.data.generatedAt,true)):''}</span><span class="status-ready">${modelState.loading?'Loading model…':modelState.error?'Model unavailable':'Historical prediction'}</span></div></header>`}
+function modelCell(label,value,caption='',color=''){return `<div class="summary-cell"><div class="metric-label">${label}</div><div class="mid-value ${color}">${value}</div><div class="metric-caption">${caption}</div></div>`}
+function modelCause(p){if(p.atRiskMwh===0)return 'No predicted dispatch-down';return p.constraintMwh===p.curtailmentMwh?'Mixed components':p.constraintMwh>p.curtailmentMwh?'Constraint-dominated':'Curtailment-dominated'}
+function modelChart(forecast){
+  const points=modelState.data.predictions;
+  const max=Math.max(1,...points.map(p=>Math.max(forecast?p.upperMwh:0,p.atRiskMwh,p.potentialRecoveryMwh)))*1.12;
+  const y=v=>270-v/max*220;
+  const ticks=[0,.25,.5,.75,1].map(f=>`<line x1="65" y1="${y(max*f)}" x2="740" y2="${y(max*f)}" stroke="#dfe7f2"/><text x="55" y="${y(max*f)+5}" text-anchor="end" fill="#52617f" font-size="14">${modelNumber(max*f)}</text>`).join('');
+  return `<svg viewBox="0 0 800 340" role="img" aria-label="${forecast?'Energy at risk with P10 to P90 intervals':'Energy at risk and potential recovery'} for 30 and 60 minute horizons"><text x="15" y="25" fill="#52617f">MWh per half-hour</text>${ticks}${points.map((p,i)=>{const x=270+i*310;return `<rect x="${x-65}" y="${y(p.atRiskMwh)}" width="55" height="${270-y(p.atRiskMwh)}" fill="#ed4249" opacity=".8"/>${forecast?`<line x1="${x+20}" y1="${y(p.upperMwh)}" x2="${x+20}" y2="${y(p.lowerMwh)}" stroke="#b52643" stroke-width="3"/><path d="M ${x+8} ${y(p.upperMwh)} h24 M ${x+8} ${y(p.lowerMwh)} h24" stroke="#b52643" stroke-width="3"/><circle cx="${x+20}" cy="${y(p.medianMwh)}" r="5" fill="#b52643"/>`:`<rect x="${x+5}" y="${y(p.potentialRecoveryMwh)}" width="55" height="${270-y(p.potentialRecoveryMwh)}" fill="#078c58"/>`}<text x="${x}" y="300" text-anchor="middle" fill="#52617f">+${p.horizonMinutes} min · ${escapeHtml(modelTime(p.targetAt))}</text><text x="${x}" y="324" text-anchor="middle" fill="#52617f" font-size="13">${modelNumber(p.atRiskMwh)} MWh at risk</text>`}).join('')}</svg>`;
+}
+function modelView(page){
+  const top=modelHeader(page)+modelControls();
+  if(modelState.loading)return top+'<section class="card model-message" role="status">Loading predictions from GridToEv…</section>';
+  if(modelState.error)return top+`<section class="card model-message" role="alert"><h2>Forecast unavailable</h2><p>${escapeHtml(modelState.error)}</p><p>Run <code>python backend/server.py</code> and open the app at <code>http://127.0.0.1:8080</code>. The model API must also be running.</p><button class="primary-button" id="model-retry">Try again</button></section>`;
+  const d=modelState.data,p=selectedPrediction(),forecast=page==='forecast';
+  const provenance=`<p class="model-provenance">Historical prediction · issued ${escapeHtml(modelTime(p.issuedAt,true))} · ${escapeHtml(settings.timezone)} · model ${escapeHtml(d.modelVersion)}. Recovery assumes ${modelNumber(d.flexibleCapacityMw)} MW of available flexible load; it is not measured recovery.</p>`;
+  const time=modelCell('Forecast target',escapeHtml(modelTime(p.targetAt)),`+${p.horizonMinutes} minutes from issue time`);
+  const summary=forecast?
+    time+modelCell('Dispatch-down probability',modelNumber(p.probability*100)+'%','Model event probability','red')+modelCell('Expected energy at risk',modelNumber(p.atRiskMwh)+' MWh','Per half-hour','red')+modelCell('P10–P90 range',`${modelNumber(p.lowerMwh)}–${modelNumber(p.upperMwh)} MWh`,'Model uncertainty range')+modelCell('Predicted component',modelCause(p)):
+    time+modelCell('Energy at risk',modelNumber(p.atRiskMwh)+' MWh','Per half-hour','red')+modelCell('Scenario capacity',modelNumber(d.flexibleCapacityMw*.5)+' MWh',`${modelNumber(d.flexibleCapacityMw)} MW × 0.5 hours`)+modelCell('Potential recovery',modelNumber(p.potentialRecoveryMwh)+' MWh','Capacity-limited estimate','green')+modelCell('Dispatch-down risk',escapeHtml(p.risk),modelCause(p));
+  const chartCard=`<section class="card chart-card"><h2 class="card-title">${forecast?'Short-term dispatch-down forecast':'At-risk energy and potential recovery'}</h2><p class="card-subtitle">Two forecast horizons from the same historical issue time</p><div class="chart-holder">${modelChart(forecast)}</div>${legend(forecast?[['red','Energy at risk'],['pink','P10–P90 range; dot = P50']]:[['red','Energy at risk'],['green','Potential recovery']])}</section>`;
+  const shares=[['Constraint',p.constraintMwh],['Curtailment',p.curtailmentMwh]].map(([name,value])=>{const share=p.atRiskMwh>0?value/p.atRiskMwh*100:0;return `<div class="bar-row"><span>${name}</span><div class="bar-track"><div class="bar-fill" style="width:${share}%"></div></div><span>${p.atRiskMwh>0?modelNumber(share)+'%':'N/A'}</span></div><p class="metric-caption">${modelNumber(value)} MWh</p>`}).join('');
+  const rate=p.atRiskMwh>0?modelNumber(p.potentialRecoveryMwh/p.atRiskMwh*100)+'%':'N/A';
+  const side=forecast?`<section class="card cause-card"><h2 class="card-title">Predicted energy breakdown</h2>${shares}<div class="section-line"></div><p class="metric-caption">Component shares describe predicted energy, not causal attribution.</p><h3>Model signals</h3><p class="metric-caption">Renewable output, system demand, grid headroom, SNSP pressure and market contribution are not supplied by this API.</p></section>`:
+    `<section class="card action-card"><h2 class="card-title">Potential charging opportunity</h2><p class="action-lead">${p.potentialRecoveryMwh>0?`Up to ${modelNumber(p.potentialRecoveryMwh)} MWh could be absorbed by flexible charging.`:'No recoverable surplus predicted for this interval.'}</p><p class="action-description">Forecast target: ${escapeHtml(modelTime(p.targetAt,true))}. Assumes available flexible load of ${modelNumber(d.flexibleCapacityMw)} MW.</p><p class="metric-caption">This is a capacity scenario. Fleet availability and driver commitments have not been evaluated.</p><button class="primary-button" data-page="forecast">View forecast ${icon('arrow',24)}</button><div class="action-bottom"><div class="action-divider"></div><div class="mini-stats"><div><span class="small-value">${rate}</span><div class="metric-caption">potential recovery rate</div></div><div><span class="small-value">${modelNumber(p.atRiskMwh-p.potentialRecoveryMwh)} MWh</span><div class="metric-caption">remaining at risk</div></div></div></div></section>`;
+  return top+`<section class="card summary-card model-summary ${forecast?'forecast-summary':'overview'}"><h2 class="card-title">Selected ${p.horizonMinutes}-minute forecast</h2><div class="summary-metrics">${summary}</div></section>`+provenance+`<div class="${forecast?'forecast-grid model-forecast-grid':'overview-grid model-overview-grid'}">${chartCard}${side}</div>`;
+}
+async function loadModelForecast(){
+  const request=++modelRequest;
+  modelState.loading=true;modelState.error='';modelState.data=null;render();
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
+  try{
+    const query=new URLSearchParams({region:'Ireland',capacityMw:String(modelState.capacity)});
+    const response=await fetch(`/api/v1/forecast?${query}`,{signal:controller.signal});
+    const body=await response.json();
+    if(!response.ok)throw new Error(body.error?.message||'Unable to fetch predictions.');
+    if(!Array.isArray(body.predictions)||body.predictions.length!==2)throw new Error('Backend returned an invalid forecast.');
+    if(request===modelRequest)modelState.data=body;
+  }catch(error){if(request===modelRequest)modelState.error=error.name==='AbortError'?'The forecast request timed out. Please retry.':error.message;
+  }finally{clearTimeout(timeout);if(request===modelRequest){modelState.loading=false;render()}}
+}
+document.addEventListener('change',event=>{if(event.target.id==='model-horizon'){modelState.horizon=Number(event.target.value);render()}});
+document.addEventListener('submit',event=>{if(event.target.id!=='model-capacity-form')return;event.preventDefault();const capacity=Number(document.getElementById('model-capacity').value);if(!Number.isFinite(capacity)||capacity<.001||capacity>10000)return;modelState.capacity=capacity;loadModelForecast()});
+document.addEventListener('click',event=>{if(event.target.closest('#model-retry'))loadModelForecast()});
+
+

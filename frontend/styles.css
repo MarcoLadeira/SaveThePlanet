@@ -27,3 +27,29 @@ html,body{width:100%;height:100%;overflow:hidden}
 .setting-number-row{grid-template-columns:minmax(0,1fr) clamp(100px,8vw,136px) 22px;gap:10px}
 .charging-settings .setting-number-row .setting-label{font-size:16px;white-space:nowrap}
 .charging-settings .card-subtitle{font-size:15px}
+/* Model-backed Overview and Forecast controls. */
+.model-controls{align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:16px}
+.model-controls label,.model-controls form,.model-region{display:flex;align-items:center;gap:10px;font-size:15px;color:#52617f}
+.model-controls select,.model-controls input{height:40px;border:1px solid #d6e0f0;border-radius:7px;background:white;color:#233a54;padding:0 10px}
+.model-controls input{width:110px}.model-controls .secondary-button{height:40px;padding:0 16px}
+.model-provenance{font-size:14px;line-height:1.5;color:#52617f;margin:12px 0 18px}
+.model-message{padding:30px;line-height:1.6}.model-message .primary-button{width:auto;padding:0 24px}
+.model-status{flex-direction:column;align-items:flex-end;gap:7px}
+.model-status .status-ready{font-size:14px}
+.model-summary .summary-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}
+.model-summary .mid-value{font-size:25px;white-space:normal;overflow-wrap:anywhere}
+.model-summary .summary-cell{padding-left:16px;padding-right:16px;min-width:0}
+.model-summary .metric-caption{font-size:15px}
+.model-summary .metric-label{font-size:16px}
+.model-summary.overview{min-height:205px}
+.model-summary.overview .summary-metrics{min-height:110px}
+.model-overview-grid .action-lead{font-size:24px;line-height:1.25;margin:18px 0}
+.model-overview-grid .action-description{font-size:16px;line-height:1.4;margin:14px 0}
+.model-overview-grid .metric-caption{font-size:15px}
+.model-overview-grid .action-bottom{margin-top:16px}
+.model-overview-grid .action-divider{margin:12px 0}
+.model-overview-grid .small-value{font-size:24px}
+.model-overview-grid .primary-button{height:48px;font-size:17px;margin-top:16px}
+.model-forecast-grid>.card{min-height:480px}
+.model-forecast-grid .cause-card h3{margin:20px 0 12px}
+.model-overview-grid .action-card h2{margin-bottom:0}
