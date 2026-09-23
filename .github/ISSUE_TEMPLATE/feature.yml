@@ -1,0 +1,28 @@
+name: Feature
+description: Build a product or technical feature
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What should be true when this is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: demo
+    attributes:
+      label: Demo value
+      description: How does this strengthen the hackathon story?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
