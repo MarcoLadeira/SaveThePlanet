@@ -183,7 +183,7 @@ async function loadModelForecast() {
     modelState.data = null;
     render();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 45000);
     try {
         const query = new URLSearchParams({
             region: "Ireland",
