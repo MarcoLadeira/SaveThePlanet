@@ -23,3 +23,11 @@ Charging accepts total and flexible demand in kWh; Impact displays projected rec
 
 The former `python -m http.server 5173` command can still serve static files, but
 cannot provide the product API: the product screens will show an error there.
+
+## Model outage demo
+
+If GridToEv is offline or returns unusable data, the backend supplies a fixed local
+example. All pages show an amber **Demo fallback — simulated data** banner;
+charging inputs and calculations still work. The label cannot be disabled through
+Settings. Click **Retry model** after restarting GridToEv to return to model data.
+The SaveThePlanet backend must remain running. No external assets are needed.

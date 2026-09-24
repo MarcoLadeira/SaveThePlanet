@@ -38,7 +38,8 @@ def build_scenario(forecast, total_kwh, flexible_kwh):
                     flexibleDemandKwh=flexible_kwh, predictions=forecast['predictions'])
     scenario_id = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12]
     return dict(
-        id=scenario_id, dataMode='derived-scenario', totalDemandKwh=total_kwh,
+        id=scenario_id, dataMode='simulated' if forecast['dataMode'] == 'simulated' else 'derived-scenario',
+        source=forecast['source'], totalDemandKwh=total_kwh,
         flexibleDemandKwh=flexible_kwh, totalDemandMwh=total, flexibleDemandMwh=flexible,
         recommendedHorizonMinutes=best['horizonMinutes'] if best['potentialRecoveryMwh'] > 0 else None,
         outcomes=outcomes, commitmentsMet=None, missedTargets=None, connectedEvs=None,

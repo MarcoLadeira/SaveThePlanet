@@ -11,10 +11,14 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 from scenario import build_scenario, validate_demand
+from demo import demo_payload
+from http.client import HTTPException
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_URL = os.environ.get('GRID_TO_EV_API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')
-TIMEOUT = float(os.environ.get('GRID_TO_EV_TIMEOUT_SECONDS', '10'))
+TIMEOUT = float(os.environ.get('GRID_TO_EV_TIMEOUT_SECONDS', '3'))
+if not math.isfinite(TIMEOUT) or not 0 < TIMEOUT <= 10:
+    raise ValueError('GRID_TO_EV_TIMEOUT_SECONDS must be between 0 (exclusive) and 10 seconds.')
 
 
 def number(value, name, minimum=0, maximum=None):
@@ -71,7 +75,8 @@ def normalize(payload, capacity):
         raise ValueError('Forecast horizons must share an issue time and model')
     return dict(generatedAt=datetime.now(timezone.utc).isoformat(), source='grid-to-ev-model',
                 dataMode='historical-prediction', region='Ireland', intervalMinutes=30,
-                flexibleCapacityMw=capacity, modelVersion=points[0]['modelVersion'], predictions=points)
+                flexibleCapacityMw=capacity, modelVersion=points[0]['modelVersion'], predictions=points,
+                fallback={'active': False, 'reason': None})
 
 
 def fetch_forecast(capacity):
@@ -83,6 +88,19 @@ def fetch_forecast(capacity):
     with urlopen(request, timeout=TIMEOUT) as response:
         return normalize(json.load(response), capacity)
 
+
+def available_forecast(capacity):
+    """Always try the model, then use validated demo data for upstream failures."""
+    try:
+        return fetch_forecast(capacity)
+    except (URLError, TimeoutError, OSError, HTTPException):
+        reason = 'MODEL_UNAVAILABLE'
+    except (ValueError, KeyError, TypeError, OverflowError):
+        reason = 'INVALID_MODEL_RESPONSE'
+    forecast = normalize(demo_payload(capacity), capacity)
+    forecast.update(source='local-demo-fixture', dataMode='simulated',
+                    fallback={'active': True, 'reason': reason})
+    return forecast
 
 class ProductServer(ThreadingHTTPServer):
     # Windows SO_REUSEADDR permits two servers to bind the same address, routing
@@ -120,7 +138,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001–10000 MW, and demand 0–1000000000 kWh with flexible demand no greater than total demand.'}})
                 return
             try:
-                forecast = fetch_forecast(capacity)
+                forecast = available_forecast(capacity)
                 if route.path == '/api/v1/scenario':
                     forecast['scenario'] = build_scenario(forecast, total, flexible)
                 self.send_json(200, forecast)
@@ -144,7 +162,7 @@ if __name__ == '__main__':
           Open http://127.0.0.1:{port} to start the application.
           ==========================
           (model: {MODEL_URL})
-          make sure the model is running on port 8000 before starting this server.
+          if the model is unavailable, clearly labelled demo data will be used.
           """, flush=True)
     try:
         server.serve_forever()

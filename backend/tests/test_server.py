@@ -97,8 +97,9 @@ class HttpTests(unittest.TestCase):
                             (KeyError(), 'INVALID_MODEL_RESPONSE')]:
             fetch.side_effect = error
             status, body = self.get('/api/v1/forecast')
-            self.assertEqual(status, 502)
-            self.assertEqual(body['error']['code'], code)
+            self.assertEqual(status, 200)
+            self.assertEqual(body['fallback']['reason'], code)
+            self.assertEqual(body['dataMode'], 'simulated')
 
 
 if __name__ == '__main__':

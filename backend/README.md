@@ -25,7 +25,7 @@ Configuration uses process environment variables (a `.env` file is not auto-load
 
 ```powershell
 $env:GRID_TO_EV_API_BASE_URL = 'http://127.0.0.1:8000'
-$env:GRID_TO_EV_TIMEOUT_SECONDS = '10'
+$env:GRID_TO_EV_TIMEOUT_SECONDS = '3'
 $env:API_PORT = '8080'
 python backend/server.py
 ```
@@ -59,10 +59,7 @@ The response contains `generatedAt`, `source`, `dataMode`, `region`, `modelVersi
 - Unsupported model signals are marked unavailable.
 
 Invalid region/capacity yields HTTP 400 with `error.code=INVALID_REQUEST`.
-Connection/timeout/non-2xx failures yield HTTP 502 with `MODEL_UNAVAILABLE`;
-malformed or inconsistent upstream data yields HTTP 502 with `INVALID_MODEL_RESPONSE`.
-The UI clears old values and offers retry. Automatic demo fallback and the remaining
-issue #12 endpoints are deferred; failures are never silently replaced with demo values.
+Connection/timeout/non-2xx failures and malformed or inconsistent model responses return HTTP 200 with a validated local demo fixture. The payload explicitly marks simulated data and the reason (see below). Invalid user input remains HTTP 400; it never triggers fallback.
 
 ## Verification
 
@@ -72,9 +69,9 @@ node --check frontend/model.js
 node --check frontend/app.js
 ```
 
-Manual: inspect both screens, switch 30/60 minutes, set capacity to 0.1 MW
+Manual: inspect all four screens, switch 30/60 minutes, set capacity to 0.1 MW
 (100 kW, so recovery cannot exceed 0.05 MWh), stop the model and refresh to verify
-the error state, restart the model and retry. Charging and Impact should
+the simulated fallback banner, restart the model and click Retry model. Charging and Impact should
 show the same scenario recovery as Overview.
 
 ## Shared scenario
@@ -108,3 +105,42 @@ demand cannot exceed total demand. Invalid input returns HTTP 400 before calling
 the model. Missing vehicle availability, deadlines and baseline charging schedules
 mean commitments, missed targets and EV counts are explicitly unavailable. No
 financial/emissions estimate or actual charging execution is included.
+
+## Automatic demo fallback
+
+No setup or model connection is required for fallback. Every request first tries
+GridToEv; on connection failure, timeout, non-2xx, truncated response, malformed
+JSON or invalid forecast fields it uses `demo.py`. Both product routes return the
+same normalized contract, and Charging/Impact use the usual scenario calculator.
+
+Fallback provenance:
+
+```json
+{
+  "source": "local-demo-fixture",
+  "dataMode": "simulated",
+  "modelVersion": "demo-fixture-v1",
+  "fallback": {"active": true, "reason": "MODEL_UNAVAILABLE"}
+}
+```
+
+The alternative reason is `INVALID_MODEL_RESPONSE`. Derived scenario data also
+has `dataMode=simulated` and carries the fixture source. A successful model call
+returns `fallback.active=false` with a null reason and normal model provenance.
+The UI shows a permanent amber banner on every page while fallback is active;
+Settings cannot suppress it. Refresh forecast / Retry model always tries the
+model again, clearing the banner on success. There is no background retry timer.
+
+The fixture has fixed timestamps, probabilities and energy values (0.35 and
+0.80 MWh), not random data or a cached successful request. The same input produces
+the same predictions, recovery values and scenario ID. Only `generatedAt` changes.
+User capacity and charging demand are preserved and validated in fallback mode.
+
+Default upstream socket timeout: 3 seconds; configurable in the range (0, 10]
+seconds. The browser request timeout is 15 seconds. This fallback protects against
+model outages; the local SaveThePlanet backend must still be running.
+
+Rehearsal: start only `python backend/server.py` with GridToEv stopped, open the
+app, check the banner on each page and edit charging demand. Start GridToEv and
+click Retry model; the banner disappears and the entered assumptions remain.
+A missing health endpoint and other remaining issue #12 work are separate tasks.
