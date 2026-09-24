@@ -81,14 +81,38 @@ def normalize(payload, capacity):
                 fallback={'active': False, 'reason': None})
 
 
-def fetch_forecast(capacity):
-    headers = {'Accept': 'application/json'}
+# Fixed historical issue time used for demos (must be within the dataset range)
+ISSUE_TIMESTAMP = os.environ.get('GRID_TO_EV_ISSUE_TIMESTAMP', '2026-01-10T00:00:00+00:00')
+
+
+def post_prediction(capacity, horizon):
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
     key = os.environ.get('GRID_TO_EV_API_KEY')
     if key:
         headers['X-API-Key'] = key
-    request = Request(f'{MODEL_URL}/predict/latest?flexible_load_capacity_mw={capacity}', headers=headers)
+    body = json.dumps({
+        'issue_timestamp_utc': ISSUE_TIMESTAMP,
+        'forecast_horizon_minutes': horizon,
+        'flexible_load_capacity_mw': capacity,
+    }).encode()
+    request = Request(f'{MODEL_URL}/predict/from-dataset', data=body, headers=headers, method='POST')
     with urlopen(request, timeout=TIMEOUT) as response:
-        return normalize(json.load(response), capacity)
+        return json.load(response)
+
+
+def fetch_forecast(capacity):
+    rows = [post_prediction(capacity, horizon) for horizon in (30, 60)]
+    return normalize({'predictions': rows}, capacity)
+
+
+# def fetch_forecast(capacity):
+#     headers = {'Accept': 'application/json'}
+#     key = os.environ.get('GRID_TO_EV_API_KEY')
+#     if key:
+#         headers['X-API-Key'] = key
+#     request = Request(f'{MODEL_URL}/predict/latest?flexible_load_capacity_mw={capacity}', headers=headers)
+#     with urlopen(request, timeout=TIMEOUT) as response:
+#         return normalize(json.load(response), capacity)
 
 
 def available_forecast(capacity):
@@ -137,7 +161,7 @@ class Handler(SimpleHTTPRequestHandler):
                 flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
                 validate_demand(total, flexible)
             except (ValueError, TypeError):
-                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001–10000 MW, and demand 0–1000000000 kWh with flexible demand no greater than total demand.'}})
+                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
                 return
             try:
                 forecast = available_forecast(capacity)
