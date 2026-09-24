@@ -1,16 +1,24 @@
 import io
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 from http.client import IncompleteRead
 import test_server as support
-from server import available_forecast, normalize
+from server import available_forecast, normalize, post_prediction
 from demo import demo_payload
 from scenario import build_scenario
 
 
 class FallbackTests(unittest.TestCase):
+    @patch('server.urlopen')
+    def test_transient_model_timeout_recovers_before_fallback(self, open_url):
+        response = MagicMock()
+        response.__enter__.return_value = io.BytesIO(json.dumps(support.sample()['predictions'][0]).encode())
+        open_url.side_effect = [TimeoutError(), response]
+        self.assertEqual(post_prediction(100, 30)['model_version'], 'test')
+        self.assertEqual(open_url.call_count, 2)
+
     def test_fixture_uses_normal_contract_and_is_repeatable(self):
         for capacity in (.001, .1, 100, 10000):
             first = normalize(demo_payload(capacity), capacity)

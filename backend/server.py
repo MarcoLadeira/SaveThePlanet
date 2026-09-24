@@ -7,7 +7,7 @@ import math
 import os
 import socket
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 from scenario import build_scenario, validate_demand
@@ -96,8 +96,16 @@ def post_prediction(capacity, horizon):
         'flexible_load_capacity_mw': capacity,
     }).encode()
     request = Request(f'{MODEL_URL}/predict/from-dataset', data=body, headers=headers, method='POST')
-    with urlopen(request, timeout=TIMEOUT) as response:
-        return json.load(response)
+    for attempt in range(2):
+        try:
+            with urlopen(request, timeout=TIMEOUT) as response:
+                return json.load(response)
+        except HTTPError as error:
+            if attempt or error.code < 500:
+                raise
+        except (URLError, TimeoutError, OSError):
+            if attempt:
+                raise
 
 
 def fetch_forecast(capacity):
