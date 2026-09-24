@@ -26,7 +26,85 @@ function icon(name,size=24,extra=''){
 
 function brand(){return '<svg viewBox="0 0 52 60" aria-label="Renewable Energy Planner"><path fill="#078c58" d="M45 4C22 5 7 12 6 32c-.4 9 5 15 13 15C38 47 45 27 45 4Z"/><path fill="none" stroke="#fff" stroke-width="1.6" d="M5 55C13 38 23 26 39 15"/></svg>'}
 
-const navItems=[['overview','Overview','home'],['forecast','Forecast','forecast'],['charging','Charging','car'],['impact','Impact','leaf']];
+const navItems=[['overview','Dashboard','home'],['forecast','Forecast','forecast'],['charging','Charging','car'],['impact','Impact','leaf']];
+
+function dashboard(){
+  return `${header('Dashboard','Renewable energy recovery and EV charging, at a glance.')}
+    <section class="dashboard-hero" aria-label="Next renewable opportunity">
+      <div class="dashboard-hero-head">
+        <div class="dashboard-eyebrow"><span class="dashboard-pulse"></span> Next opportunity</div>
+        <span class="dashboard-confidence">${icon('check',16)} High forecast confidence</span>
+      </div>
+      <div class="dashboard-hero-body">
+        <div class="dashboard-window">
+          <div class="dashboard-kicker">RENEWABLE SURPLUS WINDOW</div>
+          <h2>12:00 <span>–</span> 14:00</h2>
+          <p class="dashboard-starts">${icon('clock',17)} Starts in 2 hours</p>
+          <p class="dashboard-window-copy">A midday grid constraint creates a clear opportunity to redirect flexible charging.</p>
+        </div>
+        <div class="dashboard-flow" aria-label="Energy recovery summary">
+          <div class="dashboard-flow-metric">
+            <span class="dashboard-flow-label">Energy at risk</span>
+            <strong class="dashboard-flow-value risk">42 <small>MWh</small></strong>
+            <span class="dashboard-flow-caption">renewable generation</span>
+          </div>
+          <div class="dashboard-flow-metric">
+            <span class="dashboard-flow-label">Charging to shift</span>
+            <strong class="dashboard-flow-value">31 <small>MWh</small></strong>
+            <span class="dashboard-flow-caption">available flexibility</span>
+          </div>
+          <div class="dashboard-flow-metric">
+            <span class="dashboard-flow-label">Recoverable</span>
+            <strong class="dashboard-flow-value recovery">29 <small>MWh</small></strong>
+            <span class="dashboard-flow-caption">clean energy retained</span>
+          </div>
+        </div>
+      </div>
+      <div class="dashboard-hero-footer">
+        <span>Likely cause <strong>Local grid constraint</strong></span>
+        <span>Model scenario · demo values</span>
+      </div>
+    </section>
+    <div class="dashboard-grid">
+      <section class="card dashboard-chart-card">
+        <div class="dashboard-chart-head">
+          <div>
+            <div class="dashboard-section-kicker">ENERGY OUTLOOK</div>
+            <h2 class="card-title">The next 24 hours</h2>
+            <p class="card-subtitle">Renewable energy at risk and planned EV charging</p>
+          </div>
+          ${legend([['red','At risk'],['green','Planned charging']])}
+        </div>
+        <div class="chart-holder">${chart('overview')}</div>
+        <div class="dashboard-chart-footer">
+          <div><span>Peak energy at risk</span><strong>47 MWh</strong></div>
+          <div><span>Best charging window</span><strong>12:00 – 14:00</strong></div>
+          <button type="button" data-page="forecast">View forecast ${icon('arrow',17)}</button>
+        </div>
+      </section>
+      <section class="card dashboard-action-card">
+        <div class="dashboard-action-head">
+          <span class="dashboard-action-symbol">${icon('swap',20)}</span>
+          <span>Recommended action</span>
+          <span class="dashboard-plan-badge">Plan ready</span>
+        </div>
+        <h2>Put surplus energy to work.</h2>
+        <p class="dashboard-action-copy">Move <strong>31 MWh</strong> of flexible EV charging into the <strong>12:00 – 14:00</strong> window.</p>
+        <div class="dashboard-recovery">
+          <div><span>Expected clean energy recovered</span><strong>29 MWh</strong></div>
+          ${icon('leaf',29)}
+        </div>
+        <div class="dashboard-assurances">
+          <span>${icon('check',17)} 206 EVs stay on schedule</span>
+          <span>${icon('check',17)} No missed charge targets</span>
+        </div>
+        <div class="dashboard-action-bottom">
+          <button class="primary-button" type="button" data-page="charging">Review charging plan ${icon('arrow',22)}</button>
+          <button class="text-link" type="button" data-modal="recommendation">Why this recommendation? ${icon('arrow',16)}</button>
+        </div>
+      </section>
+    </div>`
+}
 const defaults={region:'Ireland',horizon:'Next 24 hours',timezone:'Europe/Dublin',units:'MWh',refresh:'Every 30 minutes',confidence:'75',dispatch:true,uncertainty:true,cause:true,prioritise:true,preserve:true,optimise:true,highRisk:true,lowFlex:true,missed:true,daily:true,explanations:true,demo:true,csv:true,audit:true,email:true,inapp:true,siteLimit:'100',battery:'20'};
 let settings={...defaults};
 let saved=true;
@@ -54,7 +132,6 @@ function chart(type,width=820){const small=type==='impact',max=type==='forecast'
   return `<svg viewBox="0 0 ${width} ${height}" data-chart-type="${type}" data-chart-width="${width}" role="img" aria-label="${type} chart over 24 hours"><defs><linearGradient id="redArea" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f04449" stop-opacity=".21"/><stop offset="1" stop-color="#f04449" stop-opacity=".02"/></linearGradient><linearGradient id="greenArea" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#04985d" stop-opacity=".2"/><stop offset="1" stop-color="#04985d" stop-opacity=".03"/></linearGradient><linearGradient id="greyArea" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#aeb7c8" stop-opacity=".13"/><stop offset="1" stop-color="#aeb7c8" stop-opacity=".02"/></linearGradient><linearGradient id="forecastArea" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f15156" stop-opacity=".17"/><stop offset="1" stop-color="#f15156" stop-opacity=".01"/></linearGradient></defs><text x="2" y="${small?22:34}" font-size="16" fill="#52617f">${type==='charging'?'MW':'MWh'}</text>${annotation[0]?`<text x="${xhour(12.7)}" y="${annotationY}" text-anchor="middle" font-size="${small?13:15}" fill="${type==='forecast'?'#c80000':type==='overview'?'#52617f':'#006f46'}">${annotation[0]}</text>`:''}${annotation[1]?`<text x="${xhour(12.7)}" y="${annotationY+20}" text-anchor="middle" font-size="${small?13:15}" fill="${type==='forecast'?'#c80000':'#006f46'}">${annotation[1]}</text>`:''}${lines.map(v=>`<line x1="${plot.x}" y1="${tickY(v)}" x2="${plot.x+plot.w}" y2="${tickY(v)}" stroke="#dfe7f2"/><text x="${plot.x-14}" y="${tickY(v)+5}" text-anchor="end" font-size="16" fill="#50617f">${v}</text>`).join('')}${[0,6,12,18,24].map(h=>`<line x1="${xhour(h)}" y1="${plot.y}" x2="${xhour(h)}" y2="${plot.y+plot.h}" stroke="#e2e9f3"/>`).join('')}${riskWindow}${layers}${[0,6,12,18,24].map(h=>`<text x="${xhour(h)}" y="${plot.y+plot.h+28}" text-anchor="middle" font-size="16" fill="#50617f">${String(h).padStart(2,'0')}:00</text>`).join('')}</svg>`;
 }
 
-function overview(){return `${header('Overview','Renewable dispatch-down and EV charging plan')}<section class="card summary-card overview"><h2 class="card-title">Next opportunity</h2><div class="summary-metrics"><div class="summary-cell"><div class="metric-label">Time window</div>${metricTime()}</div><div class="summary-cell"><div class="risk-label">At risk</div><div class="big-value red">42 MWh</div><div class="metric-caption">of renewable energy</div></div><div class="summary-cell"><div class="metric-label">EV flexibility available</div><div class="big-value green">31 MWh</div><div class="metric-caption">from flexible charging</div></div><div class="summary-cell"><div class="metric-label">Expected to be recovered</div><div class="big-value green">29 MWh</div><div class="metric-caption">of renewable energy</div></div><div class="summary-cell"><div class="metric-label">Forecast confidence</div><div><span class="pill green-pill">High</span></div><div class="metric-label" style="margin-top:26px;margin-bottom:0">Likely cause</div><div class="metric-caption" style="margin-top:2px">local grid constraint</div></div></div>${icon('arrow',34,'summary-arrow one')}${icon('arrow',34,'summary-arrow two')}</section><div class="overview-grid"><section class="card chart-card"><div class="chart-top"><div><h2 class="card-title">Next 24 hours</h2><p class="card-subtitle">Renewable energy at risk vs planned EV charging</p></div>${legend([['red','At risk'],['green','Planned charging']])}</div><div class="chart-holder">${chart('overview')}</div></section><section class="card action-card"><h2 class="card-title">Recommended action</h2><p class="action-lead">Shift 31 MWh of flexible EV<br class="desktop-break"> charging into 12:00 – 14:00.</p><p class="action-description">Recover ~29 MWh of renewable energy.</p><button class="primary-button" type="button" data-page="charging">Review charging plan ${icon('arrow',28)}</button><button class="text-link" type="button" data-modal="recommendation">Why this recommendation?</button><div class="action-bottom"><div class="action-divider"></div><div class="metric-label" style="margin-bottom:16px">Today</div><div class="mini-stats"><div><span class="small-value">29 MWh</span><div class="metric-caption">recovered</div></div><div><span class="small-value">74%</span><div class="metric-caption">recovery rate</div></div></div></div></section></div>`}
 
 function forecast(){return `${header('Forecast','Predict when, where and why renewable energy may be dispatched down.',)}${filters()}<section class="card summary-card forecast-summary"><h2 class="card-title">Next risk window</h2><div class="summary-metrics"><div class="summary-cell">${metricTime()}</div><div class="summary-cell"><div class="metric-label">Dispatch-down probability</div><div class="big-value red">87%</div></div><div class="summary-cell"><div class="metric-label">Expected energy at risk</div><div class="mid-value red">42 MWh</div></div><div class="summary-cell"><div class="metric-label">Forecast range</div><div class="small-value">34 – 51 MWh</div></div><div class="summary-cell"><div class="metric-label">Likely cause</div><div><span class="pill red-pill">Local grid constraint</span></div></div></div><div class="summary-note">Model forecast • demo values ${info('model forecast')}</div></section><div class="forecast-grid"><section class="card chart-card"><h2 class="card-title">24-hour dispatch-down forecast</h2><div class="chart-holder">${chart('forecast')}</div><div class="chart-bottom">${legend([['red','Expected energy at risk'],['pink','Forecast range (uncertainty)']])}</div></section><section class="card cause-card"><h2 class="card-title">Why risk is rising</h2><div class="cause-rows"><div class="cause-row">${icon('turbine',28)}<span class="cause-name">Renewable output</span><span class="pill red-pill">High</span></div><div class="cause-row">${icon('forecast',28)}<span class="cause-name">System demand</span><span class="pill green-pill">Low</span></div><div class="cause-row">${icon('tower',28)}<span class="cause-name">Grid headroom</span><span class="pill red-pill">Tight</span></div><div class="cause-row">${icon('pulse',28)}<span class="cause-name">SNSP pressure</span><span class="pill red-pill">High</span></div><div class="cause-row-detail">Current operating limit: 75% ${info('SNSP pressure')}</div></div><div class="section-line"></div><div class="cause-breakdown-title">Likely cause breakdown</div>${[['Constraint',61],['Curtailment',29],['Market',10]].map(([label,pct])=>`<div class="bar-row"><span class="subtle">${label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%;opacity:${pct===61?1:pct===29?.8:.65}"></div></div><span>${pct}%</span></div>`).join('')}<button class="text-link bottom-link" type="button" data-modal="forecast">How this forecast is calculated ${icon('arrow',19)}</button></section></div>`}
 
@@ -78,7 +155,7 @@ const modalCopy={
 function modal(){if(!modalName)return '';const [title,body,stat]=modalName.startsWith('info:')?[modalName.slice(5),'This control changes how information is presented in the interface. Values shown throughout the app are demo figures.','UI preference']:modalCopy[modalName]||modalCopy.recommendation;return `<div class="modal-backdrop" data-action="close-modal"><section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><div class="modal-head"><h2>${title}</h2><button class="modal-close" type="button" data-action="close-modal" aria-label="Close">×</button></div><p>${body}</p><div class="modal-stat">${stat}</div><button class="primary-button" type="button" data-action="close-modal">Done ${icon('check',20)}</button></section></div>`}
 function sizeCharts(){document.querySelectorAll('.chart-holder svg[data-chart-type]').forEach(svg=>{const width=Math.round(svg.parentElement.clientWidth);if(width>0&&Number(svg.dataset.chartWidth)!==width)svg.outerHTML=chart(svg.dataset.chartType,width)})}
 function fitDesktop(){const shell=document.querySelector('.app-shell');if(!shell)return;const scale=Math.min(window.innerHeight/960,window.innerWidth/1440);shell.style.width=`${window.innerWidth/scale}px`;shell.style.height=`${window.innerHeight/scale}px`;shell.style.transform=`scale(${scale})`;shell.style.left='0px';sizeCharts()}
-function render(){const page=pageFromHash();const views={overview,forecast,charging,impact,settings:settingsPage};document.getElementById('app').innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main">${views[page]()}</main>${modal()}</div>`;document.title=`${page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;fitDesktop()}
+function render(){const page=pageFromHash();const views={overview:dashboard,forecast,charging,impact,settings:settingsPage};document.getElementById('app').innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main">${views[page]()}</main>${modal()}</div>`;document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;fitDesktop()}
 
 document.addEventListener('click',event=>{const pageButton=event.target.closest('[data-page]');if(pageButton){navigate(pageButton.dataset.page);return}const toggleButton=event.target.closest('[data-toggle]');if(toggleButton){settings[toggleButton.dataset.toggle]=!settings[toggleButton.dataset.toggle];saved=false;render();return}const modalButton=event.target.closest('[data-modal]');if(modalButton){modalName=modalButton.dataset.modal;render();return}const actionButton=event.target.closest('[data-action]');if(!actionButton)return;const action=actionButton.dataset.action;if(action==='close-modal'){if(actionButton.classList.contains('modal-backdrop')&&event.target!==actionButton)return;modalName=null;render();return}if(action==='reset'){settings={...defaults};saved=false;savedNow=false;render();return}if(action==='save'){saved=true;savedNow=true;render();return}});
 document.addEventListener('change',event=>{const el=event.target.closest('[data-setting]');if(!el)return;settings[el.dataset.setting]=el.type==='checkbox'?el.checked:el.value;saved=false;if(pageFromHash()==='settings'){const status=document.querySelector('.status-meta');if(status)status.textContent='Unsaved changes'}else if(el.dataset.setting==='region'){render()}});

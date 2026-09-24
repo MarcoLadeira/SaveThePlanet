@@ -1,6 +1,8 @@
 # Frontend
 
-Desktop UI prototype for the renewable energy and EV charging planner. It includes Overview, Forecast, Charging, Impact, and Settings screens based on the product designs.
+Desktop UI prototype for the renewable energy and EV charging planner. It includes Dashboard, Forecast, Charging, Impact, and Settings screens based on the product designs.
+
+![Dashboard preview](../docs/screenshots/dashboard.png)
 
 ## Run locally
 
