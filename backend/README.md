@@ -4,34 +4,32 @@ Overview, Forecast, Charging and Impact share one forecast and charging scenario
 
 ## Start locally
 
-1. Start GridToEv in its repository using its installed Python environment:
+1. Copy `.env.example` to `.env` in the SaveThePlanet root and set your API key.
+   The hosted model URL is already in the example. `.env` is ignored by Git.
+2. On Windows, double-click `Start-App.cmd`. It starts the backend and opens the
+   browser. Python must be installed. Keep its window open while using the app.
+   Alternatively run `python backend/server.py` from the repository root.
+3. Open http://127.0.0.1:8080 if the browser does not open automatically.
 
-   ```powershell
-   cd C:\Users\jerry\source\repos\GridToEv
-   .\.venv\Scripts\python.exe -m uvicorn gridtoev.api:app --app-dir src --host 127.0.0.1 --port 8000
-   ```
+The backend automatically loads the project-root `.env`, regardless of the current
+working directory. Existing process environment variables override file values.
+Restart after changing configuration. Stop any existing backend before launching
+another instance. The frontend and product API share one origin, so no frontend
+build, extra Python dependencies or CORS setup is needed.
 
-2. In another terminal, from SaveThePlanet:
-
-   ```powershell
-   python backend/server.py
-   ```
-
-3. Open http://127.0.0.1:8080. This server hosts both the frontend and product API;
-   no frontend build, extra Python dependencies, or CORS setup is needed.
-   Do not use the standalone port-5173 static server for the integrated screens.
-
-Configuration uses process environment variables (a `.env` file is not auto-loaded):
-
-```powershell
-$env:GRID_TO_EV_API_BASE_URL = 'http://127.0.0.1:8000'
-$env:GRID_TO_EV_TIMEOUT_SECONDS = '3'
-$env:API_PORT = '8080'
-python backend/server.py
+```dotenv
+API_PORT=8080
+GRID_TO_EV_API_BASE_URL=https://gridtoev-api.onrender.com
+GRID_TO_EV_API_KEY=PASTE_YOUR_API_KEY_HERE
+GRID_TO_EV_TIMEOUT_SECONDS=10
 ```
 
-An optional `GRID_TO_EV_API_KEY` is sent as a Bearer token by the backend only.
-The current GridToEv API does not require authentication.
+Only the backend reads the key and sends it in `X-API-Key`. Never put a real key in
+`.env.example` or browser code. Supported .env syntax: KEY=value, quoted literal
+values, comments and optional `export`. Shell expansion is not performed.
+
+For a local model instead, set `GRID_TO_EV_API_BASE_URL=http://127.0.0.1:8000`,
+clear the key if unnecessary, and start GridToEv separately using its README.
 
 ## Contract and scope
 

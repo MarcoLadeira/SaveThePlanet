@@ -13,8 +13,10 @@ from urllib.request import Request, urlopen
 from scenario import build_scenario, validate_demand
 from demo import demo_payload
 from http.client import HTTPException
+from config import load_env
 
 ROOT = Path(__file__).resolve().parents[1]
+load_env(ROOT / '.env')
 MODEL_URL = os.environ.get('GRID_TO_EV_API_BASE_URL', 'http://127.0.0.1:8000').rstrip('/')
 TIMEOUT = float(os.environ.get('GRID_TO_EV_TIMEOUT_SECONDS', '3'))
 if not math.isfinite(TIMEOUT) or not 0 < TIMEOUT <= 10:
@@ -83,7 +85,7 @@ def fetch_forecast(capacity):
     headers = {'Accept': 'application/json'}
     key = os.environ.get('GRID_TO_EV_API_KEY')
     if key:
-        headers['Authorization'] = f'Bearer {key}'
+        headers['X-API-Key'] = key
     request = Request(f'{MODEL_URL}/predict/latest?flexible_load_capacity_mw={capacity}', headers=headers)
     with urlopen(request, timeout=TIMEOUT) as response:
         return normalize(json.load(response), capacity)
@@ -164,6 +166,10 @@ if __name__ == '__main__':
           (model: {MODEL_URL})
           if the model is unavailable, clearly labelled demo data will be used.
           """, flush=True)
+    import sys
+    if '--open-browser' in sys.argv:
+        import webbrowser
+        webbrowser.open(f'http://127.0.0.1:{port}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:

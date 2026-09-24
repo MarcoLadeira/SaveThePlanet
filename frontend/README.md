@@ -6,7 +6,7 @@ Desktop UI prototype for the renewable energy and EV charging planner. It includ
 
 ## Integrated local run
 
-Start the GridToEv model API on port 8000, then from the SaveThePlanet root:
+Configure the hosted model in the project-root `.env`, then double-click `Start-App.cmd` on Windows. Alternatively, from the SaveThePlanet root:
 
 ```powershell
 python backend/server.py
