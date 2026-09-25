@@ -37,5 +37,16 @@ cannot provide the product API: the product screens will show an error there.
 If GridToEv is offline or returns unusable data, the backend supplies a fixed local
 example. All pages show an amber **Demo fallback — simulated data** banner;
 charging inputs and calculations still work. The label cannot be disabled through
-Settings. Click **Retry model** after restarting GridToEv to return to model data.
+Settings. The banner states why the model is unavailable, from `/api/v1/health`.
+Click **Retry model** after restarting GridToEv to return to model data.
 The SaveThePlanet backend must remain running. No external assets are needed.
+
+## Settings
+
+Settings reads its facts from the API rather than hard-coded text: region, energy
+interval and forecast targets come from the forecast response; charging inputs and
+scenario ID are the values the backend actually used; *About this workspace* lists
+the backend scenario methodology; *Model connection* shows `/api/v1/health` (status,
+reason code and explanation, model version, response time, last check, service type,
+whether an API key is set) plus the data mode and last-updated time. Timezone,
+appearance and the display toggles remain local preferences.
