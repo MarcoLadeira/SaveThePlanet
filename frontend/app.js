@@ -15,8 +15,7 @@ const icons = {
   pulse:'<path d="M2 12h5l2-5 3 12 3-15 2 8h5"/>',
   pie:'<circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 10h18"/>',
-  bolt:'<path d="m13 2-8 11h6l-1 9 9-12h-6l0-8Z"/>',
-  bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/>'
+  bolt:'<path d="m13 2-8 11h6l-1 9 9-12h-6l0-8Z"/>'
 };
 function icon(name,size=24,extra='') {return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${extra}">${icons[name]}</svg>`}
 function brand(){return '<svg class="brand-leaf" viewBox="0 0 26 30" role="img" aria-label="Renewable Energy Planner"><defs><linearGradient id="brand-leaf-fill" gradientUnits="userSpaceOnUse" x1="4.2" y1="3.5" x2="22.7" y2="18.8"><stop offset="0" stop-color="#03955f"/><stop offset=".4" stop-color="#04a36c"/><stop offset=".585" stop-color="#07ae74"/><stop offset=".59" stop-color="#1dc389"/><stop offset=".78" stop-color="#3dd89a"/><stop offset=".92" stop-color="#5ee4aa"/><stop offset="1" stop-color="#7eefc1"/></linearGradient><linearGradient id="brand-leaf-vein" gradientUnits="userSpaceOnUse" x1="1" y1="29.5" x2="24.5" y2="1"><stop offset="0" stop-color="#01452f"/><stop offset=".55" stop-color="#01452f" stop-opacity=".9"/><stop offset="1" stop-color="#01452f" stop-opacity="0"/></linearGradient></defs><path fill="url(#brand-leaf-fill)" d="M25 .5C25 10 24 17 19.5 22.5 15.5 27.5 9 29.4 1.2 29.6.1 21 0 12.5 2.3 8.2 5.6 2.4 13 .5 25 .5Z"/><path fill="url(#brand-leaf-vein)" d="M.4 29.1 24 1.2 24.4 1.6 2.1 30.3Z"/></svg>'}

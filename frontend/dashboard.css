@@ -40,13 +40,7 @@
 .dash-pill{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 15px;border-radius:14px;background:var(--surface);box-shadow:0 3px 0 var(--edge);font-size:13.5px;font-weight:650;color:var(--ink);white-space:nowrap}
 .dash-pill svg{color:var(--green);stroke-width:2}
 .dash-actions{margin-left:auto;display:flex;align-items:center;gap:14px}
-.dash-live{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 13px;border-radius:12px;background:var(--green-soft);color:var(--green-deep);font-size:12.5px;font-weight:700;white-space:nowrap}
-.dashboard-main[data-theme="dark"] .dash-live{color:var(--green-top)}
-.dash-live i{width:8px;height:8px;border-radius:50%;background:var(--green)}
 .dash-demo{font-size:12.5px;font-weight:600;color:var(--ink-3);white-space:nowrap}
-.dash-theme{display:grid;place-items:center;width:42px;height:42px;border:0;border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 3px 0 var(--edge);transition:transform .15s ease,box-shadow .15s ease}
-.dash-theme:hover{transform:translateY(-1px);box-shadow:0 4px 0 var(--edge)}
-.dash-theme svg{width:20px;height:20px}
 
 /* ---------- Grid & cards ---------- */
 .dash-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(340px,.92fr);grid-template-rows:minmax(290px,.64fr) minmax(0,1fr);gap:22px}
