@@ -1,26 +1,25 @@
 :root,button,input,select,svg text{font-family:"Segoe UI",Arial,sans-serif}
-.sidebar.dash-sidebar{width:227px;padding:22px 12px 18px;background:linear-gradient(163deg,#0c4338 0%,#0c4c43 51%,#103e3d 100%);border:0;color:#effdf7;overflow:hidden}
-.dash-sidebar .brand{position:relative;z-index:2;gap:12px;height:82px;padding:0 12px 17px}
-.dash-sidebar .brand svg{width:39px;height:47px}
-.dash-sidebar .brand svg path:first-child{fill:#16c386}
-.dash-sidebar .brand-name{font-size:16px;line-height:1.18;color:#f6fffb;letter-spacing:-.025em}
-.dash-sidebar .brand-name small{font-size:15px;font-weight:400;color:#d0e7df;letter-spacing:0}
-.dash-sidebar .brand-name em{margin-top:4px;font-size:10px;font-style:normal;font-weight:650;letter-spacing:.045em;color:#cce7dc}
-.dash-sidebar .nav{position:relative;z-index:2;gap:10px}
-.dash-sidebar .nav-item{position:relative;height:59px;padding:0 7px;gap:15px;border-radius:17px;color:#e8f8f2;font-size:14px;font-weight:520;transition:background-color .23s ease,color .23s ease,transform .23s ease}
-.dash-sidebar .nav-item:hover{background:rgba(78,181,132,.18);color:#fff;transform:translateX(2px)}
-.dash-sidebar .nav-item.active{background:linear-gradient(105deg,#106e53,#288966);color:#fff;font-weight:750;box-shadow:inset 0 0 0 1px rgba(176,252,209,.08)}
-.dash-sidebar .nav-item.active:before{content:"";position:absolute;left:-12px;top:-10px;bottom:-10px;width:6px;border-radius:0 8px 8px 0;background:#6fe1af}
+/* Sidebar: measured against the reference mock-up (227px wide; art, slogan and Settings are anchored to the bottom). */
+.sidebar.dash-sidebar{--art-bottom:clamp(78px,100% - 807px,107px);width:227px;padding:0;border:0;overflow:hidden;color:#f3fbf8;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#083d33 0%,#083c33 30%,#093c36 42%,#093938 60%,#093938 100%)}
+.dash-sidebar .brand{position:absolute;z-index:2;left:25.3px;top:23.7px;display:block;height:auto;padding:0}
+.dash-sidebar .brand svg{display:block;width:36.2px;height:41.8px}
+.dash-sidebar .brand-name{position:absolute;left:48.5px;top:-3.2px;display:flex;flex-direction:column;white-space:nowrap;font-size:18px;line-height:22.5px;font-weight:600;letter-spacing:0;color:#fff}
+.dash-sidebar .brand-name small{font-size:17px;line-height:22.5px;font-weight:400;letter-spacing:0;color:rgba(255,255,255,.9)}
+.dash-sidebar .brand-name em{margin-top:4.3px;font-size:12px;line-height:14px;font-style:normal;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.76)}
+.dash-sidebar .nav{position:absolute;z-index:2;left:16px;right:9px;top:124.4px;display:flex;flex-direction:column;gap:18.7px}
+.dash-sidebar .nav-item{position:relative;display:flex;align-items:center;width:100%;height:57.7px;padding:0 0 0 6px;gap:17.5px;border:0;border-radius:14.5px;background:transparent;color:#e4efeb;font-size:15.6px;font-weight:600;letter-spacing:0;text-align:left;transition:background-color .2s ease,color .2s ease}
+.dash-sidebar .nav-item:hover{background:rgba(255,255,255,.05);color:#fff;transform:none}
+.dash-sidebar .nav-item:focus-visible{outline:2px solid #5ce9ad;outline-offset:2px}
+.dash-sidebar .nav-item.active{background:linear-gradient(90deg,#0a6749 0%,#0b6a4b 27%,#0d7251 43%,#127755 60%,#187758 76%,#227c5e 93%,#278160 100%);color:#fff;font-weight:700;box-shadow:0 8px 18px -8px rgba(0,18,13,.55)}
+.dash-sidebar .nav-item.active:before{content:"";position:absolute;left:-16px;top:-12.3px;bottom:-8.8px;width:6.4px;border-radius:0 4px 4px 0;background:#5ce9ad}
 .dash-sidebar .nav-item.active:after{display:none}
-.dash-sidebar .nav-icon{flex:0 0 44px;width:44px;height:44px;padding:10px;border-radius:14px;background:rgba(255,255,255,.025);color:#effff8;box-shadow:inset 0 0 0 1px rgba(222,252,237,.15);transition:background-color .23s ease,box-shadow .23s ease,transform .23s ease}
-.dash-sidebar .nav-item.active .nav-icon{background:#0aa16f;color:#fff;box-shadow:0 4px 14px rgba(1,33,25,.24)}
-.dash-sidebar .nav-item:hover .nav-icon{transform:scale(1.05)}
-.dash-sidebar .sidebar-art{position:absolute;z-index:0;left:0;right:0;bottom:99px;height:45%;background:url('./sidebar-landscape.svg') center bottom/cover no-repeat;pointer-events:none}
-.dash-sidebar .sidebar-slogan{position:absolute;z-index:1;left:28px;bottom:113px;margin:0;font-size:19px;line-height:1.25;font-weight:460;letter-spacing:-.02em;color:#f2fff8;text-shadow:0 1px 4px rgba(0,46,37,.35)}
-.dash-sidebar .sidebar-slogan i{display:block;width:19px;height:4px;margin-top:12px;border-radius:5px;background:#f0ab3f}
-.dash-sidebar .sidebar-bottom{position:relative;z-index:2;margin-top:auto}
-.dash-sidebar .sidebar-bottom .nav-item{background:rgba(1,45,41,.22)}
-.dash-sidebar .sidebar-bottom .nav-item.active{background:linear-gradient(105deg,#106e53,#288966)}
+.dash-sidebar .nav-icon{display:grid;place-items:center;flex:0 0 45px;width:45px;height:46px;padding:0;border-radius:12.5px;background:rgba(255,255,255,.02);color:#fff;box-shadow:inset 0 0 0 1px rgba(214,255,238,.16);transition:background-color .2s ease,box-shadow .2s ease}
+.dash-sidebar .nav-icon svg{display:block;width:28px;height:28px}
+.dash-sidebar .nav-item.active .nav-icon{background:linear-gradient(165deg,#0bb074 0%,#06a169 55%,#079560 100%);color:#fff;box-shadow:0 5px 12px rgba(0,32,22,.35),inset 0 1px 0 rgba(255,255,255,.1)}
+.dash-sidebar .sidebar-art{position:absolute;z-index:0;left:0;bottom:var(--art-bottom);width:227px;height:501.3px;background:url('./sidebar-landscape.svg?v=20260925e') center bottom/100% 100% no-repeat;pointer-events:none}
+.dash-sidebar .sidebar-slogan{position:absolute;z-index:1;left:28px;bottom:calc(var(--art-bottom) + 5.6px);margin:0;font-size:21.6px;line-height:25.1px;font-weight:400;letter-spacing:0;color:#eef6f3;text-shadow:0 1px 3px rgba(0,22,17,.35)}
+.dash-sidebar .sidebar-slogan i{display:block;width:18.5px;height:3.8px;margin-top:8.6px;border-radius:2px;background:#f7ab12}
+.dash-sidebar .sidebar-bottom{position:absolute;z-index:2;left:16px;right:9px;bottom:19.4px;margin:0}
 .app-shell .main.dashboard-main{margin-left:227px;width:calc(100% - 227px)}
 .dashboard-main .studio-header-actions{display:flex;align-items:center;gap:14px;margin-left:auto}
 .dashboard-main .studio-target{display:inline-flex;align-items:center;gap:11px}
