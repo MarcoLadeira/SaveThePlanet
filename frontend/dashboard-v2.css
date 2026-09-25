@@ -112,7 +112,50 @@
 .dashboard-redesign .dash-chart-legend i{border-radius:50%;width:10px;height:10px}
 .dashboard-redesign .dash-chart-legend i.is-risk{background:#f6a327}
 .dashboard-redesign .dash-chart-legend i.is-charge{background:#0eaa76}
-.dashboard-redesign .dash-chart-host{margin:0;min-height:0;overflow:hidden}
+.dashboard-redesign .dash-chart-host{margin:0;min-height:0;overflow:visible}
+.outlook-plot{position:relative;width:100%;height:100%;min-height:0}
+.outlook-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.outlook-platform{fill:#f5f8ff;stroke:#b8c9df;stroke-width:1.5}
+.outlook-platform-side{fill:#e6edf7}
+.outlook-gridline{fill:none;stroke:#cbd9ed;stroke-width:1;stroke-dasharray:6 6}
+.outlook-axis{fill:none;stroke:#8296b8;stroke-width:1.5}
+.outlook-tick,.outlook-target{fill:#526989;font-size:20px;font-weight:500}
+.outlook-target{font-size:18px}
+.outlook-selected-guide{fill:none;stroke:#95a9c6;stroke-width:1;stroke-dasharray:4 5}
+.outlook-face{stroke-width:1;stroke-linejoin:round}
+.outlook-risk-face{fill:#ffe2c8;stroke:#ffad6b}
+.outlook-risk-side{fill:#f8b584}
+.outlook-risk-line{stroke:#f47b19}
+.outlook-save-face{fill:#c9f3e5;stroke:#64cbb0}
+.outlook-save-side{fill:#80d5be}
+.outlook-save-line{stroke:#009f7b}
+.outlook-line{fill:none;stroke-width:5;stroke-linecap:round}
+.outlook-remaining-line{fill:none;stroke:#ad8170;stroke-width:2;stroke-dasharray:6 5}
+.outlook-point{cursor:pointer;outline:none}
+.outlook-point-hit{fill:transparent}
+.outlook-point-mark{fill:#fff;stroke-width:5;transition:r .18s ease,stroke-width .18s ease}
+.outlook-risk-point .outlook-point-mark{stroke:#ed7818}
+.outlook-save-point .outlook-point-mark{stroke:#009a77}
+.outlook-point:hover .outlook-point-mark,.outlook-point:focus-visible .outlook-point-mark{r:9;stroke-width:6}
+.outlook-point:focus-visible .outlook-point-hit{fill:none;stroke:#557bb0;stroke-width:2}
+.outlook-tooltip{position:absolute;z-index:2;top:1px;left:28%;transform:translateX(-50%);width:max-content;min-width:105px;max-width:min(240px,43%);padding:8px 12px;border:1px solid #f1dcc9;border-radius:12px;background:#fffdfb;box-shadow:0 5px 17px #a8784829;color:#576a82;font-size:12px;line-height:1.35;pointer-events:none}
+.outlook-tooltip[data-point="1"]{left:73%}
+.outlook-tooltip strong{display:block;color:#d66e1d;font-size:17px;white-space:nowrap}
+.outlook-tooltip:not(.is-detail) span{display:block;text-align:center}
+.outlook-tooltip.is-detail{left:50%;width:220px;max-width:80%;padding:10px 12px;background:#fff}
+.outlook-tooltip.is-detail strong{margin-bottom:6px;color:#20334a;font-size:12px}
+.outlook-tooltip.is-detail span{display:flex;justify-content:space-between;gap:9px;margin-top:3px}
+.outlook-tooltip.is-detail b{color:#163947;text-align:right;white-space:nowrap}
+.outlook-plot.is-recovery .outlook-risk-face{fill:#f4e9dd;stroke:#d8b296}
+.outlook-plot.is-recovery .outlook-risk-side{fill:#d9c0aa}
+.outlook-plot.is-recovery .outlook-risk-line{stroke:#b88969;stroke-width:3}
+.outlook-plot.is-recovery .outlook-save-face{fill:#adedd7;stroke:#30b78f}
+.outlook-plot.is-recovery .outlook-save-line{stroke:#008f70;stroke-width:6}
+.outlook-plot.is-recovery .outlook-tooltip{border-color:#ccecdf;box-shadow:0 5px 17px #248c6726}
+.outlook-plot.is-recovery .outlook-tooltip:not(.is-detail) strong{color:#008f70}
+.dashboard-redesign .dash-chart-legend i.is-remaining{background:#ad8170}
+.outlook-empty{margin:auto;color:var(--ink-2);font-size:13px}
+@media(prefers-reduced-motion:reduce){.outlook-point-mark{transition:none}}
 .dashboard-redesign .dash-insight{gap:11px;padding:7px 8px;background:#eff7f8;border-radius:14px}
 .dashboard-redesign .dash-insight .dash-tile{flex-basis:32px;width:32px;height:32px;border-radius:10px;background:#fff0d9;color:#955e17}
 .dashboard-redesign .dash-insight strong{font-size:11.5px;color:#16303a}
@@ -149,6 +192,27 @@
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-host svg path[stroke="#b8cdd3"]{stroke:#54776b}
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-host svg text[fill="#627883"],.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-host svg text[fill="#435d65"]{fill:#bed9cc}
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-legend small,.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-insight span{color:#a9c9bc}
+.dashboard-main[data-theme="dark"] .outlook-platform{fill:#1c352e;stroke:#547166}
+.dashboard-main[data-theme="dark"] .outlook-platform-side{fill:#162c26}
+.dashboard-main[data-theme="dark"] .outlook-gridline{stroke:#658476}
+.dashboard-main[data-theme="dark"] .outlook-axis,.dashboard-main[data-theme="dark"] .outlook-selected-guide{stroke:#a5bdad}
+.dashboard-main[data-theme="dark"] .outlook-tick,.dashboard-main[data-theme="dark"] .outlook-target{fill:#e0f0e5}
+.dashboard-main[data-theme="dark"] .outlook-risk-face{fill:#70452f;stroke:#cd8b5d}
+.dashboard-main[data-theme="dark"] .outlook-risk-side{fill:#825036}
+.dashboard-main[data-theme="dark"] .outlook-risk-line{stroke:#ffae70}
+.dashboard-main[data-theme="dark"] .outlook-save-face{fill:#235e4c;stroke:#52b795}
+.dashboard-main[data-theme="dark"] .outlook-save-side{fill:#2c755c}
+.dashboard-main[data-theme="dark"] .outlook-save-line{stroke:#6cf0ba}
+.dashboard-main[data-theme="dark"] .outlook-point-mark{fill:#19372c}
+.dashboard-main[data-theme="dark"] .outlook-risk-point .outlook-point-mark{stroke:#ff9b54}
+.dashboard-main[data-theme="dark"] .outlook-save-point .outlook-point-mark{stroke:#42dfaa}
+.dashboard-main[data-theme="dark"] .outlook-tooltip{background:#223a32;border-color:#507361;color:#c0d9cb;box-shadow:0 5px 17px #071b1599}
+.dashboard-main[data-theme="dark"] .outlook-tooltip strong,.dashboard-main[data-theme="dark"] .outlook-tooltip.is-detail strong{color:#ffbe8b}
+.dashboard-main[data-theme="dark"] .outlook-tooltip.is-detail b{color:#ecf8ef}
+.dashboard-main[data-theme="dark"] .outlook-plot.is-recovery .outlook-risk-face{fill:#4b4035;stroke:#8b7561}
+.dashboard-main[data-theme="dark"] .outlook-plot.is-recovery .outlook-risk-line{stroke:#b58c70}
+.dashboard-main[data-theme="dark"] .outlook-plot.is-recovery .outlook-save-face{fill:#276d55;stroke:#46bd91}
+.dashboard-main[data-theme="dark"] .outlook-plot.is-recovery .outlook-tooltip:not(.is-detail) strong{color:#71e4b2}
 @keyframes dash-card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes dash-ev-in{from{opacity:0;transform:translate(8px,8px)}to{opacity:1;transform:translate(0,0)}}
 @media(max-aspect-ratio:4/3){.dashboard-main[data-current-page="overview"] .dashboard-redesign{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}.dashboard-redesign>.dash-outlook{grid-column:1/3;grid-row:2}.dashboard-redesign>.dash-plan{grid-column:3;grid-row:2}.dashboard-redesign>.dash-fleet{grid-column:3;grid-row:1}.dashboard-redesign .dash-ev-scene{display:block}}
