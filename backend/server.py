@@ -14,6 +14,7 @@ from scenario import build_scenario, validate_demand
 from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
+from chat import ChatError, ask_gemini, validate_request
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -155,6 +156,30 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def do_POST(self):
+        if urlsplit(self.path).path != '/api/v1/chat':
+            self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
+            return
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 64_000:
+                raise ValueError('Invalid body size')
+            messages, page, context = validate_request(json.loads(self.rfile.read(length)))
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Send a short question (up to 1000 characters).'}})
+            return
+        try:
+            self.send_json(200, {'reply': ask_gemini(messages, page, context)})
+        except ChatError as error:
+            self.send_json(error.status, {'error': {'code': error.code, 'message': error.message}})
+        except HTTPError as error:
+            print(f'Gemini error {error.code}: {error.read().decode(errors="replace")[:500]}', flush=True)
+            code = 'CHAT_RATE_LIMITED' if error.code == 429 else 'CHAT_UPSTREAM_ERROR'
+            message = 'Volt is busy right now. Wait a moment and try again.' if error.code == 429 else 'The AI service rejected the request. Check GEMINI_API_KEY and GEMINI_MODEL.'
+            self.send_json(502, {'error': {'code': code, 'message': message}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError):
+            self.send_json(502, {'error': {'code': 'CHAT_UNAVAILABLE', 'message': 'Cannot reach the AI service. Check your connection and retry.'}})
 
     def do_GET(self):
         route = urlsplit(self.path)
