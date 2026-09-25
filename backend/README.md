@@ -34,7 +34,7 @@ clear the key if unnecessary, and start GridToEv separately using its README.
 ## Contract and scope
 
 The browser calls `GET /api/v1/scenario?region=Ireland&capacityMw=100&totalDemandKwh=1000&flexibleDemandKwh=500`. The original `/api/v1/forecast` endpoint remains available for capacity-only predictions.
-The adapter calls GridToEv's synchronous `GET /predict/latest`, validating both
+The adapter calls GridToEv's synchronous `POST /predict/from-dataset` once per horizon, validating both
 30/60-minute predictions before mapping them to product fields. All four screens use
 the same response. Changing horizon selects one of those predictions locally;
 Refresh forecast requests both again using the entered flexible capacity.
@@ -141,4 +141,58 @@ model outages; the local SaveThePlanet backend must still be running.
 Rehearsal: start only `python backend/server.py` with GridToEv stopped, open the
 app, check the banner on each page and edit charging demand. Start GridToEv and
 click Retry model; the banner disappears and the entered assumptions remain.
-A missing health endpoint and other remaining issue #12 work are separate tasks.
+
+## Health endpoint
+
+`GET /api/v1/health` explains *why* the model is or is not being used. By default it
+probes the model with the same call the forecast uses (1 MW, both horizons) and
+always returns HTTP 200 while the backend itself is running.
+`GET /api/v1/health?probe=false` returns the outcome of the most recent model call
+without contacting the model; the UI uses this after every forecast load.
+
+```json
+{
+  "status": "degraded",
+  "mode": "fallback",
+  "fallbackAvailable": true,
+  "backend": {"status": "ok"},
+  "model": {
+    "state": "down",
+    "checkedAt": "2026-09-25T13:08:15Z",
+    "latencyMs": 2,
+    "modelVersion": null,
+    "error": {"code": "MODEL_CONNECTION_REFUSED", "message": "Nothing is listening at the model address…",
+              "httpStatus": null, "detail": null},
+    "target": "local",
+    "apiKeyConfigured": false,
+    "timeoutSeconds": 3.0
+  }
+}
+```
+
+`status` is `ok` (model live) or `degraded` (fallback, or not checked yet with
+`probe=false`). `mode` is `live`, `fallback` or `unknown`. `modelVersion` keeps the last
+version seen from a successful call. `detail` is the upstream FastAPI `detail`
+message or the validation error, when there is one. The base URL and API key are
+never returned; only whether the model is `local` or `hosted` and whether a key is set.
+
+| `error.code` | Meaning |
+| --- | --- |
+| `MODEL_CONNECTION_REFUSED` | Nothing is listening at the configured address. |
+| `MODEL_DNS_FAILURE` | Host name could not be resolved (URL typo or no internet). |
+| `MODEL_TIMEOUT` | No answer within the timeout, e.g. a sleeping hosted service waking up. |
+| `MODEL_TLS_ERROR` | HTTPS handshake failed. |
+| `MODEL_UNREACHABLE` | Other network failure (proxy, firewall, reset connection). |
+| `MODEL_INCOMPLETE_RESPONSE` | Connection closed mid-response. |
+| `MODEL_AUTH_FAILED` | HTTP 401/403: API key missing or rejected. |
+| `MODEL_ENDPOINT_NOT_FOUND` | HTTP 404: wrong base URL or model without `/predict/from-dataset`. |
+| `MODEL_REJECTED_REQUEST` | HTTP 400/422: the model refused the request (see `detail`, e.g. issue timestamp outside the dataset). |
+| `MODEL_RATE_LIMITED` | HTTP 429. |
+| `MODEL_SERVER_ERROR` | HTTP 5xx from the model service. |
+| `MODEL_HTTP_ERROR` | Any other non-2xx status. |
+| `INVALID_MODEL_RESPONSE` | The model answered but the forecast failed validation (see `detail`). |
+
+The forecast `fallback.reason` stays `MODEL_UNAVAILABLE` or `INVALID_MODEL_RESPONSE`;
+the health codes above are the finer-grained explanation. The fallback banner shows
+the health message, and Settings → Model connection shows the full status with a
+**Check connection** button (active probe) and **Reload forecast**.

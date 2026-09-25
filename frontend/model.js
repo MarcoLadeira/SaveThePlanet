@@ -7,7 +7,10 @@ const modelState = {
     capacity: 100,
     totalDemandKwh: 1000,
     flexibleDemandKwh: 500,
+    health: null,
+    healthChecking: false,
 };
+let healthRequest = 0;
 let modelRequest = 0;
 function escapeHtml(value) {
     return String(value).replace(
@@ -219,6 +222,27 @@ async function loadModelForecast() {
         if (request === modelRequest) {
             modelState.loading = false;
             render();
+            loadModelHealth(false);
+        }
+    }
+}
+// probe=false reads the outcome of the forecast call that just ran; probe=true
+// asks the backend to call the model again (Settings > Check connection).
+async function loadModelHealth(probe) {
+    const request = ++healthRequest;
+    modelState.healthChecking = true;
+    if (probe) render();
+    try {
+        const response = await fetch(`/api/v1/health?probe=${probe}`);
+        if (!response.ok) throw new Error();
+        const body = await response.json();
+        if (request === healthRequest) modelState.health = body;
+    } catch {
+        if (request === healthRequest) modelState.health = null;
+    } finally {
+        if (request === healthRequest) {
+            modelState.healthChecking = false;
+            render();
         }
     }
 }
@@ -239,6 +263,7 @@ document.addEventListener("submit", (event) => {
 });
 document.addEventListener("click", (event) => {
     if (event.target.closest("#model-retry")) loadModelForecast();
+    if (event.target.closest("#model-health-check")) loadModelHealth(true);
 });
 
 function isDemoData() {
@@ -249,9 +274,11 @@ function dataSourceLabel() {
 }
 function fallbackBanner() {
     if (!isDemoData()) return "";
-    const reason =
-        modelState.data.fallback?.reason === "INVALID_MODEL_RESPONSE"
-            ? "The model returned unusable data."
-            : "The model is unavailable.";
+    const diagnosis = modelState.health?.model?.error;
+    const reason = diagnosis
+        ? escapeHtml(diagnosis.message)
+        : modelState.data.fallback?.reason === "INVALID_MODEL_RESPONSE"
+          ? "The model returned unusable data."
+          : "The model is unavailable.";
     return `<aside class="fallback-banner" role="status"><div><strong>Demo fallback — simulated data</strong><p>${reason} All results use a fixed example, with your charging assumptions. No live model predictions are being shown.</p></div><button class="secondary-button" id="model-retry">Retry model</button></aside>`;
 }

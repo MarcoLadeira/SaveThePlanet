@@ -6,6 +6,9 @@ import json
 import math
 import os
 import socket
+import ssl
+import threading
+import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
@@ -123,18 +126,97 @@ def fetch_forecast(capacity):
 #         return normalize(json.load(response), capacity)
 
 
+HTTP_DIAGNOSES = {
+    400: ('MODEL_REJECTED_REQUEST', 'The model rejected the forecast request.'),
+    401: ('MODEL_AUTH_FAILED', 'The model rejected the API key. Check GRID_TO_EV_API_KEY in .env.'),
+    403: ('MODEL_AUTH_FAILED', 'The model rejected the API key. Check GRID_TO_EV_API_KEY in .env.'),
+    404: ('MODEL_ENDPOINT_NOT_FOUND', 'The model is reachable but /predict/from-dataset was not found. Check GRID_TO_EV_API_BASE_URL.'),
+    422: ('MODEL_REJECTED_REQUEST', 'The model rejected the forecast request.'),
+    429: ('MODEL_RATE_LIMITED', 'The model is rate limiting requests. Wait and retry.'),
+}
+
+
+def upstream_detail(error):
+    """Short FastAPI-style 'detail' from an upstream error body, if any."""
+    try:
+        body = json.loads(error.read(2000) or b'null')
+    except (ValueError, OSError, HTTPException):
+        return None
+    detail = body.get('detail') if isinstance(body, dict) else None
+    if isinstance(detail, list):
+        detail = '; '.join(str(item.get('msg', item)) if isinstance(item, dict) else str(item) for item in detail)
+    return str(detail)[:300] if detail else None
+
+
+def diagnose(error):
+    """Explain why a model call failed as a stable code, message and fallback reason."""
+    if isinstance(error, HTTPError):
+        code, message = HTTP_DIAGNOSES.get(error.code, ('MODEL_SERVER_ERROR', 'The model service returned an internal error.')
+                                           if error.code >= 500 else ('MODEL_HTTP_ERROR', 'The model returned an unexpected HTTP status.'))
+        detail = upstream_detail(error)
+        return dict(code=code, message=message, httpStatus=error.code, detail=detail, fallbackReason='MODEL_UNAVAILABLE')
+    if isinstance(error, (ValueError, KeyError, TypeError, OverflowError)):
+        detail = f'Missing field {error}' if isinstance(error, KeyError) else str(error)
+        return dict(code='INVALID_MODEL_RESPONSE', message='The model responded, but the forecast failed validation.',
+                    httpStatus=None, detail=detail[:300] or None, fallbackReason='INVALID_MODEL_RESPONSE')
+    reason = error.reason if isinstance(error, URLError) else error
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        code, message = 'MODEL_TIMEOUT', f'The model did not answer within {TIMEOUT:g} seconds. A sleeping hosted service can take about a minute to wake; retry shortly.'
+    elif isinstance(reason, ConnectionRefusedError):
+        code, message = 'MODEL_CONNECTION_REFUSED', 'Nothing is listening at the model address. Start GridToEv or check GRID_TO_EV_API_BASE_URL.'
+    elif isinstance(reason, socket.gaierror):
+        code, message = 'MODEL_DNS_FAILURE', 'The model host name could not be resolved. Check GRID_TO_EV_API_BASE_URL and the internet connection.'
+    elif isinstance(reason, ssl.SSLError):
+        code, message = 'MODEL_TLS_ERROR', 'A secure connection to the model could not be established.'
+    elif isinstance(error, HTTPException):
+        code, message = 'MODEL_INCOMPLETE_RESPONSE', 'The model connection closed before the response was complete.'
+    else:
+        code, message = 'MODEL_UNREACHABLE', 'The model could not be reached.'
+    return dict(code=code, message=message, httpStatus=None, detail=None, fallbackReason='MODEL_UNAVAILABLE')
+
+
+model_status_lock = threading.Lock()
+model_status = dict(state='unknown', checkedAt=None, latencyMs=None, modelVersion=None, error=None)
+
+
+def record_model_status(started, version=None, error=None):
+    diagnosis = diagnose(error) if error is not None else None
+    with model_status_lock:
+        model_status.update(state='up' if error is None else 'down', checkedAt=datetime.now(timezone.utc).isoformat(),
+                            latencyMs=round((time.monotonic() - started) * 1000),
+                            modelVersion=version if error is None else model_status['modelVersion'],
+                            error={k: v for k, v in diagnosis.items() if k != 'fallbackReason'} if diagnosis else None)
+    return diagnosis
+
+
 def available_forecast(capacity):
     """Always try the model, then use validated demo data for upstream failures."""
+    started = time.monotonic()
     try:
-        return fetch_forecast(capacity)
-    except (URLError, TimeoutError, OSError, HTTPException):
-        reason = 'MODEL_UNAVAILABLE'
-    except (ValueError, KeyError, TypeError, OverflowError):
-        reason = 'INVALID_MODEL_RESPONSE'
+        forecast = fetch_forecast(capacity)
+    except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+        reason = record_model_status(started, error=error)['fallbackReason']
+    else:
+        record_model_status(started, forecast['modelVersion'])
+        return forecast
     forecast = normalize(demo_payload(capacity), capacity)
     forecast.update(source='local-demo-fixture', dataMode='simulated',
                     fallback={'active': True, 'reason': reason})
     return forecast
+
+def health(probe=True):
+    """Backend status plus why the model is (un)available. Never exposes the URL or key."""
+    if probe:
+        available_forecast(1)
+    with model_status_lock:
+        model = dict(model_status)
+    host = urlsplit(MODEL_URL).hostname or ''
+    model.update(target='local' if host in ('127.0.0.1', 'localhost', '::1') else 'hosted',
+                 apiKeyConfigured=bool(os.environ.get('GRID_TO_EV_API_KEY')), timeoutSeconds=TIMEOUT)
+    mode = {'up': 'live', 'down': 'fallback'}.get(model['state'], 'unknown')
+    return dict(status='ok' if mode == 'live' else 'degraded', checkedAt=datetime.now(timezone.utc).isoformat(),
+                backend={'status': 'ok'}, mode=mode, fallbackAvailable=True, model=model)
+
 
 class ProductServer(ThreadingHTTPServer):
     # Windows SO_REUSEADDR permits two servers to bind the same address, routing
@@ -180,6 +262,10 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model API. Start GridToEv on port 8000, then retry.'}})
             except (ValueError, KeyError, TypeError, OverflowError):
                 self.send_json(502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': 'The model returned an invalid forecast. Check the model service and retry.'}})
+            return
+        if route.path == '/api/v1/health':
+            probe = parse_qs(route.query).get('probe', ['true']) != ['false']
+            self.send_json(200, health(probe))
             return
         if route.path.startswith('/api/'):
             self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
