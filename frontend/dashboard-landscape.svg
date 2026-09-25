@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 160" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#e7f7ff"/><stop offset="1" stop-color="#f9feff"/></linearGradient>
+    <linearGradient id="hill" x2="0" y2="1"><stop stop-color="#9acbd8"/><stop offset="1" stop-color="#5c9bb1"/></linearGradient>
+    <linearGradient id="meadow" x2="0" y2="1"><stop stop-color="#b8df80"/><stop offset="1" stop-color="#47a26c"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h900v160H0z"/>
+  <g fill="#fff" opacity=".96"><path d="M92 62c9-13 23-11 28-2 9-5 22 0 24 11H79c1-6 6-10 13-9Z"/><path d="M658 45c7-9 20-8 24 0 8-4 19 1 21 10h-58c1-5 6-9 13-10Z"/></g>
+  <path fill="#bddde7" d="M0 121 35 111 78 116 132 92 169 104 216 76 259 93 307 84 345 95 382 77 437 104 482 90 524 105 571 81 615 99 661 88 717 100 770 75 821 97 900 81v79H0Z"/>
+  <path fill="url(#hill)" d="M0 135 78 108 151 121 221 93 280 111 326 105 398 117 469 92 531 115 604 97 687 121 767 101 836 116 900 103v57H0Z"/>
+  <path fill="#63ac9c" d="M0 129c58 3 88-8 143-5 49 3 88-10 142-7 56 3 98-5 138 0 72 8 108-8 176 0 63 7 98-4 154 4 56 8 108-7 147-6v45H0Z"/>
+  <path fill="url(#meadow)" d="M0 136c93 0 128 3 201-3 100-9 134 6 239-1 95-7 171 8 250 0 72-6 147 3 210 1v27H0Z"/>
+  <path fill="#2b8065" d="M0 147c88-12 139-6 212-9 123-6 167 9 258 5 132-6 160 2 239-1 76-3 132 0 191-9v27H0Z"/>
+  <g fill="#2b8769"><circle cx="93" cy="125" r="8"/><circle cx="108" cy="127" r="6"/><circle cx="197" cy="119" r="10"/><circle cx="211" cy="122" r="7"/><circle cx="369" cy="125" r="10"/><circle cx="388" cy="126" r="7"/><circle cx="574" cy="121" r="9"/><circle cx="589" cy="124" r="7"/><circle cx="802" cy="123" r="10"/><circle cx="818" cy="126" r="7"/></g>
+  <g fill="none" stroke="#214e59" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="3.5" d="M320 122 323 35M455 123 461 20M565 124 567 60"/>
+    <g stroke-width="2.2"><path d="M323 35 319 3M323 35l-28 18M323 35l27 20M461 20l-2-28M461 20l-33 20M461 20l30 26M567 60l-1-25M567 60l-24 15M567 60l25 17"/></g>
+    <g fill="#214e59" stroke="none"><circle cx="323" cy="35" r="3.5"/><circle cx="461" cy="20" r="3.5"/><circle cx="567" cy="60" r="3"/></g>
+  </g>
+</svg>
