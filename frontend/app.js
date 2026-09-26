@@ -37,8 +37,45 @@ let saved=true;
 function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','settings'].includes(p)?p:'overview'}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
 function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
-function fitDesktop(){const shell=document.querySelector('.app-shell');if(!shell)return;const main=shell.querySelector('main');let scale=Math.min(1,innerWidth/1440,innerHeight/900);for(let i=0;i<3;i++){shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;const needed=Math.max(900,main.scrollHeight);scale=Math.min(scale,innerHeight/needed)}shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left'}
-function render(){const page=pageFromHash();const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];document.getElementById('app').innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${fallbackBanner()}${view()}</main></div>`;document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;fitDesktop()}
-document.addEventListener('click',event=>{const page=event.target.closest('[data-page]');if(page){navigate(page.dataset.page);return}if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}const toggle=event.target.closest('[data-toggle]');if(toggle){settings[toggle.dataset.toggle]=!settings[toggle.dataset.toggle];saved=false;render();return}const action=event.target.closest('[data-action]');if(action?.dataset.action==='save'){try{localStorage.setItem('planner-preferences',JSON.stringify(settings))}catch{}saved=true;render()}if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}});
+function fitDesktop(){
+  const shell=document.querySelector('.app-shell');
+  if(!shell)return;
+  const main=shell.querySelector('main');
+  let scale=Math.min(1,innerWidth/1440,innerHeight/900);
+  for(let i=0;i<3;i++){
+    shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
+    const needed=Math.max(900,main.scrollHeight);
+    scale=Math.min(scale,innerHeight/needed);
+  }
+  shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
+  shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
+}
+function render(){
+  const page=pageFromHash();
+  const app=document.getElementById('app');
+  const previous=app.querySelector('.outlook-ready');
+  if(previous)previous.remove();
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
+  app.innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${fallbackBanner()}${view()}</main></div>`;
+  const replacement=app.querySelector('.outlook-ready');
+  if(previous && replacement)replacement.replaceWith(previous);
+  else if(previous)outlookTeardown();
+  document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
+  fitDesktop();
+  const outlook=app.querySelector('.outlook-ready');
+  if(outlook)outlookSync(outlook);
+}
+document.addEventListener('click',event=>{
+  const horizon=event.target.closest('[data-horizon]');
+  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);render();return}
+  const page=event.target.closest('[data-page]');
+  if(page){navigate(page.dataset.page);return}
+  if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}
+  const toggle=event.target.closest('[data-toggle]');
+  if(toggle){settings[toggle.dataset.toggle]=!settings[toggle.dataset.toggle];saved=false;render();return}
+  const action=event.target.closest('[data-action]');
+  if(action?.dataset.action==='save'){try{localStorage.setItem('planner-preferences',JSON.stringify(settings))}catch{}saved=true;render()}
+  if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}
+});
 document.addEventListener('change',event=>{const el=event.target.closest('[data-setting]');if(!el)return;settings[el.dataset.setting]=el.value;saved=false;render()});
 addEventListener('hashchange',render);addEventListener('resize',fitDesktop);render();loadModelForecast();

@@ -3,7 +3,16 @@ function n(value){return modelNumber(value)}
 function pct(value){return value===null?'—':`${n(value*100)}%`}
 function studioHeader(title,subtitle){const dashboard=title==='Dashboard';return `<header class="dash-header studio-header">${dashboard?'<div class="dashboard-header-art" aria-hidden="true"></div>':''}<div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div></header>`}
 function studioControls(){return `<div class="studio-toolbar"><div class="studio-segment" role="group" aria-label="Forecast target"><button type="button" data-horizon="30" class="${modelState.horizon===30?'active':''}">+30 min</button><button type="button" data-horizon="60" class="${modelState.horizon===60?'active':''}">+60 min</button></div><span class="studio-target">${icon('calendar',19)}${modelState.data?`Target ${escapeHtml(modelTime(selectedPrediction().targetAt,true))}`:'Two model targets'}</span><form id="model-capacity-form" class="studio-capacity"><span class="capacity-symbol">${icon('bolt',18)}</span><label for="model-capacity">Flexible capacity</label><input id="model-capacity" type="number" min="0.001" max="10000" step="any" required value="${modelState.capacity}"><span>MW</span><button type="submit" ${modelState.loading?'disabled':''}>Update ${icon('arrow',17)}</button></form></div>`}
-function studioShell(title,subtitle,content){const top=studioHeader(title,subtitle)+studioControls();if(modelState.loading)return top+'<section class="dash-card studio-message" role="status"><span class="studio-spinner"></span><h2>Loading model predictions</h2><p>Connecting to GridToEv and calculating charging scenarios.</p></section>';if(modelState.error)return top+`<section class="dash-card studio-message" role="alert"><h2>Forecast unavailable</h2><p>${escapeHtml(modelState.error)}</p><button class="studio-button" id="model-retry" type="button">Try again ${icon('arrow',17)}</button></section>`;return top+content()}
+function studioShell(title,subtitle,content){
+  const top=studioHeader(title,subtitle)+studioControls();
+  if(modelState.loading){
+    if(title==='Dashboard' && modelState.data)return top+content();
+    if(title==='Dashboard')return top+outlookSkeleton();
+    return top+'<section class="dash-card studio-message" role="status"><span class="studio-spinner"></span><h2>Loading model predictions</h2><p>Connecting to GridToEv and calculating charging scenarios.</p></section>';
+  }
+  if(modelState.error)return top+`<section class="dash-card studio-message" role="alert"><h2>Forecast unavailable</h2><p>${escapeHtml(modelState.error)}</p><button class="studio-button" id="model-retry" type="button">Try again ${icon('arrow',17)}</button></section>`;
+  return top+content();
+}
 function cardHead(iconName,tone,title,subtitle,extra=''){return `<div class="dash-card-head">${tile(iconName,tone)}<div class="dash-head-copy"><h2>${title}</h2><p>${subtitle}</p></div>${extra}</div>`}
 function metric(label,value,unit='',note='',tone=''){return `<div class="studio-metric ${tone}"><span>${label}</span><strong>${value}<small>${unit}</small></strong><em>${note}</em></div>`}
 function statStrip(items){return `<section class="studio-stat-strip" aria-label="Selected forecast metrics">${items.join('')}</section>`}

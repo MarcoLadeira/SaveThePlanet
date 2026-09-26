@@ -183,7 +183,6 @@ async function loadModelForecast() {
     const request = ++modelRequest;
     modelState.loading = true;
     modelState.error = "";
-    modelState.data = null;
     render();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45000);
