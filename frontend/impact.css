@@ -1,0 +1,25 @@
+.impact-events{display:flex;flex-direction:column;gap:14px;padding:22px;border-radius:25px}
+.impact-table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:13px;color:var(--ink)}
+.impact-table th,.impact-table td{padding:11px 12px;text-align:right;white-space:nowrap}
+.impact-table th:first-child{text-align:left}
+.impact-table thead th{padding-top:0;padding-bottom:2px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.impact-table small{font-size:10px;font-weight:600;color:var(--ink-3)}
+.impact-table tbody th,.impact-table tbody td{background:var(--surface-2);font-weight:750}
+.impact-table tbody th{border-radius:12px 0 0 12px}.impact-table tbody td:last-child{border-radius:0 12px 12px 0}
+.impact-table tbody tr.is-selected th,.impact-table tbody tr.is-selected td{background:var(--green-soft)}
+.impact-table td.is-green{color:var(--green-deep)}
+.impact-best{margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--forest);color:#fff;font-size:10px;font-weight:800}
+.impact-cumulative{margin-top:auto;padding:14px 16px;border-radius:16px;background:var(--surface-2)}
+.impact-cumulative p{margin:0 0 4px;font-size:13px;color:var(--ink)}
+.impact-cumulative small{font-size:11px;color:var(--ink-3)}
+.impact-balance .studio-balance i:not([class]){background:var(--line)}
+.impact-method{flex:0 0 auto;padding:12px 18px;border-radius:20px}
+.impact-method summary{display:flex;align-items:center;gap:12px;cursor:pointer;list-style:none}
+.impact-method summary::-webkit-details-marker{display:none}
+.impact-method-copy{display:flex;flex-direction:column;gap:2px}
+.impact-method summary strong{font-size:14px;color:var(--ink)}
+.impact-method summary small{font-size:11px;color:var(--ink-3)}
+.impact-method summary::after{content:"+";margin-left:auto;font-size:20px;font-weight:700;color:var(--ink-2)}
+.impact-method[open] summary::after{content:"−"}
+.impact-method ul{margin:10px 0 2px;padding-left:20px;display:grid;gap:4px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.dashboard-main[data-explanations="false"] .impact-method,.dashboard-main[data-explanations="false"] .impact-cumulative small{display:none}
