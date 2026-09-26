@@ -21,6 +21,15 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(result['recommendedHorizonMinutes'], 30)
         self.assertIsNone(result['commitmentsMet'])
 
+    def test_derived_impact_scales_with_recovery(self):
+        result = build_scenario(self.forecast(), 1000, 500)
+        factor = result['assumptions']['gridIntensityTco2PerMwh']
+        for outcome in result['outcomes']:
+            self.assertAlmostEqual(outcome['avoidedEmissionsTco2'], .5 * factor)
+            self.assertAlmostEqual(outcome['evRangeKm'], 500 / result['assumptions']['evKwhPerKm'])
+        zero = build_scenario(self.forecast(), 0, 0)
+        self.assertEqual(zero['outcomes'][0]['avoidedEmissionsTco2'], 0)
+
     def test_power_limits_recovery(self):
         forecast = self.forecast()
         forecast['flexibleCapacityMw'] = .1

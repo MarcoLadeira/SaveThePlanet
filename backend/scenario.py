@@ -3,6 +3,10 @@ import hashlib
 import json
 import math
 
+# Stated, labelled assumptions for derived impact values; never presented as measured.
+GRID_INTENSITY_T_PER_MWH = 0.25  # approximate Irish grid average, ~250 gCO2/kWh
+EV_KWH_PER_KM = 0.18  # typical passenger EV consumption
+
 
 def validate_demand(total_kwh, flexible_kwh):
     for value in (total_kwh, flexible_kwh):
@@ -24,6 +28,8 @@ def build_scenario(forecast, total_kwh, flexible_kwh):
             horizonMinutes=prediction['horizonMinutes'], targetAt=prediction['targetAt'],
             atRiskMwh=at_risk, potentialRecoveryMwh=absorbed,
             remainingWasteMwh=max(0, at_risk - absorbed),
+            avoidedEmissionsTco2=absorbed * GRID_INTENSITY_T_PER_MWH,
+            evRangeKm=absorbed * 1000 / EV_KWH_PER_KM,
             recoveryRate=absorbed / at_risk if at_risk else None,
             cleanChargingShare=absorbed / total if total else None,
             remainingDemandMwh=max(0, total - absorbed),
@@ -42,12 +48,15 @@ def build_scenario(forecast, total_kwh, flexible_kwh):
         source=forecast['source'], totalDemandKwh=total_kwh,
         flexibleDemandKwh=flexible_kwh, totalDemandMwh=total, flexibleDemandMwh=flexible,
         recommendedHorizonMinutes=best['horizonMinutes'] if best['potentialRecoveryMwh'] > 0 else None,
+        assumptions=dict(gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM),
         outcomes=outcomes, commitmentsMet=None, missedTargets=None, connectedEvs=None,
         methodology=[
             'Potential recovery is the minimum of predicted surplus, flexible demand and power capacity times 0.5 hours.',
             'The two horizons are alternative scenarios using the same demand. Do not add their recovery values.',
             'All entered flexible demand is assumed available at either forecast target; 100% charging efficiency is assumed.',
             'Remaining demand must be scheduled separately. Vehicle deadlines, battery targets and baseline schedules are not supplied.',
+            f'Avoided emissions assume each recovered MWh displaces grid-average charging at {GRID_INTENSITY_T_PER_MWH:g} tCO2/MWh (derived estimate).',
+            f'EV range equivalent assumes {EV_KWH_PER_KM:g} kWh/km; it is illustrative, not a vehicle count.',
             'Results are projected from historical forecasts, not measured charging or emissions savings.',
         ],
     )
