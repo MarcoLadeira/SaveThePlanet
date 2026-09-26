@@ -7,9 +7,7 @@ const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Exp
 function voltSourceBadge() {
   const d = modelState.data;
   if (!d) return `<span class="volt-badge">${modelState.loading ? 'Loading data' : 'No forecast'}</span>`;
-  return d.dataMode === 'simulated'
-    ? '<span class="volt-badge is-sim">Simulated</span>'
-    : '<span class="volt-badge">Historical forecast</span>';
+  return d.dataMode === 'simulated' ? '' : '<span class="volt-badge">Historical forecast</span>';
 }
 
 function voltValue(value) {
@@ -37,8 +35,7 @@ function voltReply(m, latest) {
     r.navigate && chatPageNames[r.navigate] ? `<button type="button" class="volt-go" data-page="${r.navigate}">View ${chatPageNames[r.navigate]} ${icon('arrow', 14)}</button>` : '',
     latest && r.followUp ? `<button type="button" class="volt-chip" data-volt-ask="${escapeHtml(r.followUp)}">${escapeHtml(r.followUp)}</button>` : '',
   ].join('');
-  return `<div class="volt-msg bot">${r.notice ? `<p class="volt-notice">${escapeHtml(r.notice)}</p>` : ''}
-    ${r.card ? voltCard(r.card) : ''}<p>${escapeHtml(r.text)}</p>${r.provenance ? voltProvenance(r.provenance) : ''}
+  return `<div class="volt-msg bot">${r.card ? voltCard(r.card) : ''}<p>${escapeHtml(r.text)}</p>${r.provenance ? voltProvenance(r.provenance) : ''}
     ${actions ? `<div class="volt-actions">${actions}</div>` : ''}</div>`;
 }
 
@@ -113,6 +110,7 @@ function setChatOpen(open) {
 
 document.body.insertAdjacentHTML('beforeend', `
   <div id="volt" class="volt">
+    <button type="button" class="volt-toggle" aria-label="Open Volt assistant" aria-expanded="false">${icon('bolt', 26)}</button>
     <section class="volt-panel" role="dialog" aria-label="Volt, your energy assistant">
       <header class="volt-head"><span class="volt-avatar">${icon('bolt', 18)}</span>
         <div class="volt-title"><strong>Volt</strong><small>Your energy assistant</small></div>
@@ -124,7 +122,6 @@ document.body.insertAdjacentHTML('beforeend', `
       <form class="volt-form"><input class="volt-input" maxlength="1000" placeholder="Ask about the forecast…" aria-label="Message Volt" autocomplete="off">
         <button class="volt-send" aria-label="Send">${icon('arrow', 16)}</button></form>
     </section>
-    <button type="button" class="volt-toggle" aria-label="Open Volt assistant" aria-expanded="false">${icon('bolt', 26)}</button>
   </div>`);
 
 document.addEventListener('click', event => {

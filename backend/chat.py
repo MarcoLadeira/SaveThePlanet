@@ -160,7 +160,7 @@ def build_facts(forecast, scenario, horizon):
     simulated = forecast['dataMode'] == 'simulated'
     return dict(
         region=forecast['region'], live=False, dataMode=forecast['dataMode'],
-        sourceLabel='Simulated example' if simulated else 'Historical model forecast',
+        sourceLabel='Example forecast' if simulated else 'Historical model forecast',
         modelVersion=forecast['modelVersion'], issuedAt=forecast['predictions'][0]['issuedAt'],
         intervalMinutes=forecast['intervalMinutes'], selectedHorizonMinutes=horizon,
         flexibleCapacityMw=forecast['flexibleCapacityMw'], totalDemandMwh=r1(scenario['totalDemandMwh']),
@@ -382,18 +382,15 @@ def call_model(model, key, messages, page, facts, timeout):
 def answer(messages, page, horizon, forecast, scenario):
     """Always returns a displayable reply; AI failure degrades to a standard answer."""
     facts = build_facts(forecast, scenario, horizon)
-    notice = None
     try:
         parsed = ask_gemini(messages, page, facts)
     except ChatError as error:
-        parsed, notice = None, error.message
+        print(f'Gemini unavailable: {error.code}', flush=True)
+        parsed = None
     except HTTPError as error:
         print(f'Gemini error {error.code}: {error.read().decode(errors="replace")[:300]}', flush=True)
-        parsed, notice = None, 'The AI service rejected the request.'
+        parsed = None
     except (URLError, TimeoutError, OSError, ValueError) as error:
         print(f'Gemini unavailable: {error}', flush=True)
-        parsed, notice = None, 'The AI service could not be reached.'
-    reply = assemble(parsed, messages[-1]['text'], page, facts)
-    if notice:
-        reply['notice'] = f'{notice} Showing a standard answer.'
-    return reply
+        parsed = None
+    return assemble(parsed, messages[-1]['text'], page, facts)

@@ -1,7 +1,7 @@
 /* Volt assistant: solid green on off-white, compact and scannable at 380px. */
 .volt{--v-bg:#fbfdfb;--v-surface:#fff;--v-ink:#10251d;--v-ink-2:#51685e;--v-line:#dfe9e3;--v-soft:#eef6f1;--v-accent:#078c58;--v-accent-ink:#fff;
   --v-sim-bg:#fff4dc;--v-sim-ink:#8a5a00;--v-err-bg:#fdecea;--v-err-ink:#8a1c12;
-  position:fixed;right:24px;bottom:24px;z-index:1000;font-family:inherit;color:var(--v-ink)}
+  position:fixed;right:24px;top:24px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;font-family:inherit;color:var(--v-ink)}
 .volt[data-theme="dark"]{--v-bg:#132620;--v-surface:#1a3129;--v-ink:#e8f5ec;--v-ink-2:#a9c3b6;--v-line:#345145;--v-soft:#1d372e;
   --v-accent:#2fbf7f;--v-accent-ink:#06231a;--v-sim-bg:#3d3113;--v-sim-ink:#ffd98a;--v-err-bg:#3e1c19;--v-err-ink:#ffb4aa}
 .volt button{font:inherit;cursor:pointer}
@@ -9,7 +9,7 @@
 .volt-toggle{width:60px;height:60px;border-radius:50%;border:0;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center;
   box-shadow:0 10px 30px rgba(7,80,50,.35);transition:transform .15s ease;margin-left:auto}
 .volt-toggle:hover{transform:scale(1.05)}
-.volt-panel{display:none;flex-direction:column;width:min(380px,calc(100vw - 32px));height:min(600px,calc(100vh - 110px));margin-bottom:12px;
+.volt-panel{display:none;flex-direction:column;width:min(380px,calc(100vw - 32px));height:min(600px,calc(100vh - 110px));margin-top:12px;
   background:var(--v-bg);border:1px solid var(--v-line);border-radius:18px;box-shadow:0 24px 60px rgba(10,40,28,.22);overflow:hidden}
 .volt.open .volt-panel{display:flex}
 
@@ -30,7 +30,6 @@
 .volt-msg.bot{align-self:stretch;display:flex;flex-direction:column;gap:8px}
 .volt-msg.user{align-self:flex-end;max-width:85%;background:var(--v-accent);color:var(--v-accent-ink);padding:8px 12px;border-radius:14px 14px 4px 14px}
 .volt-msg.error p{background:var(--v-err-bg);color:var(--v-err-ink);padding:8px 12px;border-radius:10px}
-.volt-notice{font-size:12px;color:var(--v-ink-2)}
 
 .volt-card{background:var(--v-surface);border:1px solid var(--v-line);border-radius:12px;padding:12px}
 .volt-card h3{margin:0 0 8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--v-ink-2)}
@@ -60,4 +59,4 @@
 .volt-input{flex:1;min-width:0;border:1px solid var(--v-line);background:var(--v-bg);color:var(--v-ink);border-radius:999px;padding:8px 12px;font:inherit;font-size:14px}
 .volt-send{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center}
 .volt-send:disabled{opacity:.5;cursor:wait}
-@media (max-width:600px){.volt{right:12px;bottom:12px}.volt-panel{height:min(600px,calc(100vh - 96px))}}
+@media (max-width:600px){.volt{right:12px;top:12px}.volt-panel{height:min(600px,calc(100vh - 96px))}}
