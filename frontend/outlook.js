@@ -3,12 +3,19 @@ const outlookRuntime = { card: null, frame: 0, resize: null, display: null, sign
 
 function outlookGeometry(card) {
   const plot = card.querySelector('.outlook-plot');
-  const width = Math.max(280, plot.clientWidth);
-  const height = Math.max(120, plot.clientHeight);
+  const width = Math.max(1, plot.clientWidth);
+  const height = Math.max(1, plot.clientHeight);
+  // Reserve an annotation lane so labels never cover the forecast curves.
+  const labelHeight = Math.max(54, ...Array.from(card.querySelectorAll('.outlook-callout, .outlook-tooltip'), node => node.offsetHeight));
   const left = 50, right = width - 14;
   const inset = Math.min(75, (right - left) * .12);
-  return { width, height, left, right, top: 15, base: height - 23,
+  return { width, height, left, right, top: labelHeight + 8, base: height - 23,
     centers: [left + inset, right - inset] };
+}
+
+function outlookLabelCenter(center, labelWidth, plotWidth) {
+  const half = Math.min(labelWidth, plotWidth - 8) / 2;
+  return Math.max(half + 4, Math.min(plotWidth - half - 4, center));
 }
 
 function outlookY(value, max, geometry) {
@@ -51,7 +58,7 @@ function outlookSvg(rows) {
     </g>
     ${rows.map((row, index) => `<g class="outlook-region" data-outlook-region="${row.horizonMinutes}" tabindex="0" role="button" aria-label="${escapeHtml(outlookAccessibleLabel(row))}">
       <line class="outlook-guide is-${index ? 'recovery' : 'risk'}"/>
-      <circle class="outlook-marker is-risk" r="6"/><circle class="outlook-marker is-recovery" r="6"/>
+      <circle class="outlook-focus-halo" r="11"/><circle class="outlook-marker is-risk" r="6"/><circle class="outlook-marker is-recovery" r="6"/>
       <rect class="outlook-region-hit" fill="transparent"/>
       <text class="outlook-x-label" text-anchor="middle">${escapeHtml(outlookTargetLabel(row))}</text>
     </g>`).join('')}
@@ -61,9 +68,9 @@ function outlookSvg(rows) {
 
 function outlookTooltip(row) {
   return `<strong class="outlook-tooltip-time">${escapeHtml(outlookTargetLabel(row))}</strong>
-    <span><i class="is-risk"></i>At risk <b class="outlook-tooltip-risk">${outlookFormat(row.atRiskMwh)} MWh</b></span>
-    <span><i class="is-recovery"></i>Potential absorption <b class="outlook-tooltip-recovery">${outlookFormat(row.potentialRecoveryMwh)} MWh</b></span>
-    <span><i class="is-remaining"></i>Remaining at risk <b class="outlook-tooltip-remaining">${outlookFormat(row.remainingWasteMwh)} MWh</b></span>`;
+    <span class="outlook-tooltip-row is-risk"><i class="is-risk"></i>At risk <b class="outlook-tooltip-risk">${outlookFormat(row.atRiskMwh)} MWh</b></span>
+    <span class="outlook-tooltip-row is-recovery"><i class="is-recovery"></i>Potential absorption <b class="outlook-tooltip-recovery">${outlookFormat(row.potentialRecoveryMwh)} MWh</b></span>
+    <span class="outlook-tooltip-row is-remaining"><i class="is-remaining"></i>Remaining at risk <b class="outlook-tooltip-remaining">${outlookFormat(row.remainingWasteMwh)} MWh</b></span>`;
 }
 
 function outlookCallout(row, tone, value, label) {
@@ -77,7 +84,7 @@ function outlookCard(prediction) {
   const selected = rows.find(row => row.horizonMinutes === modelState.horizon) || rows[0];
   const tabs = ['energy', 'recovery'].map(mode => `<button type="button" data-dashboard-mode="${mode}" aria-pressed="${dashboardMode === mode}" class="${dashboardMode === mode ? 'active' : ''}">${mode === 'energy' ? 'Energy risk' : 'Recovery view'}</button>`).join('');
   const summary = (tone, label, value) => `<div class="outlook-summary is-${tone}"><span class="outlook-summary-label">${label}</span><div><strong class="outlook-summary-value" data-outlook-counter="${tone}">${outlookFormat(value)}</strong><span class="outlook-unit"> MWh</span></div><small class="outlook-summary-time">${escapeHtml(outlookWindowLabel(selected))}</small><span class="outlook-mini" data-outlook-mini="${tone}" aria-hidden="true"><i></i><i></i></span></div>`;
-  return `<section class="dash-card dash-outlook outlook-card outlook-ready" aria-label="Energy outlook" aria-busy="${modelState.loading}">
+  return `<section class="dash-card dash-outlook outlook-card outlook-ready" data-outlook-mode="${dashboardMode}" aria-label="Energy outlook" aria-busy="${modelState.loading}">
     ${cardHead('pulse', 'neutral', 'Energy outlook', 'Scroll between +30 and +60 min · each target covers a half-hour', `<div class="dash-tabs" role="group" aria-label="Energy outlook view">${tabs}</div>`)}
     <div class="outlook-summaries" aria-label="Selected forecast summary">${summary('risk', 'At risk (wasted)', selected.atRiskMwh)}${summary('recovery', 'Potential absorption', selected.potentialRecoveryMwh)}</div>
     <div class="outlook-chart-toolbar"><span class="outlook-axis-title">MWh per half-hour</span><div class="outlook-legend"><span><i class="is-risk"></i><span data-outlook-legend="first">At risk</span></span><span><i class="is-recovery"></i><span data-outlook-legend="second">Potential absorption</span></span></div></div>
@@ -116,6 +123,7 @@ function outlookPaint(card, display) {
     line.setAttribute('x1', geometry.left); line.setAttribute('x2', geometry.right);
     line.setAttribute('y1', y); line.setAttribute('y2', y);
     label.setAttribute('x', geometry.left - 10); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end');
     label.textContent = outlookFormat(display.max * fraction);
   });
   const [firstX, lastX] = geometry.centers;
@@ -146,17 +154,25 @@ function outlookPaint(card, display) {
     recoveryMarker.setAttribute('cx', center); recoveryMarker.setAttribute('cy', recoveryY);
     riskMarker.setAttribute('r', 5 + 2 * (index ? display.selection : 1 - display.selection));
     recoveryMarker.setAttribute('r', 4 + 2 * (index ? display.selection : 1 - display.selection));
+    const halo = group.querySelector('.outlook-focus-halo');
+    halo.setAttribute('cx', center); halo.setAttribute('cy', dashboardMode === 'recovery' ? recoveryY : riskY);
     const hit = group.querySelector('.outlook-region-hit');
-    hit.setAttribute('x', left); hit.setAttribute('y', geometry.top);
-    hit.setAttribute('width', right - left); hit.setAttribute('height', geometry.base - geometry.top + 12);
+    hit.setAttribute('x', left); hit.setAttribute('y', 0);
+    hit.setAttribute('width', right - left); hit.setAttribute('height', geometry.height);
     const guide = group.querySelector('.outlook-guide');
     guide.setAttribute('x1', center); guide.setAttribute('x2', center);
-    guide.setAttribute('y1', 0); guide.setAttribute('y2', geometry.base);
+    guide.setAttribute('y1', geometry.top - 5); guide.setAttribute('y2', geometry.base);
     const xLabel = group.querySelector('.outlook-x-label');
     xLabel.setAttribute('x', center); xLabel.setAttribute('y', geometry.height - 3);
     const callout = card.querySelector(`[data-outlook-callout="${row.horizonMinutes}"]`);
-    callout.style.left = `${center / geometry.width * 100}%`;
-    callout.querySelector('.outlook-callout-value').textContent = `${outlookFormat(index ? row.potentialRecoveryMwh : row.atRiskMwh)} MWh`;
+    callout.style.left = `${outlookLabelCenter(center, callout.offsetWidth, geometry.width)}px`;
+    const recovery = dashboardMode === 'recovery';
+    const value = recovery ? (index ? row.remainingWasteMwh : row.potentialRecoveryMwh) : (index ? row.potentialRecoveryMwh : row.atRiskMwh);
+    callout.querySelector('.outlook-callout-value').textContent = `${outlookFormat(value)} MWh`;
+    callout.querySelector('small').textContent = recovery ? (index ? 'Remaining at risk' : 'Potential absorption') : (index ? 'Potential absorption' : 'At risk of being wasted');
+    callout.classList.toggle('is-risk', !recovery && !index);
+    callout.classList.toggle('is-recovery', recovery ? !index : !!index);
+    callout.classList.toggle('is-remaining', recovery && !!index);
   });
   const selectedLine = card.querySelector('.outlook-selected-line');
   const center = geometry.centers[0] + (geometry.centers[1] - geometry.centers[0]) * display.selection;
@@ -188,13 +204,15 @@ function outlookUpdateTooltip(card) {
   tooltip.querySelector('.outlook-tooltip-risk').textContent = `${outlookFormat(row.atRiskMwh)} MWh`;
   tooltip.querySelector('.outlook-tooltip-recovery').textContent = `${outlookFormat(row.potentialRecoveryMwh)} MWh`;
   tooltip.querySelector('.outlook-tooltip-remaining').textContent = `${outlookFormat(row.remainingWasteMwh)} MWh`;
-  tooltip.style.left = `${outlookRuntime.geometry.centers[Math.max(0, index)] / outlookRuntime.geometry.width * 100}%`;
+  tooltip.style.left = `${outlookLabelCenter(outlookRuntime.geometry.centers[Math.max(0, index)], tooltip.offsetWidth, outlookRuntime.geometry.width)}px`;
   tooltip.classList.toggle('is-visible', activeTarget != null);
+  card.classList.toggle('has-outlook-detail', activeTarget != null);
 }
 
 function outlookSyncStatic(card, rows) {
   const selected = rows.find(row => row.horizonMinutes === modelState.horizon) || rows[0];
   card.setAttribute('aria-busy', String(modelState.loading));
+  card.dataset.outlookMode = dashboardMode;
   card.querySelectorAll('[data-dashboard-mode]').forEach(button => {
     const active = button.dataset.dashboardMode === dashboardMode;
     button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active));
@@ -205,7 +223,7 @@ function outlookSyncStatic(card, rows) {
   secondLegend.textContent = dashboardMode === 'energy' ? 'Potential absorption' : 'Remaining at risk';
   firstLegend.previousElementSibling.className = dashboardMode === 'energy' ? 'is-risk' : 'is-recovery';
   secondLegend.previousElementSibling.className = dashboardMode === 'energy' ? 'is-recovery' : 'is-remaining';
-  card.querySelectorAll('.outlook-summary-time').forEach(node => { node.textContent = outlookWindowLabel(selected); });
+  card.querySelectorAll('.outlook-summary-time').forEach(node => { node.textContent = `+${selected.horizonMinutes} min · ${outlookWindowLabel(selected)}`; });
   card.querySelectorAll('.outlook-region').forEach(group => {
     const row = rows.find(item => item.horizonMinutes === Number(group.dataset.outlookRegion));
     group.setAttribute('aria-label', outlookAccessibleLabel(row));
@@ -245,6 +263,7 @@ function outlookSync(card) {
     outlookRuntime.resize.observe(card.querySelector('.outlook-plot'));
   }
   outlookSyncStatic(card, rows);
+  outlookRuntime.geometry = outlookGeometry(card);
   if (!first && signature === outlookRuntime.signature) return;
   if (outlookRuntime.frame) cancelAnimationFrame(outlookRuntime.frame);
   outlookRuntime.frame = 0; outlookRuntime.signature = signature;
@@ -321,6 +340,7 @@ document.addEventListener('pointerup', event => {
 document.addEventListener('pointercancel', () => { outlookRuntime.touchX = null; });
 
 document.addEventListener('pointerover', event => {
+  if (event.pointerType === 'touch') return;
   const target = event.target.closest('[data-outlook-region]');
   if (!target || !target.closest('.outlook-card')) return;
   outlookRuntime.hover = Number(target.dataset.outlookRegion);

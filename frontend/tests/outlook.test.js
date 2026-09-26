@@ -130,6 +130,7 @@ function chartHarness() {
   };
   const card = {
     isConnected: true,
+    querySelectorAll() { return []; },
     classList: { add() {}, remove() {} },
     querySelector(selector) {
       assert.equal(selector, '.outlook-plot');
@@ -303,6 +304,31 @@ test('scrolling and arrow keys select targets while retaining the same chart', (
   assert.equal(h.context.modelState.horizon, 60);
   keydown({ target: { closest: () => ({ dataset: { outlookRegion: '60' } }) }, key: 'ArrowLeft', preventDefault() {} });
   assert.equal(h.context.modelState.horizon, 30);
+});
+
+test('chart geometry reserves space for labels and uses the actual panel width', () => {
+  const h = chartHarness();
+  const card = {
+    querySelector: () => ({ clientWidth: 250, clientHeight: 190 }),
+    querySelectorAll: () => [{ offsetHeight: 54 }, { offsetHeight: 68 }],
+  };
+  const geometry = h.context.outlookGeometry(card);
+  assert.equal(geometry.width, 250);
+  assert.equal(geometry.height, 190);
+  assert.equal(geometry.top, 76);
+  assert.ok(geometry.base > geometry.top);
+  assert.ok(geometry.centers.every(x => x > 0 && x < 250));
+});
+
+test('floating details stay inside both edges of a narrow chart', () => {
+  const h = chartHarness();
+  for (const width of [250, 340, 768]) {
+    for (const center of [20, width / 2, width - 10]) {
+      const placed = h.context.outlookLabelCenter(center, 210, width);
+      assert.ok(placed - 105 >= 4);
+      assert.ok(placed + 105 <= width - 4);
+    }
+  }
 });
 
 test('an unmounted chart cancels its pending animation', () => {
