@@ -109,6 +109,7 @@ function chartHarness() {
     escapeHtml: String,
     document: {
       hidden: false,
+      querySelector: () => ({ focus() {} }),
       addEventListener(type, listener) {
         if (!listeners.has(type)) listeners.set(type, []);
         listeners.get(type).push(listener);
@@ -267,22 +268,41 @@ test('mode buttons and SVG regions drive the same persistent chart', () => {
   assert.equal(h.runtime.card, h.card);
 });
 
-test('SVG keeps both labeled targets in separate smooth crest regions', () => {
+test('one shared series connects both labeled targets without a gap', () => {
   const h = chartHarness();
-  const first = h.context.outlookTopPath(50, 250, 80, 200);
-  const second = h.context.outlookTopPath(300, 500, 100, 200);
-  assert.match(first, /^M50 200 C/);
-  assert.match(first, / 250 200$/);
-  assert.match(second, /^M300 200 C/);
-  assert.match(second, / 500 200$/);
-  assert.equal((first.match(/\bC/g) || []).length, 2);
-  assert.equal((second.match(/\bC/g) || []).length, 2);
-  assert.doesNotMatch(first + second, /\bH/);
+  const line = h.context.outlookTopPath(50, 500, 80, 40);
+  assert.match(line, /^M50 80 C/);
+  assert.match(line, / 500 40$/);
+  assert.equal((line.match(/\bM/g) || []).length, 1);
+  assert.equal((line.match(/\bC/g) || []).length, 1);
   const svg = h.context.outlookSvg(outlookRows(h.data));
+  assert.equal((svg.match(/class="outlook-series"/g) || []).length, 1);
+  assert.equal((svg.match(/class="outlook-area is-risk"/g) || []).length, 1);
+  assert.equal((svg.match(/class="outlook-area is-recovery"/g) || []).length, 1);
   assert.match(svg, /data-outlook-region="30" tabindex="0" role="button"/);
   assert.match(svg, /data-outlook-region="60" tabindex="0" role="button"/);
   assert.equal((svg.match(/class="outlook-x-label"/g) || []).length, 2);
   assert.doesNotMatch(svg, /outlook-target/);
+});
+
+test('scrolling and arrow keys select targets while retaining the same chart', () => {
+  const h = chartHarness();
+  h.context.outlookSync(h.card);
+  h.context.render = () => h.context.outlookSync(h.card);
+  const wheel = h.listeners.get('wheel')[0];
+  let prevented = 0;
+  const scroll = delta => wheel({ target: { closest: () => ({}) }, deltaY: delta, deltaX: 0, deltaMode: 0, preventDefault() { prevented++; } });
+  scroll(100);
+  assert.equal(h.context.modelState.horizon, 60);
+  assert.equal(h.runtime.card, h.card);
+  scroll(-100);
+  assert.equal(h.context.modelState.horizon, 30);
+  assert.equal(prevented, 2);
+  const keydown = h.listeners.get('keydown')[0];
+  keydown({ target: { closest: () => ({ dataset: { outlookRegion: '30' } }) }, key: 'ArrowRight', preventDefault() {} });
+  assert.equal(h.context.modelState.horizon, 60);
+  keydown({ target: { closest: () => ({ dataset: { outlookRegion: '60' } }) }, key: 'ArrowLeft', preventDefault() {} });
+  assert.equal(h.context.modelState.horizon, 30);
 });
 
 test('an unmounted chart cancels its pending animation', () => {
