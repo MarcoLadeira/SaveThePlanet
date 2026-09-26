@@ -1,36 +1,63 @@
-/* Volt assistant */
-.volt{--v-bg:#fff;--v-ink:#10251d;--v-ink-2:#5b7268;--v-line:#dfe9e3;--v-soft:#eef6f1;--v-accent:#078c58;--v-accent-ink:#fff;
+/* Volt assistant: solid green on off-white, compact and scannable at 380px. */
+.volt{--v-bg:#fbfdfb;--v-surface:#fff;--v-ink:#10251d;--v-ink-2:#51685e;--v-line:#dfe9e3;--v-soft:#eef6f1;--v-accent:#078c58;--v-accent-ink:#fff;
+  --v-sim-bg:#fff4dc;--v-sim-ink:#8a5a00;--v-err-bg:#fdecea;--v-err-ink:#8a1c12;
   position:fixed;right:24px;bottom:24px;z-index:1000;font-family:inherit;color:var(--v-ink)}
-.volt[data-theme="dark"]{--v-bg:#172c26;--v-ink:#e8f5ec;--v-ink-2:#aac3b5;--v-line:#345145;--v-soft:#1d372e;--v-accent:#2fbf7f;--v-accent-ink:#06231a}
+.volt[data-theme="dark"]{--v-bg:#132620;--v-surface:#1a3129;--v-ink:#e8f5ec;--v-ink-2:#a9c3b6;--v-line:#345145;--v-soft:#1d372e;
+  --v-accent:#2fbf7f;--v-accent-ink:#06231a;--v-sim-bg:#3d3113;--v-sim-ink:#ffd98a;--v-err-bg:#3e1c19;--v-err-ink:#ffb4aa}
+.volt button{font:inherit;cursor:pointer}
+.volt button:focus-visible,.volt-input:focus-visible{outline:3px solid #7fd6ab;outline-offset:2px}
 .volt-toggle{width:60px;height:60px;border-radius:50%;border:0;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center;
-  cursor:pointer;box-shadow:0 10px 30px rgba(7,80,50,.35);transition:transform .15s ease;margin-left:auto}
-.volt-toggle:hover{transform:scale(1.06)}
-.volt-toggle:focus-visible,.volt button:focus-visible,.volt-input:focus-visible{outline:3px solid #9be3bf;outline-offset:2px}
-.volt-panel{display:none;flex-direction:column;width:min(380px,calc(100vw - 32px));height:min(560px,calc(100vh - 120px));margin-bottom:14px;
-  background:var(--v-bg);border:1px solid var(--v-line);border-radius:20px;box-shadow:0 24px 60px rgba(10,40,28,.25);overflow:hidden}
+  box-shadow:0 10px 30px rgba(7,80,50,.35);transition:transform .15s ease;margin-left:auto}
+.volt-toggle:hover{transform:scale(1.05)}
+.volt-panel{display:none;flex-direction:column;width:min(380px,calc(100vw - 32px));height:min(600px,calc(100vh - 110px));margin-bottom:12px;
+  background:var(--v-bg);border:1px solid var(--v-line);border-radius:18px;box-shadow:0 24px 60px rgba(10,40,28,.22);overflow:hidden}
 .volt.open .volt-panel{display:flex}
-.volt-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--v-line)}
-.volt-head div{flex:1;display:flex;flex-direction:column}
-.volt-head small{color:var(--v-ink-2);font-size:12px}
-.volt-avatar{width:34px;height:34px;border-radius:50%;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center}
-.volt-close{border:0;background:none;color:var(--v-ink-2);font-size:26px;line-height:1;cursor:pointer;padding:0 4px}
-.volt-log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
-.volt-msg{max-width:88%;padding:10px 13px;border-radius:16px;font-size:14px;line-height:1.45}
-.volt-msg p{margin:0 0 6px}.volt-msg p:last-child{margin:0}
-.volt-msg ul{margin:4px 0;padding-left:18px}
-.volt-msg.bot{background:var(--v-soft);border-bottom-left-radius:4px;align-self:flex-start}
-.volt-msg.user{background:var(--v-accent);color:var(--v-accent-ink);border-bottom-right-radius:4px;align-self:flex-end}
-.volt-msg.error{background:#fdecea;color:#8a1c12}
-.volt-go{display:inline-block;margin-top:6px;border:1px solid var(--v-accent);background:transparent;color:var(--v-accent);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
-.volt-chips{display:flex;flex-wrap:wrap;gap:6px}
-.volt-chips button{border:1px solid var(--v-line);background:var(--v-bg);color:var(--v-ink);border-radius:999px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer}
-.volt-chips button:hover{border-color:var(--v-accent)}
-.volt-msg.typing{display:flex;gap:4px}
+
+.volt-head{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 14px;border-bottom:1px solid var(--v-line);background:var(--v-surface)}
+.volt-avatar{flex:none;width:30px;height:30px;border-radius:50%;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center}
+.volt-title{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.volt-title strong{font-size:15px}.volt-title small{color:var(--v-ink-2);font-size:12px}
+.volt-icon{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--v-ink-2);display:grid;place-items:center;font-size:22px;line-height:1}
+.volt-icon:hover{background:var(--v-soft);color:var(--v-ink)}
+.volt-icon[hidden]{display:none}
+
+.volt-badge{display:inline-block;white-space:nowrap;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--v-soft);color:var(--v-accent)}
+.volt-badge.is-sim{background:var(--v-sim-bg);color:var(--v-sim-ink)}
+
+.volt-log{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+.volt-msg{max-width:100%;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.volt-msg p{margin:0}
+.volt-msg.bot{align-self:stretch;display:flex;flex-direction:column;gap:8px}
+.volt-msg.user{align-self:flex-end;max-width:85%;background:var(--v-accent);color:var(--v-accent-ink);padding:8px 12px;border-radius:14px 14px 4px 14px}
+.volt-msg.error p{background:var(--v-err-bg);color:var(--v-err-ink);padding:8px 12px;border-radius:10px}
+.volt-notice{font-size:12px;color:var(--v-ink-2)}
+
+.volt-card{background:var(--v-surface);border:1px solid var(--v-line);border-radius:12px;padding:12px}
+.volt-card h3{margin:0 0 8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--v-ink-2)}
+.volt-row{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;padding:2px 0}
+.volt-row strong{font-size:22px;font-weight:700;line-height:1.25;color:var(--v-ink);font-variant-numeric:tabular-nums}
+.volt-row strong small{font-size:13px;font-weight:600;color:var(--v-ink-2)}
+.volt-row span{font-size:13px;color:var(--v-ink-2)}
+.volt-note{margin-top:6px!important;font-size:12px;font-style:italic;color:var(--v-ink-2)}
+.volt-meta{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--v-line);display:flex;flex-direction:column;gap:2px;font-size:13px}
+.volt-meta div{display:flex;gap:6px}
+.volt-meta dt{color:var(--v-ink-2)}.volt-meta dt::after{content:':'}
+.volt-meta dd{margin:0;font-weight:600}
+
+.volt-source{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--v-ink-2)}
+.volt-actions{display:flex;flex-wrap:wrap;gap:6px}
+.volt-go{display:inline-flex;align-items:center;gap:6px;border:0;background:var(--v-accent);color:var(--v-accent-ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.volt-chip{border:1px solid var(--v-line);background:var(--v-surface);color:var(--v-ink);border-radius:999px;padding:6px 11px;font-size:13px;text-align:left}
+.volt-chip:hover{border-color:var(--v-accent)}
+
+.volt-msg.typing{flex-direction:row;gap:4px;padding:4px 0}
 .volt-msg.typing i{width:7px;height:7px;border-radius:50%;background:var(--v-ink-2);animation:volt-dot 1s infinite ease-in-out}
 .volt-msg.typing i:nth-child(2){animation-delay:.15s}.volt-msg.typing i:nth-child(3){animation-delay:.3s}
 @keyframes volt-dot{0%,80%,100%{opacity:.3}40%{opacity:1}}
-.volt-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--v-line)}
-.volt-input{flex:1;min-width:0;border:1px solid var(--v-line);background:var(--v-bg);color:var(--v-ink);border-radius:999px;padding:10px 14px;font:inherit;font-size:14px}
-.volt-send{width:40px;height:40px;border-radius:50%;border:0;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.volt-msg.typing i{animation:none}.volt-toggle{transition:none}}
+
+.volt-form{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--v-line);background:var(--v-surface)}
+.volt-input{flex:1;min-width:0;border:1px solid var(--v-line);background:var(--v-bg);color:var(--v-ink);border-radius:999px;padding:8px 12px;font:inherit;font-size:14px}
+.volt-send{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--v-accent);color:var(--v-accent-ink);display:grid;place-items:center}
 .volt-send:disabled{opacity:.5;cursor:wait}
-@media (max-width:600px){.volt{right:16px;bottom:16px}}
+@media (max-width:600px){.volt{right:12px;bottom:12px}.volt-panel{height:min(600px,calc(100vh - 96px))}}
