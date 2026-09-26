@@ -64,7 +64,7 @@ class SemanticsTests(unittest.TestCase):
         self.assertEqual((reply['navigate'], reply['source']), ('forecast', 'ai'))
 
     def test_provenance_marks_simulated_and_historical(self):
-        self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'}, simulated=True)['provenance']['label'], 'Simulated example')
+        self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'}, simulated=True)['provenance']['label'], 'Example forecast')
         self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'})['provenance']['mode'], 'historical')
 
     def test_dominant_component_only_when_supported(self):
@@ -118,13 +118,21 @@ class SemanticsTests(unittest.TestCase):
 
 
 class FallbackTests(unittest.TestCase):
+    def test_model_answer_has_no_failure_notice(self):
+        f = forecast()
+        with patch.object(chat, 'ask_gemini', return_value={'intent': 'concept', 'text': 'Curtailment limits renewable output.'}):
+            reply = chat.answer([{'role': 'user', 'text': 'What is curtailment?'}], 'overview', 30,
+                                f, build_scenario(f, 1000, 500))
+        self.assertEqual(reply['source'], 'ai')
+        self.assertNotIn('notice', reply)
+
     def test_local_answers_when_model_unavailable(self):
         f = forecast()
         with patch.object(chat, 'ask_gemini', side_effect=URLError('down')):
             reply = chat.answer([{'role': 'user', 'text': 'How much could EV charging recover?'}], 'overview', 30,
                                 f, build_scenario(f, 1000, 500))
         self.assertEqual((reply['intent'], reply['source']), ('recovery', 'standard'))
-        self.assertIn('standard answer', reply['notice'])
+        self.assertNotIn('notice', reply)
         self.assertTrue(reply['card']['rows'])
 
     def test_local_classifier(self):
