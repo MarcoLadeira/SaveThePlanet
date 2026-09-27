@@ -1,6 +1,6 @@
 /* Impact page — KPI row, energy-flow hero + time chart, events + cumulative/allocation. */
-.dashboard-main[data-current-page="impact"]{container:impact/inline-size;--imp-blue:#3d7fd9;--imp-blue-soft:#e3eefc;--imp-radius:22px}
-.dashboard-main[data-current-page="impact"][data-theme="dark"]{--imp-blue:#6aa6f5;--imp-blue-soft:#1d3350}
+.dashboard-main[data-current-page="impact"]{container:impact/inline-size;--imp-blue:#ff9a52;--imp-blue-soft:#fff0e5;--imp-radius:22px}
+.dashboard-main[data-current-page="impact"][data-theme="dark"]{--imp-blue:#ff9a52;--imp-blue-soft:#503322}
 
 /* header controls */
 .impact-toolbar{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-width:0}
@@ -220,7 +220,33 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 
 /* glowing energy ribbons with a travelling light pulse */
 .flow-ribbon.pulse{stroke-width:5;opacity:.95;stroke-dasharray:6 94;animation:flow-pulse 2.6s linear infinite}
-.flow-ribbon.green.pulse{stroke:#d9ffe9}.flow-ribbon.blue.pulse{stroke:#e2eeff}
+.flow-ribbon.green.pulse{stroke:#d9ffe9}.flow-ribbon.blue.pulse{stroke:#fff0e5}
 .flow-ribbon.blue.pulse{animation-delay:1.3s}
 @keyframes flow-pulse{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
 @media(prefers-reduced-motion:reduce){.flow-ribbon.pulse{animation:none;opacity:0}}
+
+/* Generated landscape with a precisely aligned animated light overlay. */
+.flow-canvas{width:100%;height:100%;aspect-ratio:auto;isolation:isolate;border-radius:14px;overflow:hidden;background:#fff}
+.flow-artwork{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill}
+.flow-motion{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.flow-light{fill:none;stroke:#f3fff5;stroke-width:5;stroke-linecap:round;stroke-dasharray:5 95;filter:drop-shadow(0 0 5px #67ed87);animation:flow-art-pulse 4s linear infinite}
+.flow-light.blue{stroke:#fff0e5;filter:drop-shadow(0 0 5px #ff9a52);animation-duration:3.6s}
+.flow-light.soft{stroke-width:3;opacity:.75}
+@keyframes flow-art-pulse{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+.is-motion-paused .flow-light{animation-play-state:paused}
+.is-flow-idle .flow-light{display:none}
+.flow-motion-toggle{border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:var(--surface);color:var(--ink-2);font:inherit;font-size:10px;cursor:pointer}
+.flow-motion-toggle:disabled{cursor:default;opacity:.65}
+.flow-motion-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.flow-callout{z-index:1;max-width:29%;box-shadow:0 5px 20px #123e2514,0 1px 2px #123e2510}
+.flow-callout.at-source{left:28%;top:4%}
+.flow-callout.at-battery{left:60%;top:10%}
+.flow-callout.at-chargers{left:82%;top:22%}
+@media(prefers-reduced-motion:reduce){.flow-light{animation:none;display:none}.flow-motion-toggle{display:none}}
+
+/* Rotors share the artwork coordinates, including the full-width scene scaling. */
+.flow-rotor{transform-box:view-box;transform-origin:0 0;animation:flow-rotor-spin 9s linear infinite}
+@keyframes flow-rotor-spin{to{transform:rotate(360deg)}}
+.is-motion-paused .flow-rotor{animation-play-state:paused}
+.flow-callout.at-source{left:32%;top:4%}
+@media(prefers-reduced-motion:reduce){.flow-rotor{animation:none}}

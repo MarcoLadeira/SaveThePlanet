@@ -162,34 +162,33 @@ function impactStats(o){
 }
 
 // ---------- 2. Energy flow hero ----------
-// Soft wide band, glowing core and a bright pulse that travels along the path.
-function flowRibbon(tone,d){
-  return `<path class="flow-ribbon ${tone}" d="${d}"/><path class="flow-ribbon ${tone} core" d="${d}" filter="url(#impact-glow)"/><path class="flow-ribbon ${tone} pulse" d="${d}" pathLength="100" filter="url(#impact-glow)"/>`;
-}
+// The static artwork and animated overlay use the same coordinate system.
+// Keep API-driven figures in HTML, never baked into the image.
+let impactFlowPaused=false;
 function flowScene(){
-  const tree=(x,y,s=1)=>`<g class="flow-tree" transform="translate(${x} ${y}) scale(${s})"><rect x="-1.5" y="0" width="3" height="9"/><circle cy="-4" r="8"/></g>`;
-  const turbine=(x,y,s=1)=>`<g class="flow-turbine" transform="translate(${x} ${y}) scale(${s})"><path d="M-2 0 L-1 -78 L1 -78 L2 0Z"/><g class="flow-blades" style="transform-origin:0 -78px"><path d="M0 -78 L-3 -120 L3 -120Z"/><path d="M0 -78 L-3 -120 L3 -120Z" transform="rotate(120 0 -78)"/><path d="M0 -78 L-3 -120 L3 -120Z" transform="rotate(240 0 -78)"/></g><circle cy="-78" r="3.5"/></g>`;
-  const charger=(x,y)=>`<g class="flow-charger" transform="translate(${x} ${y})"><path class="side" d="M0 0 L10 -6 L10 -52 L0 -46Z"/><path class="face" d="M-16 -9 L0 0 L0 -46 L-16 -55Z"/><path class="top" d="M-16 -55 L0 -46 L10 -52 L-6 -61Z"/><rect class="screen" x="-13" y="-44" width="10" height="13" transform="skewY(30)"/></g>`;
-  // 1000x300 scene; callouts in impact.css use the same x positions (source ~14%, battery 50%, chargers ~85%).
-  return `<svg class="flow-scene" viewBox="0 60 1000 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <path class="flow-water" d="M0 262 Q250 238 500 268 T1000 256 V300 H0Z"/>
-    <path class="flow-land" d="M10 222 L420 176 L990 206 L600 276 Z"/>
-    <path class="flow-land-edge" d="M10 222 L600 276 L990 206 L990 216 L600 288 L10 232Z"/>
-    <path class="flow-hill" d="M24 222 Q90 150 170 168 Q250 186 300 178 L360 190 L170 236Z"/>
-    ${turbine(100,204,.8)}${turbine(160,194,.7)}${turbine(220,204,.58)}
-    ${tree(290,192,.8)}${tree(320,200,.7)}${tree(400,184,.7)}${tree(600,180,.8)}${tree(630,188,.7)}${tree(960,212,.8)}${tree(520,256,.9)}${tree(60,226,.7)}
-    ${flowRibbon('green','M250 214 C330 232 380 180 452 200')}
-    ${flowRibbon('blue','M548 204 C630 232 680 182 772 212')}
-    <g class="flow-battery" transform="translate(500 226)"><path class="side" d="M0 0 L46 -24 L46 -80 L0 -56Z"/><path class="face" d="M-48 -24 L0 0 L0 -56 L-48 -80Z"/><path class="top" d="M-48 -80 L0 -56 L46 -80 L-2 -104Z"/><path class="bolt" d="M-20 -64 L-29 -42 L-21 -42 L-26 -25 L-11 -49 L-19 -49 L-12 -64Z"/></g>
-    <path class="flow-bay" d="M760 240 L870 206 L960 222 L850 258Z"/>
-    ${charger(815,236)}${charger(855,222)}${charger(895,208)}
-  </svg>`;
+  const rotor=(x,y,scale,duration,delay)=>`<g transform="translate(${x} ${y}) scale(${scale})"><g class="flow-rotor" style="animation-duration:${duration}s;animation-delay:${delay}s">${[0,120,240].map(angle=>`<g transform="rotate(${angle})"><path d="M-4 3 C-9 -20 -6 -46 -2 -69 L0 -124 C5 -103 10 -60 9 -34 L4 3Z" fill="url(#rotor-metal)" stroke="#9daeb2" stroke-width=".7"/><path d="M0 -119 L1 -12" stroke="#f5f9f9" stroke-width="1" opacity=".8"/></g>`).join('')}<circle r="8" fill="url(#rotor-hub)" stroke="#9aabad"/></g></g>`;
+
+  const pulse=(tone,d,delay)=>`<path class="flow-light ${tone}" d="${d}" pathLength="100" style="animation-delay:${delay}s"/>`;
+  return `<img class="flow-artwork" src="./assets/energy-flow-landscape.png?v=orange1" width="2060" height="763" alt="Wind turbines beside a lake, an energy cabinet and electric cars at charging stations, linked by illustrative green and orange energy ribbons." decoding="async">
+    <svg class="flow-motion" viewBox="0 0 2060 763" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="rotor-metal"><stop stop-color="#899ca3"/><stop offset=".45" stop-color="#eff4f4"/><stop offset="1" stop-color="#b2c0c3"/></linearGradient>
+        <radialGradient id="rotor-hub" cx=".3" cy=".3"><stop stop-color="#eef3ef"/><stop offset="1" stop-color="#84999e"/></radialGradient>
+      </defs>
+      ${rotor(157,260,.65,11,-4)}
+      ${rotor(281,193,1,9,-1)}
+      ${pulse('green','M282 205 C380 240 426 352 584 357 S785 290 952 378',0)}
+      ${pulse('green soft','M288 214 C407 273 443 377 601 382 S795 316 951 405',-1.8)}
+      ${pulse('blue','M1168 395 C1250 402 1304 443 1397 432 S1540 401 1652 446',-1)}
+      ${pulse('blue soft','M1168 417 C1260 441 1300 510 1407 482',-2.5)}
+      ${pulse('blue soft','M1168 386 C1350 397 1363 456 1510 417 S1755 411 1923 442',-2)}
+    </svg>`;
 }
 function impactFlow(p,o){
   const callout=(cls,tone,iconName,value,unit,label)=>`<div class="flow-callout ${cls} is-${tone}">${tile(iconName,tone)}<div><strong>${value}<small>${unit}</small></strong><span>${label}</span></div></div>`;
-  return `<section class="dash-card impact-flow" aria-labelledby="impact-flow-title">
+  return `<section class="dash-card impact-flow ${impactFlowPaused?'is-motion-paused':''} ${o.potentialRecoveryMwh>0?'':'is-flow-idle'}" aria-labelledby="impact-flow-title">
     <div class="impact-card-head"><div><h2 id="impact-flow-title">Energy flow</h2><p>From renewables at risk to potential EV charging · +${o.horizonMinutes} min target</p></div>
-      <ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-blue"></i>Potential EV charging</li><li><small>Illustrative, not to scale</small></li></ul></div>
+      <ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-blue"></i>Potential EV charging</li><li><small>Illustrative, not to scale</small></li><li><button class="flow-motion-toggle" type="button" data-flow-pause aria-pressed="${impactFlowPaused}">${impactFlowPaused?'Play animation':'Pause animation'}</button></li></ul></div>
     <div class="flow-stage"><div class="flow-canvas">${flowScene()}
       ${callout('at-source','green','turbine',n(p.atRiskMwh),'MWh',`at risk · up to ${n(o.potentialRecoveryMwh)} MWh recoverable`)}
       ${callout('at-battery','blue','bolt',n(o.potentialRecoveryMwh*1000),'kWh','potential EV charging')}
@@ -335,6 +334,8 @@ function renderImpact(){
 
 // ---------- interactions ----------
 document.addEventListener('click',event=>{
+  const motion=event.target.closest('[data-flow-pause]');
+  if(motion){impactFlowPaused=!impactFlowPaused;const card=motion.closest('.impact-flow');card.classList.toggle('is-motion-paused',impactFlowPaused);motion.setAttribute('aria-pressed',String(impactFlowPaused));motion.textContent=impactFlowPaused?'Play animation':'Pause animation';return}
   const metric=event.target.closest('[data-impact-metric]');
   if(metric){impactDay.metric=metric.dataset.impactMetric;render();return}
   const shift=event.target.closest('[data-impact-shift]');
