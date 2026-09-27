@@ -341,6 +341,24 @@ def short_term_day(day):
 
 # ---------------------------------------------------------------- V2 daily
 
+def _daily_caveats(info, evaluation):
+    """The daily model's own caveats, plus what its metadata implies for reading one day.
+
+    Text notes in `evaluation` are collected generically, since the hosted service has
+    renamed them before. Notes about the multi-day window route are skipped: this page
+    only uses the single-day route.
+    """
+    caveats = []
+    if info.get('experimental'):
+        caveats.append('Experimental model: the service marks V2 as experimental, not production-approved.')
+    if info.get('selected_amount_method') == 'two_stage':
+        caveats.append('The MWh estimate is event probability × expected size on a curtailment day, '
+                       'so it understates big days and is never exactly zero.')
+    caveats += [text for key, text in evaluation.items()
+                if isinstance(text, str) and text and 'window' not in key]
+    return caveats
+
+
 def daily_info():
     def build():
         info, coverage = parallel(lambda: call('/model-info/daily-curtailment'),
@@ -367,7 +385,7 @@ def daily_info():
                     'monthlyMedianBaselineMaeMwh': evaluation.get('test_monthly_median_baseline_mae_mwh'),
                     'byQuarter': evaluation.get('test_by_quarter', {}),
                 },
-                'caveats': [c for c in (evaluation.get('source_caveat'), evaluation.get('future_window_notice')) if c],
+                'caveats': _daily_caveats(info, evaluation),
                 'forecastSource': coverage.get('forecast_source'),
             },
             'dataset': {

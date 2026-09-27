@@ -69,8 +69,9 @@ async function fxLoadInfo(kind) {
   s.infoLoading = false;
   if (s.info && kind === 'daily') fxSelectDaily(s.info.dataset.to);
   else if (s.info) {
-    // Default to midday on the latest complete (48 half-hour) day, which is in the held-out test split.
-    const full = [...s.byDate.keys()].filter((d) => s.byDate.get(d).length === 48).at(-1);
+    // Default to midday on the latest day where all 48 targets have both forecasts (held-out test split).
+    const both = (t) => s.issueSet.has(fxShift(t, -30)) && s.issueSet.has(fxShift(t, -60));
+    const full = [...s.byDate.keys()].filter((d) => s.byDate.get(d).length === 48 && s.byDate.get(d).every(both)).at(-1);
     const noon = `${full}T12:00:00Z`;
     fxSelectShort(s.byDate.get(full)?.includes(noon) ? noon : s.targets.at(-1));
   }
@@ -267,6 +268,7 @@ function fxDailyInfo() {
       ${fxInfoTile('What it looks at', `<p>${model.features.length} features from day-ahead weather forecasts: wind speed (mean, max, P75), solar radiation and temperature in four regions, plus season and weekend.</p><div class="fx-chips">${regions.map((r) => `<span>${r}</span>`).join('')}</div>`)}
       ${fxInfoTile(`Accuracy on ${n(t.rows)} held-out days`, `<div class="fx-scores">${fxScore('Event ROC AUC', t.rocAuc?.toFixed(2), '0.5 = coin flip')}${fxScore('Avg. precision', t.eventAveragePrecision?.toFixed(2), `base rate ${fxPercent(t.eventRate)}`)}${fxScore('Daily MAE', `${n(Math.round(t.dailyMaeMwh))} MWh`, gain !== null ? `${fxPercent(gain)} better than guessing zero` : '')}</div>`)}
       ${fxInfoTile('Training timeline', `${fxTimeline(dataset.partitions, (d) => fxDateLabel(d, 'short'))}<p class="fx-fine">Fitted through ${fxDateLabel(model.trainedThrough || dataset.fittedThrough, 'short')}. Pick a <b class="fx-t-test">test</b> day for an honest check against reality.</p>`, 'is-wide')}
+      ${fxCaveats(model.caveats, true)}
     </div></section>`;
 }
 
@@ -279,7 +281,22 @@ function fxShortInfo() {
       ${fxInfoTile('How the number is made', `<p>${n(model.featureCount)} live grid signals (ENTSO-E generation, load and price; EirGrid wind, solar, SNSP and interconnectors, plus lags and rolling stats) feed ${model.estimators.length} gradient-boosted models.</p>${mlOff ? '<p class="fx-fine">The MWh estimate currently comes from a tuned <b>trend baseline</b> (ML blend weight 0); the ML models supply the probability, split and range.</p>' : ''}`)}
       ${fxInfoTile(`Accuracy on ${n(t.rows)} held-out half-hours`, `<div class="fx-scores">${fxScore('MAE', `${t.maeMwh?.toFixed(1)} MWh`, `vs ${t.latestObservationMaeMwh?.toFixed(1)} repeating last value`)}${fxScore('Event F1', t.eventF1?.toFixed(2), `threshold ${model.classificationThreshold}`)}${fxScore('P10–P90 coverage', fxPercent(t.intervalCoverage), 'target 80%')}</div>`)}
       ${fxInfoTile('Training timeline', `${fxTimeline(model.partitions, (d) => `${fxDateLabel(d.slice(0, 10), 'short').replace(/ \d{4}$/, '')} ${fxClock(d)}`)}<p class="fx-fine">Dataset covers ${fxDateLabel(dataset.from.slice(0, 10), 'short')} – ${fxDateLabel(dataset.to.slice(0, 10), 'short')} (January 2026). It is a replay of history, not a live feed.</p>`, 'is-wide')}
+      ${fxCaveats(model.caveats, false)}
     </div></section>`;
+}
+
+function fxCaveats(caveats, open) {
+  if (!caveats?.length) return '';
+  return `<details class="fx-info-tile is-wide fx-caveats" ${open ? 'open' : ''}><summary><h3>Caveats from the model's own report <span>${caveats.length}</span></h3></summary><ul>${caveats.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></details>`;
+}
+
+// Every Forecast result is a replay of the real model on archived inputs, never a live forecast
+// and never the Dashboard's simulated fallback, so each view says so explicitly.
+function fxReplayNote(kind) {
+  const text = kind === 'daily'
+    ? 'The GridToEv daily model was re-run for this past date using the weather forecast archived for it, then compared with what EirGrid observed. It is not a forecast of the future.'
+    : 'The GridToEv short-term model was re-run on archived grid data for this past half-hour, then compared with what EirGrid observed. It is not a live forecast.';
+  return `<p class="fx-replay-note" role="note"><b>${icon('clock', 15)} Historical replay</b><span>${text}</span></p>`;
 }
 
 // ---------------------------------------------------------------- views
@@ -302,6 +319,7 @@ function fxDailyView() {
     : metric('Observed (EirGrid)', n(Math.round(a.curtailmentMwh)), 'MWh', `Model was ${n(Math.round(Math.abs(r.predictedMwh - a.curtailmentMwh)))} MWh ${r.predictedMwh > a.curtailmentMwh ? 'high' : 'low'}`, 'green');
   const gaugeR = 62, circ = Math.PI * gaugeR;
   return `<div class="fx-content ${s.loading ? 'is-loading' : ''}">
+    ${fxReplayNote('daily')}
     ${statStrip([
       metric('Curtailment probability', n(Math.round(r.probability * 100)), '%', likely ? 'Curtailment likely on this day' : 'Curtailment unlikely on this day', 'amber'),
       metric('Predicted curtailment', n(Math.round(r.predictedMwh)), 'MWh', 'Total over the UTC day'),
@@ -339,6 +357,7 @@ function fxShortView() {
   const range = Math.max(p.upperMwh, actual ?? 0, p.atRiskMwh, 1) * 1.05;
   const pos = (v) => `${Math.min(100, (v / range) * 100)}%`;
   return `<div class="fx-content ${s.loading ? 'is-loading' : ''}">
+    ${fxReplayNote('short')}
     ${statStrip([
       horizonMetric(30),
       horizonMetric(60),
@@ -371,7 +390,7 @@ function renderForecast() {
   <div class="studio-toolbar fx-toolbar">
     <div class="fx-tabs" role="tablist" aria-label="Forecast model">${tab('daily', 'Daily curtailment', 'V2 · whole UTC day', 'calendar')}${tab('short', 'Short-term', 'V1 · +30 & +60 min', 'clock')}</div>
     ${fxPickerButton()}
-    <span class="fx-status ${busy ? 'is-busy' : ''}" role="status">${busy ? '<span class="fx-dot-spin"></span>Predicting…' : s.result ? `${icon('check', 16)} ${fx.model === 'daily' ? 'Live model · ' + escapeHtml(s.result.modelVersion || '') : 'Live model · v' + escapeHtml(s.result.modelVersion || '')}` : ''}</span>
+    <span class="fx-status ${busy ? 'is-busy' : ''}" role="status">${busy ? '<span class="fx-dot-spin"></span>Predicting…' : s.result ? `${icon('clock', 16)} Historical replay · model v${escapeHtml((s.result.modelVersion || '').replace(/^v/, ''))}` : ''}</span>
   </div>
   ${fx.model === 'daily' ? fxDailyView() : fxShortView()}`;
 }
