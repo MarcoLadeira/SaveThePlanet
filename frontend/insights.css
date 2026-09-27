@@ -54,6 +54,7 @@
 }
 .causes-donut { width: 100%; height: auto; max-height: 100%; }
 .donut-shadow { fill: rgba(20, 70, 60, .22); }
+.donut-hole { fill: var(--surface); }
 .donut-top { stroke: rgba(255, 255, 255, .6); stroke-width: .6; }
 .donut-inner.is-orange { fill: #a9480b; }
 .donut-inner.is-green { fill: #0a5a37; }

@@ -166,6 +166,7 @@ dashCharts.causes = {
           <filter id="donut-blur" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
         </defs>
         <ellipse class="donut-shadow" cx="${cx}" cy="${cy + depth + 16}" rx="${outer - 6}" ry="${outer * squash * 0.55}" filter="url(#donut-blur)"/>
+        <ellipse class="donut-hole" cx="${cx}" cy="${cy}" rx="${inner + 2}" ry="${(inner + 2) * squash}"/>
         ${layers.inner}${layers.outer}${layers.top}
         <text class="donut-value is-${lead}" x="${cx}" y="${cy + 14}" text-anchor="middle">${total > 0 ? percent(Math.max(share, 1 - share)) : '—'}</text>
       </svg>
