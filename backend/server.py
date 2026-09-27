@@ -18,6 +18,7 @@ from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
 import chat
+import explorer
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -88,8 +89,15 @@ def normalize(payload, capacity):
                 fallback={'active': False, 'reason': None})
 
 
-# Fixed historical issue time used for demos (must be within the dataset range)
+# End of the historical window replayed in real time (must be within the dataset range)
 ISSUE_TIMESTAMP = os.environ.get('GRID_TO_EV_ISSUE_TIMESTAMP', '2026-01-10T00:00:00+00:00')
+
+
+def replay_issue_timestamp(now=None):
+    """The dataset half-hour matching the current UTC time of day, in the day before ISSUE_TIMESTAMP."""
+    now = now or datetime.now(timezone.utc)
+    day = (timestamp(ISSUE_TIMESTAMP) - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (day + timedelta(minutes=(now.hour * 60 + now.minute) // 30 * 30)).isoformat()
 
 
 def post_prediction(capacity, horizon):
@@ -98,7 +106,7 @@ def post_prediction(capacity, horizon):
     if key:
         headers['X-API-Key'] = key
     body = json.dumps({
-        'issue_timestamp_utc': ISSUE_TIMESTAMP,
+        'issue_timestamp_utc': replay_issue_timestamp(),
         'forecast_horizon_minutes': horizon,
         'flexible_load_capacity_mw': capacity,
     }).encode()
@@ -371,7 +379,7 @@ def available_forecast(capacity):
     else:
         record_model_status(started, forecast['modelVersion'])
         return forecast
-    forecast = normalize(demo_payload(capacity), capacity)
+    forecast = normalize(demo_payload(capacity, datetime.now(timezone.utc)), capacity)
     forecast.update(source='local-demo-fixture', dataMode='simulated',
                     fallback={'active': True, 'reason': reason})
     return forecast
@@ -478,6 +486,38 @@ class Handler(SimpleHTTPRequestHandler):
         except (ConnectionError, TimeoutError):
             pass  # the browser moved on (e.g. picked another day); the replay stays cached
 
+    def explorer(self, route):
+        """Forecast page: model info and predictions for dataset dates of V1 (30/60 min) and V2 (daily)."""
+        query = {k: v[0] for k, v in parse_qs(route.query).items()}
+        try:
+            name = route.path.removeprefix('/api/v1/explorer/')
+            if name == 'short-term/predict':
+                capacity = float(query.get('capacityMw', '100'))
+                number(capacity, 'capacity', minimum=0.001, maximum=10000)
+                target = timestamp(query.get('target'))
+                if target.minute not in (0, 30) or target.second or target.microsecond:
+                    raise ValueError('Target must be a UTC half-hour')
+                action = partial(explorer.short_term_predict, target.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
+            elif name in ('short-term/day', 'daily/predict', 'daily/week'):
+                day = date.fromisoformat(query.get('date', '')).isoformat()
+                action = partial({'short-term/day': explorer.short_term_day, 'daily/predict': explorer.daily_predict,
+                                  'daily/week': explorer.daily_week}[name], day)
+            elif name in ('short-term', 'daily'):
+                action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
+            else:
+                self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
+                return
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a dataset date (YYYY-MM-DD), a UTC half-hour target time and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, action())
+        except LookupError as error:
+            self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_GET(self):
         route = urlsplit(self.path)
         if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
@@ -505,6 +545,10 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if route.path == '/api/v1/impact/day':
             self.impact_day(parse_qs(route.query))
+            return
+
+        if route.path.startswith('/api/v1/explorer/'):
+            self.explorer(route)
             return
         if route.path == '/api/v1/health':
             probe = parse_qs(route.query).get('probe', ['true']) != ['false']

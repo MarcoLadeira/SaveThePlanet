@@ -1,7 +1,7 @@
 const icons = {
   home:'<path d="m3 10 9-8 9 8"/><path d="M5 9v12h5v-7h4v7h5V9"/>',
   forecast:'<rect x="3" y="13" width="3" height="8"/><rect x="10.5" y="4" width="3" height="17"/><rect x="18" y="10" width="3" height="11"/>',
-  car:'<path d="M5 16 6.6 7.7A2 2 0 0 1 8.5 6h7a2 2 0 0 1 1.9 1.7L19 16"/><path d="M4 11h16a2 2 0 0 1 2 2v6H2v-6a2 2 0 0 1 2-2Z"/><path d="M5 19v2M19 19v2M7 15h1M16 15h1"/>',
+  car:'<path d="m6.4 10.5 1.5-3.9a2 2 0 0 1 1.9-1.3h4.4a2 2 0 0 1 1.9 1.3l1.5 3.9"/><rect x="3.5" y="10.5" width="17" height="7.2" rx="2.3"/><g fill="currentColor" stroke="none"><ellipse cx="7.5" cy="14.1" rx="1.25" ry=".95"/><ellipse cx="16.5" cy="14.1" rx="1.25" ry=".95"/><rect x="5.2" y="17.2" width="2.8" height="2.8" rx=".9"/><rect x="16" y="17.2" width="2.8" height="2.8" rx=".9"/></g>',
   leaf:'<path d="M20 3C10 3 4 6 4 15a6 6 0 0 0 6 6c9 0 12-8 10-18Z"/><path d="M3 21c4-6 9-10 15-14"/>',
   settings:'<path d="M10.3 2h3.4l.6 2.3 1.5.6 2.1-1.2 2.4 2.4-1.2 2.1.6 1.5 2.3.6v3.4l-2.3.6-.6 1.5 1.2 2.1-2.4 2.4-2.1-1.2-1.5.6-.6 2.3h-3.4l-.6-2.3-1.5-.6-2.1 1.2-2.4-2.4 1.2-2.1-.6-1.5L2 13.7v-3.4l2.3-.6.6-1.5-1.2-2.1 2.4-2.4 2.1 1.2 1.5-.6.6-2.3Z"/><circle cx="12" cy="12" r="3"/>',
   map:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -15,7 +15,8 @@ const icons = {
   pulse:'<path d="M2 12h5l2-5 3 12 3-15 2 8h5"/>',
   pie:'<circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 10h18"/>',
-  bolt:'<path d="m13 2-8 11h6l-1 9 9-12h-6l0-8Z"/>'
+  bolt:'<path d="m13 2-8 11h6l-1 9 9-12h-6l0-8Z"/>',
+  charge:'<path d="M13.6 2.8 5.9 13.3h5.5l-1.1 7.9 7.8-10.6h-5.6Z" fill="currentColor" stroke-width="1.2"/>'
 };
 function icon(name,size=24,extra='') {return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${extra}">${icons[name]}</svg>`}
 function brand(){return '<svg class="brand-leaf" viewBox="0 0 26 30" role="img" aria-label="Renewable Energy Planner"><defs><linearGradient id="brand-leaf-fill" gradientUnits="userSpaceOnUse" x1="4.2" y1="3.5" x2="22.7" y2="18.8"><stop offset="0" stop-color="#03955f"/><stop offset=".4" stop-color="#04a36c"/><stop offset=".585" stop-color="#07ae74"/><stop offset=".59" stop-color="#1dc389"/><stop offset=".78" stop-color="#3dd89a"/><stop offset=".92" stop-color="#5ee4aa"/><stop offset="1" stop-color="#7eefc1"/></linearGradient><linearGradient id="brand-leaf-vein" gradientUnits="userSpaceOnUse" x1="1" y1="29.5" x2="24.5" y2="1"><stop offset="0" stop-color="#01452f"/><stop offset=".55" stop-color="#01452f" stop-opacity=".9"/><stop offset="1" stop-color="#01452f" stop-opacity="0"/></linearGradient></defs><path fill="url(#brand-leaf-fill)" d="M25 .5C25 10 24 17 19.5 22.5 15.5 27.5 9 29.4 1.2 29.6.1 21 0 12.5 2.3 8.2 5.6 2.4 13 .5 25 .5Z"/><path fill="url(#brand-leaf-vein)" d="M.4 29.1 24 1.2 24.4 1.6 2.1 30.3Z"/></svg>'}
@@ -36,9 +37,55 @@ try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'
 let saved=true;
 function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','settings'].includes(p)?p:'overview'}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
-function fitDesktop(){const shell=document.querySelector('.app-shell');if(!shell)return;const main=shell.querySelector('main');let scale=Math.min(1,innerWidth/1440,innerHeight/900);for(let i=0;i<3;i++){shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;const needed=Math.max(900,main.scrollHeight);scale=Math.min(scale,innerHeight/needed)}shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left'}
-function render(){const page=pageFromHash();const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];document.getElementById('app').innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${fallbackBanner()}${view()}</main></div>`;document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;fitDesktop()}
-document.addEventListener('click',event=>{const page=event.target.closest('[data-page]');if(page){navigate(page.dataset.page);return}if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}const toggle=event.target.closest('[data-toggle]');if(toggle){settings[toggle.dataset.toggle]=!settings[toggle.dataset.toggle];saved=false;render();return}const action=event.target.closest('[data-action]');if(action?.dataset.action==='save'){try{localStorage.setItem('planner-preferences',JSON.stringify(settings))}catch{}saved=true;render()}if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}});
+function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation"><span class="nav-pill" aria-hidden="true"></span>${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function fitDesktop(){
+  const shell=document.querySelector('.app-shell');
+  if(!shell)return;
+  const main=shell.querySelector('main');
+  let scale=Math.min(1,innerWidth/1440,innerHeight/900);
+  for(let i=0;i<3;i++){
+    shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
+    const needed=Math.max(900,main.scrollHeight);
+    scale=Math.min(scale,innerHeight/needed);
+  }
+  shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
+  shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
+  document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
+}
+let lastPage='';
+function slideNavPill(page,previous){
+  const nav=document.querySelector('.dash-sidebar .nav'),pill=nav?.querySelector('.nav-pill');
+  if(!pill)return;
+  const item=key=>nav.querySelector(`.nav-item[data-page="${key}"]`),target=item(page),from=item(previous);
+  if(!target){pill.style.opacity='0';return}
+  const place=el=>{pill.style.transform=`translateY(${el.offsetTop}px)`;pill.style.height=`${el.offsetHeight}px`};
+  if(from&&from!==target){pill.style.transition='none';place(from);pill.getBoundingClientRect();pill.style.transition=''}
+  place(target);
+}
+function render(){
+  const page=pageFromHash(),previousPage=lastPage;
+  lastPage=page;
+  const app=document.getElementById('app');
+  const charts=chartsCollect(app);
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
+  app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main${previousPage&&previousPage!==page?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
+  chartsRestore(app,charts);
+  document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
+  fitDesktop();
+  slideNavPill(page,previousPage);
+  chartsSync(app);
+}
+document.addEventListener('click',event=>{
+  const horizon=event.target.closest('[data-horizon]');
+  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);renderLive();return}
+  const page=event.target.closest('[data-page]');
+  if(page){navigate(page.dataset.page);return}
+  if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}
+  const toggle=event.target.closest('[data-toggle]');
+  if(toggle){settings[toggle.dataset.toggle]=!settings[toggle.dataset.toggle];saved=false;render();return}
+  const action=event.target.closest('[data-action]');
+  if(action?.dataset.action==='save'){try{localStorage.setItem('planner-preferences',JSON.stringify(settings))}catch{}saved=true;render()}
+  if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}
+});
 document.addEventListener('change',event=>{const el=event.target.closest('[data-setting]');if(!el)return;settings[el.dataset.setting]=el.value;saved=false;render()});
 addEventListener('hashchange',render);addEventListener('resize',fitDesktop);render();loadModelForecast();

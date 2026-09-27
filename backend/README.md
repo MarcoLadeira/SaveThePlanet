@@ -92,7 +92,7 @@ node --check frontend/app.js
 
 Manual: inspect all four screens, switch 30/60 minutes, set capacity to 0.1 MW
 (100 kW, so recovery cannot exceed 0.05 MWh), stop the model and refresh to verify
-the simulated fallback banner, restart the model and click Retry model. Charging and Impact should
+the simulated fallback footer label, restart the model and click Reload forecast in Settings. Charging and Impact should
 show the same scenario recovery as Overview.
 
 ## Shared scenario
@@ -148,9 +148,9 @@ Fallback provenance:
 The alternative reason is `INVALID_MODEL_RESPONSE`. Derived scenario data also
 has `dataMode=simulated` and carries the fixture source. A successful model call
 returns `fallback.active=false` with a null reason and normal model provenance.
-The UI shows a permanent amber banner on every page while fallback is active;
-Settings cannot suppress it. Refresh forecast / Retry model always tries the
-model again, clearing the banner on success. There is no background retry timer.
+The UI labels fallback results in the page footer ("Simulated fallback").
+Refresh forecast / Reload forecast always tries the
+model again. There is no background retry timer.
 
 The fixture has fixed timestamps, probabilities and energy values (0.35 and
 0.80 MWh), not random data or a cached successful request. The same input produces
@@ -162,8 +162,8 @@ seconds. The browser request timeout is 15 seconds. This fallback protects again
 model outages; the local SaveThePlanet backend must still be running.
 
 Rehearsal: start only `python backend/server.py` with GridToEv stopped, open the
-app, check the banner on each page and edit charging demand. Start GridToEv and
-click Retry model; the banner disappears and the entered assumptions remain.
+app, check the "Simulated fallback" footer and edit charging demand. Start GridToEv and
+click Reload forecast in Settings; the footer switches to model data and the entered assumptions remain.
 
 ## Health endpoint
 
@@ -216,6 +216,47 @@ never returned; only whether the model is `local` or `hosted` and whether a key 
 | `INVALID_MODEL_RESPONSE` | The model answered but the forecast failed validation (see `detail`). |
 
 The forecast `fallback.reason` stays `MODEL_UNAVAILABLE` or `INVALID_MODEL_RESPONSE`;
-the health codes above are the finer-grained explanation. The fallback banner shows
-the health message, and Settings → Model connection shows the full status with a
+the health codes above are the finer-grained explanation. Settings → Model connection
+shows the health message and the full status with a
 **Check connection** button (active probe) and **Reload forecast**.
+
+## Forecast page explorer
+
+The Forecast page explores both GridToEv models on targets taken from each model's
+own dataset. `explorer.py` proxies the model (the API key never reaches the
+browser), validates that every requested date/time is in the dataset before
+calling it, and pairs each prediction with the observed EirGrid actual.
+
+| Route | Model call(s) |
+| --- | --- |
+| `GET /api/v1/explorer/daily` | V2 `/model-info/daily-curtailment` + `/dataset/daily-curtailment/coverage` (cached 10 min) |
+| `GET /api/v1/explorer/daily/predict?date=YYYY-MM-DD` | V2 `/predict/curtailment/day` + `/actuals/daily-curtailment` |
+| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for the date and the 6 days after it (shifted back near the dataset end) |
+| `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
+| `GET /api/v1/explorer/short-term/predict?target=…Z&capacityMw=100` | V1 `/predict/from-dataset` at +30 (issued target-30 min) and +60 (issued target-60 min) + `/actuals/v1/batch` for the target |
+| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per horizon and gap-free run, so targets cover 00:00-23:30 of the day, + actuals for all 48 targets |
+
+- Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
+- Short-term selection is by **target** half-hour: a target is selectable when its +30 or +60
+  minute issue time is in the V1 dataset (January 2026). A 00:00 target therefore stays on its
+  own day even though its forecasts were issued the previous evening.
+  `/dataset/available-times` returns at most the latest 1000. Earlier half-hours are only
+  accepted without extra calls when `available_issue_timestamp_count` proves there is no
+  gap among them; otherwise each is confirmed by replaying it through the window route,
+  whose `first_missing_issue_timestamp_utc` pinpoints gaps. The info response reports
+  `dataset.verification` = `listed`, `count` or `replay`.
+- A horizon whose target row is outside the dataset (for example +60 min from the
+  final issue time) is omitted instead of failing the request.
+- Invalid input → 400, target outside the dataset → 404 `NOT_IN_DATASET`, model
+  failure → 502 with the same `error.code` values as the health endpoint.
+  There is no demo fallback here: the page shows the error and a retry button.
+- The day replay is aligned by **target** time: the 00:00 target comes from the 23:30 (+30) or
+  23:00 (+60) issue the previous day. Targets without a dataset issue time are left out;
+  `observed` still lists all 48 half-hours.
+- The P10-P90 band stays ~5 MWh wide even when the prediction is 0 because the model widens
+  every interval by `prediction_interval_adjustment_mwh` (5.44 MWh).
+- Hosted-route smoke test: `GRID_TO_EV_SMOKE=1 python -m unittest backend/tests/test_hosted_smoke.py -v`
+  calls every upstream route above on the real service (about a minute). CI runs it in
+  `.github/workflows/tests.yml` when the `GRID_TO_EV_API_KEY` repository secret is set; the unit
+  tests and frontend checks run on every pull request.
+- Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.

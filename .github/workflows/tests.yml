@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Standard library only; the hosted-model smoke tests skip here (see the job below).
+      - name: Run unittest suite
+        run: python -m unittest discover -s backend/tests -v
+
+  frontend:
+    name: Frontend tests and syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check every frontend script parses
+        run: for f in frontend/*.js; do node --check "$f"; done
+      - name: Run node tests
+        run: node --test frontend/tests/*.test.js
+
+  hosted-model-smoke:
+    name: Hosted GridToEv route smoke test
+    runs-on: ubuntu-latest
+    # Calls the real hosted model, so it needs the GRID_TO_EV_API_KEY repository secret.
+    # Secrets are not available to pull requests from forks; the step is then skipped.
+    env:
+      GRID_TO_EV_API_BASE_URL: https://gridtoev-api.onrender.com
+      GRID_TO_EV_API_KEY: ${{ secrets.GRID_TO_EV_API_KEY }}
+      GRID_TO_EV_SMOKE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check every Forecast page route on the hosted model
+        if: env.GRID_TO_EV_API_KEY != ''
+        timeout-minutes: 10
+        run: python -m unittest backend/tests/test_hosted_smoke.py -v
+      - name: Explain skipped smoke test
+        if: env.GRID_TO_EV_API_KEY == ''
+        run: echo "::notice::GRID_TO_EV_API_KEY secret is not set; hosted-model smoke test skipped."

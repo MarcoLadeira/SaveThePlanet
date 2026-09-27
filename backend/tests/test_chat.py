@@ -188,6 +188,7 @@ class RouteTests(unittest.TestCase):
     def test_client_context_cannot_inject_figures(self):
         server.forecast_cache.clear()
         with patch('server.fetch_forecast', side_effect=URLError('down')), \
+                patch('server.demo_payload', lambda capacity, now=None: demo_payload(capacity)), \
                 patch.object(chat, 'ask_gemini', return_value={'intent': 'at_risk', 'text': 'Here it is.'}):
             status, body = self.post({'messages': [{'role': 'user', 'text': 'what is at risk'}],
                                       'context': {'predictions': [{'atRiskMwh': 999}]}, 'atRiskMwh': 999})
