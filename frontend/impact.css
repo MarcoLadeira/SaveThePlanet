@@ -25,12 +25,14 @@
 @keyframes impact-shimmer{from{background-position:100% 0}to{background-position:0 0}}
 
 /* grid */
-.impact-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:12px;flex:1;min-height:0}
+.impact-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);grid-template-rows:auto minmax(250px,1.55fr) minmax(min-content,1fr);gap:12px;flex:1;min-height:auto}
 .impact-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .impact-flow{grid-column:1;grid-row:2}
 .impact-time{grid-column:2;grid-row:2}
 .impact-events{grid-column:1;grid-row:3}
 .impact-cumulative{grid-column:2;grid-row:3}
+/* Width-scaled charts must not size their rows, or the fit-to-screen scale feeds back on itself. */
+.impact-flow,.impact-time,.impact-cumulative{contain:size}
 .impact-layout>.dash-card{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;overflow:hidden;padding:14px 18px;border-radius:var(--imp-radius)}
 
 .impact-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -172,6 +174,7 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
   .impact-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .impact-time .impact-chart-wrap,.impact-cumulative .impact-chart-wrap{height:240px;flex:none}
   .impact-flow{height:360px}
+  .impact-flow,.impact-time,.impact-cumulative{contain:none}
   .impact-toolbar{flex-wrap:wrap}
 }
 @container impact (max-width:620px){

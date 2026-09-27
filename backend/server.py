@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 from scenario import build_day, build_scenario, validate_demand
-from demo import demo_payload
+from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
 import chat
@@ -234,6 +234,15 @@ def _replay_day(day, capacity):
                 horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
 
 
+def demo_day_replay(day, capacity):
+    """Synthetic day replay used when the model cannot be reached, so the Impact page keeps its full layout."""
+    last = default_replay_day()
+    points = [normalize_row(row, capacity) for row in demo_day_rows(capacity, day)]
+    return dict(date=day.isoformat(), range=dict(min=(last - timedelta(days=364)).isoformat(), max=last.isoformat()),
+                source='local-demo-fixture', dataMode='simulated', modelVersion=points[0]['modelVersion'],
+                intervalMinutes=30, horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
+
+
 def neighbour_days(day, first, last, span=None):
     """Days within span (default PREFETCH_DAYS) of day, nearest first (-1, +1, -2, ...), clipped to the dataset.
 
@@ -385,6 +394,8 @@ def available_forecast(capacity):
     return forecast
 
 FORECAST_CACHE_SECONDS = 300
+STALE_FORECAST_SECONDS = 1800
+KEEP_WARM_SECONDS = 480
 forecast_cache_lock = threading.Lock()
 forecast_cache = {}
 
@@ -398,8 +409,28 @@ def cached_forecast(capacity, refresh=False):
             return json.loads(json.dumps(hit[1]))
     forecast = available_forecast(capacity)
     with forecast_cache_lock:
+        previous = forecast_cache.get(capacity)
+        if (forecast['fallback']['active'] and previous and not previous[1]['fallback']['active']
+                and now - previous[0] < STALE_FORECAST_SECONDS):
+            return json.loads(json.dumps(previous[1]))  # ride out a brief model outage on the last real forecast
         forecast_cache[capacity] = (now, forecast)
     return json.loads(json.dumps(forecast))
+
+
+def keep_model_warm():
+    """Wake the hosted model and cache the default day at startup, then ping it so it never sleeps mid-demo."""
+    try:
+        model_request('/health', timeout=60)
+        cached_forecast(100.0)
+        fetch_day_replay(default_replay_day(), 100.0)
+    except Exception:  # the pages fall back to labelled demo data and retry on their own
+        pass
+    while True:
+        time.sleep(KEEP_WARM_SECONDS)
+        try:
+            model_request('/health', timeout=30)
+        except Exception:
+            pass
 
 
 def health(probe=True):
@@ -472,11 +503,10 @@ class Handler(SimpleHTTPRequestHandler):
                 status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
-        except (URLError, TimeoutError, OSError, HTTPException):
-            status, body = 502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model for the day replay. Retry shortly.'}}
-        except (ValueError, KeyError, TypeError, OverflowError):
-            status, body = 502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': 'The model returned an invalid day replay.'}}
-        if status == 200:
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
+            status, body = 200, build_day(demo_day_replay(day, capacity), total, flexible)
+            body['dataMode'] = 'simulated'
+        if status == 200 and body.get('dataMode') != 'simulated':
             try:
                 schedule_prefetch(day, capacity)
             except Exception:  # prefetch is only an optimisation
@@ -571,6 +601,7 @@ if __name__ == '__main__':
           (model: {MODEL_URL})
           if the model is unavailable, clearly labelled demo data will be used.
           """, flush=True)
+    threading.Thread(target=keep_model_warm, name='model-warm', daemon=True).start()
     import sys
     if '--open-browser' in sys.argv:
         import webbrowser
