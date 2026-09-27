@@ -1,5 +1,5 @@
 """Small product API and static frontend host. Run: python backend/server.py."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -18,6 +18,7 @@ from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
 import chat
+import explorer
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -283,6 +284,38 @@ class Handler(SimpleHTTPRequestHandler):
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
         self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
 
+    def explorer(self, route):
+        """Forecast page: model info and predictions for dataset dates of V1 (30/60 min) and V2 (daily)."""
+        query = {k: v[0] for k, v in parse_qs(route.query).items()}
+        try:
+            name = route.path.removeprefix('/api/v1/explorer/')
+            if name == 'short-term/predict':
+                capacity = float(query.get('capacityMw', '100'))
+                number(capacity, 'capacity', minimum=0.001, maximum=10000)
+                target = timestamp(query.get('target'))
+                if target.minute not in (0, 30) or target.second or target.microsecond:
+                    raise ValueError('Target must be a UTC half-hour')
+                action = partial(explorer.short_term_predict, target.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
+            elif name in ('short-term/day', 'daily/predict', 'daily/week'):
+                day = date.fromisoformat(query.get('date', '')).isoformat()
+                action = partial({'short-term/day': explorer.short_term_day, 'daily/predict': explorer.daily_predict,
+                                  'daily/week': explorer.daily_week}[name], day)
+            elif name in ('short-term', 'daily'):
+                action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
+            else:
+                self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
+                return
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a dataset date (YYYY-MM-DD), a UTC half-hour target time and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, action())
+        except LookupError as error:
+            self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_GET(self):
         route = urlsplit(self.path)
         if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
@@ -307,6 +340,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model API. Start GridToEv on port 8000, then retry.'}})
             except (ValueError, KeyError, TypeError, OverflowError):
                 self.send_json(502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': 'The model returned an invalid forecast. Check the model service and retry.'}})
+            return
+        if route.path.startswith('/api/v1/explorer/'):
+            self.explorer(route)
             return
         if route.path == '/api/v1/health':
             probe = parse_qs(route.query).get('probe', ['true']) != ['false']
