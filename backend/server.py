@@ -19,6 +19,7 @@ from http.client import HTTPException
 from config import load_env
 import chat
 import explorer
+import synthetic
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -269,7 +270,33 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def synthetic_v1(self):
+        """A synthetic V1 scenario from the model's example request; never stored or treated as a forecast."""
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 <= length <= 4_000:
+                raise ValueError('Invalid body size')
+            options = json.loads(self.rfile.read(length) or b'{}')
+            if not isinstance(options, dict):
+                raise ValueError('Expected an object')
+            horizon, scenario = options.get('horizon', 30), options.get('scenario', 'ordinary')
+            capacity = float(options.get('capacityMw', 100))
+            number(capacity, 'capacity', minimum=0.001, maximum=10000)
+            if horizon not in (30, 60) or isinstance(horizon, bool) or scenario not in synthetic.SCENARIOS:
+                raise ValueError('Invalid options')
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use horizon 30 or 60, scenario "ordinary" or "high-curtailment", and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, synthetic.run(horizon, scenario, capacity))
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_POST(self):
+        if urlsplit(self.path).path == '/api/v1/synthetic-v1':
+            self.synthetic_v1()
+            return
         if urlsplit(self.path).path != '/api/v1/chat':
             self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
             return
