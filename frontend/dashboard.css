@@ -9,7 +9,7 @@
   --forest:#143f2e;--forest-2:#1d5139;--forest-3:#28624a;--forest-edge:#0b281c;--forest-ink:#eef8f2;--forest-muted:#9dc3af;
   --lime:#b4efc8;--lime-edge:#6fcb95;
   --amber:#f2a23a;--amber-deep:#c67a1a;--amber-top:#f8cb88;--amber-soft:#fdeed7;--amber-ink:#8a5309;
-  --blue:#3f87df;--blue-deep:#2766b6;--blue-top:#9cc6f4;--blue-soft:#e2edfb;--blue-ink:#1f5aa3;
+  --orange:#ff883e;--orange-deep:#e0691e;--orange-top:#ffc39a;--orange-soft:#fff0e4;--orange-ink:#b8521a;
   --grey:#a9b8af;--grey-deep:#85968c;--grey-soft:#edf1ee;
 }
 .dashboard-main[data-theme="dark"],.app-shell:has(.dashboard-main[data-theme="dark"]) .dash-sidebar{
@@ -17,7 +17,7 @@
   --ink:#e9f4ee;--ink-2:#a9bdb1;--ink-3:#76897e;
   --green:#34bb7b;--green-deep:#1f8a55;--green-top:#7fe0ae;--green-soft:#1b3727;--green-soft-edge:#0c2217;
   --forest:#17503a;--forest-2:#1f6047;--forest-3:#2a7055;--forest-edge:#0a2a1d;
-  --amber-soft:#3a2b14;--amber-ink:#f7c580;--blue-soft:#172b45;--blue-ink:#9cc6f4;
+  --amber-soft:#3a2b14;--amber-ink:#f7c580;--orange-soft:#3a2716;--orange-ink:#ffc39a;
   --grey:#6f8177;--grey-deep:#56665d;--grey-soft:#1f2c25;
 }
 
@@ -58,7 +58,7 @@
 .dash-tile svg{stroke-width:2}
 .dash-tile.is-green{background:var(--green);color:#fff;box-shadow:0 3px 0 var(--green-deep)}
 .dash-tile.is-amber{background:var(--amber);color:#3b2204;box-shadow:0 3px 0 var(--amber-deep)}
-.dash-tile.is-blue{background:var(--blue);color:#fff;box-shadow:0 3px 0 var(--blue-deep)}
+.dash-tile.is-blue{background:var(--orange);color:#fff;box-shadow:0 3px 0 var(--orange-deep)}
 .dash-tile.is-lime{background:var(--lime);color:var(--forest);box-shadow:0 3px 0 var(--lime-edge)}
 .dash-tile.is-neutral{background:var(--green-soft);color:var(--green);box-shadow:0 3px 0 var(--green-soft-edge)}
 .dash-tile.is-amber-soft{flex-basis:36px;width:36px;height:36px;border-radius:11px;background:var(--amber-soft);color:var(--amber-ink);box-shadow:0 2px 0 var(--edge)}
@@ -120,7 +120,7 @@
 .dash-chart-legend span{display:inline-flex;align-items:center;gap:7px}
 .dash-chart-legend i{width:12px;height:12px;border-radius:4px}
 .dash-chart-legend i.is-risk{background:var(--amber)}
-.dash-chart-legend i.is-charge,.dash-chart-legend i.is-optimised{background:var(--blue)}
+.dash-chart-legend i.is-charge,.dash-chart-legend i.is-optimised{background:var(--orange)}
 .dash-chart-legend i.is-current{background:var(--grey)}
 .dash-chart-legend i.is-window{background:var(--green-soft);box-shadow:inset 0 0 0 2px var(--green)}
 .dash-chart-legend small{margin-left:auto;font-size:12px;font-weight:650;color:var(--ink-3)}
@@ -131,24 +131,24 @@
 .dash-window-band{fill:var(--green-soft)}
 .dash-window-label{font-size:11.5px;font-weight:750;fill:var(--green)}
 .dash-area.is-risk{fill:var(--amber-soft)}
-.dash-area.is-charge,.dash-area.is-optimised{fill:var(--blue-soft)}
+.dash-area.is-charge,.dash-area.is-optimised{fill:var(--orange-soft)}
 .dash-area.is-current{fill:var(--grey-soft)}
 .dash-ribbon path{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .dash-ribbon .depth{stroke-width:5}
 .dash-ribbon .face{stroke-width:4.5}
 .dash-ribbon.is-risk .depth{stroke:var(--amber-deep)}
 .dash-ribbon.is-risk .face{stroke:var(--amber)}
-.dash-ribbon.is-charge .depth,.dash-ribbon.is-optimised .depth{stroke:var(--blue-deep)}
-.dash-ribbon.is-charge .face,.dash-ribbon.is-optimised .face{stroke:var(--blue)}
+.dash-ribbon.is-charge .depth,.dash-ribbon.is-optimised .depth{stroke:var(--orange-deep)}
+.dash-ribbon.is-charge .face,.dash-ribbon.is-optimised .face{stroke:var(--orange)}
 .dash-ribbon.is-current .depth{stroke:var(--grey-deep)}
 .dash-ribbon.is-current .face{stroke:var(--grey)}
 .dash-peak .face{fill:#fff;stroke-width:2.5}
 .dash-peak.is-risk .depth{fill:var(--amber-deep)}
 .dash-peak.is-risk .face{stroke:var(--amber)}
 .dash-peak.is-risk .core{fill:var(--amber)}
-.dash-peak.is-optimised .depth{fill:var(--blue-deep)}
-.dash-peak.is-optimised .face{stroke:var(--blue)}
-.dash-peak.is-optimised .core{fill:var(--blue)}
+.dash-peak.is-optimised .depth{fill:var(--orange-deep)}
+.dash-peak.is-optimised .face{stroke:var(--orange)}
+.dash-peak.is-optimised .core{fill:var(--orange)}
 .dash-peak-chip{position:absolute;z-index:1;transform:translate(calc(-100% - 16px),-50%);padding:7px 12px 8px;border-radius:12px;background:var(--forest);color:#fff;box-shadow:0 3px 0 var(--forest-edge);white-space:nowrap;pointer-events:none}
 .dash-peak-chip small{display:block;font-size:10.5px;font-weight:600;color:var(--forest-muted)}
 .dash-peak-chip b{font-size:15px;font-weight:800;letter-spacing:-.01em}

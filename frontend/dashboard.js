@@ -15,10 +15,10 @@ function fleetStat(tone,glyph,value,label,share){
 function dashboardFleet(o){
   const flex=modelState.data.scenario.flexibleDemandMwh,capacity=modelState.data.flexibleCapacityMw;
   const power=Math.min(capacity,Math.max(0,o.proposedPowerMw));
-  return `<section class="dash-card dash-fleet">${cardHead('car','sky','Flexible charging','Scenario input, not vehicle telemetry')}
+  return `<section class="dash-card dash-fleet">${cardHead('green','Flexible charging','Scenario input, not vehicle telemetry')}
     <div class="fleet-body"><div class="fleet-demand"><p class="fleet-figure"><strong>${n(flex)}</strong><span>MWh</span></p><p class="fleet-caption">Flexible demand</p></div><span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
     <div class="fleet-meter"><div class="fleet-meter-head"><span id="fleet-power-label">Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(capacity)} MW</span></div><div class="fleet-track" role="meter" aria-labelledby="fleet-power-label" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${power}" aria-valuetext="${n(o.proposedPowerMw)} of ${n(capacity)} MW" style="--fleet-fill:${fleetShare(power,capacity)}"><i></i><b></b></div></div>
-    <div class="fleet-stats">${fleetStat('green','charge',o.potentialRecoveryMwh,'Absorbable',fleetShare(o.potentialRecoveryMwh,flex))}${fleetStat('blue','clock',o.remainingFlexibleMwh,'Flexibility left',fleetShare(o.remainingFlexibleMwh,flex))}</div>
+    <div class="fleet-stats">${fleetStat('green','charge',o.potentialRecoveryMwh,'Absorbable',fleetShare(o.potentialRecoveryMwh,flex))}${fleetStat('orange','clock',o.remainingFlexibleMwh,'Flexibility left',fleetShare(o.remainingFlexibleMwh,flex))}</div>
   </section>`;
 }
 
@@ -31,7 +31,7 @@ function dashboardRecoveryChannel(p,o){
 function dashboardPlan(p,o){
   const bars=[['risk','At risk',p.atRiskMwh],['flex','Flexible',modelState.data.scenario.flexibleDemandMwh],['recovery','Absorbable',o.potentialRecoveryMwh]];
   const max=Math.max(...bars.map(([,,value])=>value));
-  return `<section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation')}
+  return `<section class="dash-card dash-plan">${cardHead('tricolour','Your next move','Scenario recommendation')}
     <h3 class="plan-headline">Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at <em>${escapeHtml(modelTime(p.targetAt))}</em>.</h3>
     <div class="plan-chart" role="img" aria-label="${bars.map(([,label,value])=>`${label} ${n(value)} MWh`).join(', ')}"><div class="plan-bars">${bars.map(([key,,value],i)=>`<div class="plan-bar is-${key}" style="--plan-h:${max>0?value/max:0};--plan-delay:${i*.08}s"><span class="plan-bar-value"><strong>${n(value)}</strong>MWh</span><i></i></div>`).join('')}</div><div class="plan-labels">${bars.map(([,label])=>`<span>${label}</span>`).join('')}</div></div>
     <button class="plan-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',20)}</button>
@@ -39,19 +39,19 @@ function dashboardPlan(p,o){
 }
 
 function dashboardHero(p){
-  return `<section class="dash-card dash-hero">${cardHead('turbine','green','Renewable energy at risk','Selected half-hour model forecast')}
+  return `<section class="dash-card dash-hero">${cardHead('orange','Renewable energy at risk','Selected half-hour model forecast')}
     <div class="hero-body"><div class="hero-figure"><strong>${n(p.atRiskMwh)}<small>MWh</small></strong><p>At risk of being wasted<br>+${p.horizonMinutes} min · ${escapeHtml(targetWindow(p))}</p></div>${chartSlot('likelihood',`${Math.round(p.probability*100)}% likelihood of dispatch-down, ${p.risk} risk`,'hero-gauge')}</div>
     <div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Likely range</span><strong>${n(p.lowerMwh)}–${n(p.upperMwh)} MWh</strong></div></div>
   </section>`;
 }
 
 function dashboardCauses(p){
-  return `<section class="dash-card dash-causes">${cardHead('tower','peach','What drives the risk','Predicted components of energy at risk')}${chartSlot('causes',`Grid constraint ${n(p.constraintMwh)} MWh and curtailment ${n(p.curtailmentMwh)} MWh`,'causes-chart')}</section>`;
+  return `<section class="dash-card dash-causes">${cardHead('orange','What drives the risk','Predicted components of energy at risk')}${chartSlot('causes',`Grid constraint ${n(p.constraintMwh)} MWh and curtailment ${n(p.curtailmentMwh)} MWh`,'causes-chart')}</section>`;
 }
 
 function dashboardConfidence(p){
   const legend='<div class="confidence-legend"><span><i class="is-range"></i>Likely range</span><span><i class="is-expected"></i>Expected</span></div>';
-  return `<section class="dash-card dash-confidence">${cardHead('forecast','neutral','Forecast confidence','Expected energy at risk and its likely range for each half-hour',legend)}${chartSlot('confidence','Forecast targets','confidence-chart','group')}</section>`;
+  return `<section class="dash-card dash-confidence">${cardHead('orange','Forecast confidence','Expected energy at risk and its likely range for each half-hour',legend)}${chartSlot('confidence','Forecast targets','confidence-chart','group')}</section>`;
 }
 
 function renderDashboard(){

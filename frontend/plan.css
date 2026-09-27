@@ -11,16 +11,6 @@
   box-shadow: inset 0 0 0 1px rgba(120, 214, 180, .18), 0 3px 0 #0a352e, 0 15px 32px rgba(8, 58, 46, .18);
 }
 .dashboard-redesign .dash-plan > .dash-card-head { flex: 0 0 auto; gap: 12px; }
-.dashboard-redesign .dash-plan .dash-tile.is-lime {
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  margin: 0;
-  border-radius: 13px;
-  background: linear-gradient(145deg, #d3fdec, #adf1d2);
-  color: #06392b;
-}
-.dashboard-redesign .dash-plan .dash-tile svg { width: 22px; height: 22px; }
 /* Segoe UI jumps from Bold (700) to Black (900); the mock uses Bold throughout. */
 .dashboard-redesign .dash-plan .dash-head-copy h2 {
   color: #fff;
@@ -108,9 +98,9 @@
   font-weight: 700;
   letter-spacing: -.02em;
 }
-.plan-bar.is-risk { --bar-top: #ffd872; --bar-mid: #ffc04c; --bar-bottom: #e3a437; --bar-glow: rgba(255, 190, 70, .45); }
-.plan-bar.is-flex { --bar-top: #78cffd; --bar-mid: #40a1fc; --bar-bottom: #217bdd; --bar-glow: rgba(64, 160, 252, .5); }
-.plan-bar.is-recovery { --bar-top: #9af6c0; --bar-mid: #6cdfa1; --bar-bottom: #38ba7f; --bar-glow: rgba(90, 222, 150, .42); }
+.plan-bar.is-risk { --bar-top: #ffb27a; --bar-mid: #ff883e; --bar-bottom: #e0691e; --bar-glow: rgba(255, 136, 62, .45); }
+.plan-bar.is-flex { --bar-top: #ffffff; --bar-mid: #f0f7f3; --bar-bottom: #d3e6dc; --bar-glow: rgba(255, 255, 255, .32); }
+.plan-bar.is-recovery { --bar-top: #6fdca6; --bar-mid: #22b574; --bar-bottom: #169b62; --bar-glow: rgba(22, 155, 98, .5); }
 .plan-labels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
