@@ -20,6 +20,7 @@ from config import load_env
 import chat
 import explorer
 import synthetic
+import targets
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -89,10 +90,12 @@ def normalize(payload, capacity):
                 fallback={'active': False, 'reason': None})
 
 
-# The dashboard shows the latest target half-hour in GridToEv's V1 historical dataset
-# (latest available date 31 January 2026). Each horizon is requested from its own issue
-# time so both predict this same target: +30 min issued 22:30, +60 min issued 22:00.
-# These are historical dataset predictions, not live forecasts.
+# The dashboard shows one target half-hour from GridToEv's V1 historical dataset. Each
+# horizon is requested from its own issue time so both predict the same target (e.g. for
+# 23:00: +30 min issued 22:30, +60 min issued 22:00). Pages get a random target the model
+# predicts to have extra dispatch-down (see targets.py); TARGET_TIMESTAMP, the dataset's
+# final half-hour, is only the fixed target for the health probe. These are historical
+# dataset predictions, not live forecasts.
 TARGET_TIMESTAMP = os.environ.get('GRID_TO_EV_TARGET_TIMESTAMP', '2026-01-31T23:00:00Z')
 
 
@@ -102,13 +105,13 @@ def issue_timestamp(horizon, target=None):
     return issued.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def post_prediction(capacity, horizon):
+def post_prediction(capacity, horizon, target=None):
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
     key = os.environ.get('GRID_TO_EV_API_KEY')
     if key:
         headers['X-API-Key'] = key
     body = json.dumps({
-        'issue_timestamp_utc': issue_timestamp(horizon),
+        'issue_timestamp_utc': issue_timestamp(horizon, target),
         'forecast_horizon_minutes': horizon,
         'flexible_load_capacity_mw': capacity,
     }).encode()
@@ -125,8 +128,8 @@ def post_prediction(capacity, horizon):
                 raise
 
 
-def fetch_forecast(capacity):
-    rows = [post_prediction(capacity, horizon) for horizon in (30, 60)]
+def fetch_forecast(capacity, target=None):
+    rows = [post_prediction(capacity, horizon, target) for horizon in (30, 60)]
     return normalize({'predictions': rows}, capacity)
 
 
@@ -203,11 +206,14 @@ def record_model_status(started, version=None, error=None):
     return diagnosis
 
 
-def available_forecast(capacity):
-    """Always try the model, then use validated demo data for upstream failures."""
+def available_forecast(capacity, target=None):
+    """Always try the model, then use validated demo data for upstream failures.
+
+    Without a target, a random dataset target predicted to have extra dispatch-down is chosen.
+    """
     started = time.monotonic()
     try:
-        forecast = fetch_forecast(capacity)
+        forecast = fetch_forecast(capacity, target) if target else targets.pick(capacity, fetch_forecast)
     except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
         reason = record_model_status(started, error=error)['fallbackReason']
     else:
@@ -223,23 +229,45 @@ forecast_cache_lock = threading.Lock()
 forecast_cache = {}
 
 
-def cached_forecast(capacity, refresh=False):
-    """Forecast shared by the pages and Volt, so both quote the same validated figures."""
+def cached_forecast(capacity, target=None, refresh=False):
+    """Forecast shared by the pages and Volt, so both quote the same validated figures.
+
+    The pages send back the target they were given, so a random target stays fixed across
+    live refreshes and Volt answers about the same half-hour. No target picks a new one.
+    """
     now = time.monotonic()
     with forecast_cache_lock:
-        hit = forecast_cache.get(capacity)
+        hit = forecast_cache.get((capacity, target)) if target else None
         if hit and not refresh and now - hit[0] < FORECAST_CACHE_SECONDS:
             return json.loads(json.dumps(hit[1]))
-    forecast = available_forecast(capacity)
-    with forecast_cache_lock:
-        forecast_cache[capacity] = (now, forecast)
+    forecast = available_forecast(capacity, target)
+    if forecast['dataMode'] != 'simulated':
+        with forecast_cache_lock:
+            forecast_cache[(capacity, forecast['targetAt'].replace('+00:00', 'Z'))] = (now, forecast)
     return json.loads(json.dumps(forecast))
+
+
+def dashboard_target(value):
+    """A requested dashboard target: a UTC half-hour with both horizons in the V1 dataset."""
+    if value is None:
+        return None
+    moment = timestamp(value)
+    if moment.minute not in (0, 30) or moment.second or moment.microsecond:
+        raise ValueError('Target must be a UTC half-hour')
+    target = moment.strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        known = targets.is_dataset_target(target)
+    except (URLError, TimeoutError, OSError, HTTPException, KeyError):
+        known = True  # dataset list unavailable: the model call decides (and falls back if needed)
+    if not known:
+        raise ValueError('Target is not in the V1 dataset')
+    return target
 
 
 def health(probe=True):
     """Backend status plus why the model is (un)available. Never exposes the URL or key."""
     if probe:
-        available_forecast(1)
+        available_forecast(1, TARGET_TIMESTAMP)
     with model_status_lock:
         model = dict(model_status)
     host = urlsplit(MODEL_URL).hostname or ''
@@ -307,11 +335,12 @@ class Handler(SimpleHTTPRequestHandler):
             messages, page, horizon, selectors = chat.validate_request(json.loads(self.rfile.read(length)))
             number(selectors['capacityMw'], 'capacity', minimum=0.001, maximum=10000)
             validate_demand(selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
+            selectors['target'] = dashboard_target(selectors['target'])
         except (ValueError, TypeError):
             self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Send a short question (up to 1000 characters).'}})
             return
         # Figures come from the server's own forecast and scenario, never from the browser.
-        forecast = cached_forecast(selectors['capacityMw'])
+        forecast = cached_forecast(selectors['capacityMw'], selectors['target'])
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
         self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
 
@@ -359,11 +388,12 @@ class Handler(SimpleHTTPRequestHandler):
                 total = float(query.get('totalDemandKwh', ['1000'])[0])
                 flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
                 validate_demand(total, flexible)
+                target = dashboard_target(query.get('target', [None])[0])
             except (ValueError, TypeError):
-                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
+                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, demand 0-1000000000 kWh with flexible demand no greater than total demand, and an optional V1 dataset target half-hour.'}})
                 return
             try:
-                forecast = cached_forecast(capacity, refresh=True)
+                forecast = cached_forecast(capacity, target, refresh=True)
                 if route.path == '/api/v1/scenario':
                     forecast['scenario'] = build_scenario(forecast, total, flexible)
                 self.send_json(200, forecast)
@@ -396,6 +426,14 @@ if __name__ == '__main__':
           (model: {MODEL_URL})
           if the model is unavailable, clearly labelled demo data will be used.
           """, flush=True)
+
+    def warm_targets():
+        # Build the high-MWh target shortlist (~7 s) before the first page asks for it.
+        try:
+            targets.candidates()
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError):
+            pass  # the first request retries; the page falls back to demo data if the model is down
+    threading.Thread(target=warm_targets, daemon=True).start()
     import sys
     if '--open-browser' in sys.argv:
         import webbrowser

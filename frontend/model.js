@@ -7,6 +7,9 @@ const modelState = {
     capacity: 100,
     totalDemandKwh: 1000,
     flexibleDemandKwh: 500,
+    // Random high-MWh dataset target chosen by the server; kept so live refreshes and Volt
+    // stay on the same half-hour. null asks the server for a new one.
+    target: null,
     health: null,
     healthChecking: false,
 };
@@ -208,6 +211,7 @@ async function loadModelForecast(live = false) {
             totalDemandKwh: String(modelState.totalDemandKwh),
             flexibleDemandKwh: String(modelState.flexibleDemandKwh),
         });
+        if (modelState.target) query.set("target", modelState.target);
         const response = await fetch(`/api/v1/scenario?${query}`, {
             signal: controller.signal,
         });
@@ -227,6 +231,8 @@ async function loadModelForecast(live = false) {
         if (request === modelRequest) {
             modelState.data = body;
             modelState.error = "";
+            if (body.dataMode !== "simulated")
+                modelState.target = new Date(body.targetAt).toISOString().replace(".000Z", "Z");
         }
     } catch (error) {
         if (request === modelRequest && !(live && modelState.data))
@@ -296,3 +302,12 @@ function isDemoData() {
 function dataSourceLabel() {
     return isDemoData() ? "Simulated demo data" : "Historical dataset prediction";
 }
+
+// Pick another random dataset target predicted to have extra dispatch-down.
+function newDashboardTarget() {
+    modelState.target = null;
+    loadModelForecast();
+}
+document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-new-target]")) newDashboardTarget();
+});

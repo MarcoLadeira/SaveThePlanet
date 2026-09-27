@@ -112,6 +112,9 @@ def validate_request(body):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f'Invalid {key}')
         selectors[key] = float(value)
+    # The dashboard target the page is showing, so Volt answers about the same half-hour.
+    target = body.get('target')
+    selectors['target'] = target if isinstance(target, str) and len(target) <= 40 else None
     return cleaned[-MAX_TURNS * 2:], page, horizon, selectors
 
 

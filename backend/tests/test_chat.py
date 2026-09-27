@@ -34,6 +34,10 @@ def ask(parsed, question='How much renewable energy is at risk?', simulated=Fals
     return chat.assemble(parsed, question, 'overview', facts(simulated))
 
 
+
+import test_server as support
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
+
 class RequestTests(unittest.TestCase):
     def test_accepts_only_selectors(self):
         messages, page, horizon, selectors = chat.validate_request({

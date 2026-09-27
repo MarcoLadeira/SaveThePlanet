@@ -15,6 +15,26 @@ import server
 from server import Handler, normalize
 
 
+FIXED_TARGET = '2026-01-31T23:00:00Z'
+_hermetic = []
+
+
+def start_hermetic_targets():
+    """Replace the random-target shortlist with one fixed target so tests never call the model."""
+    _hermetic[:] = [patch('targets.candidates', return_value=[(FIXED_TARGET, 50.0)]),
+                    patch('targets.is_dataset_target', side_effect=lambda target: target == FIXED_TARGET)]
+    for patcher in _hermetic:
+        patcher.start()
+
+
+def stop_hermetic_targets():
+    for patcher in _hermetic:
+        patcher.stop()
+
+
+setUpModule, tearDownModule = start_hermetic_targets, stop_hermetic_targets
+
+
 def sample():
     # Latest dataset target: +30 min issued 22:30 and +60 min issued 22:00 both predict 23:00.
     return {'predictions': [dict(model_version='test', issue_timestamp_utc=f'2026-01-31T{issued}:00Z',
@@ -121,7 +141,7 @@ class HttpTests(unittest.TestCase):
         fetch.return_value = normalize(sample(), 100)
         status, body = self.get('/api/v1/forecast?region=Ireland&capacityMw=100')
         self.assertEqual(status, 200)
-        fetch.assert_called_once_with(100)
+        fetch.assert_called_once_with(100, FIXED_TARGET)  # random pick from the (fixed) shortlist
         self.assertEqual(body['region'], 'Ireland')
 
     @patch('server.fetch_forecast')

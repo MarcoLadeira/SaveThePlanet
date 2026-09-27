@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import patch
 import test_server as support
+
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 from test_server import sample
 from server import normalize
 from scenario import build_scenario, validate_demand
@@ -71,7 +73,7 @@ class ScenarioHttpTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body['scenario']['outcomes'][0]['potentialRecoveryMwh'], .5)
         self.assertEqual(body['predictions'][0]['atRiskMwh'], body['scenario']['outcomes'][0]['atRiskMwh'])
-        fetch.assert_called_once_with(100)
+        fetch.assert_called_once_with(100, support.FIXED_TARGET)
 
     @patch('server.fetch_forecast')
     def test_invalid_demand_rejected_before_model_call(self, fetch):

@@ -241,11 +241,26 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 ## Dashboard V1 target and synthetic scenarios
 
 **Historical dataset prediction.** The shared forecast (Dashboard, Charging, Impact, Volt)
-asks `POST /predict/from-dataset` for the latest target half-hour in the V1 dataset,
-31 Jan 2026 23:00 UTC: the +30 min forecast is issued at 22:30 and the +60 min forecast
-at 22:00, so both predict the same half-hour. Override the target with
-`GRID_TO_EV_TARGET_TIMESTAMP`. The pages label it as a historical dataset prediction,
-not a live forecast.
+asks `POST /predict/from-dataset` for one target half-hour of the V1 dataset, with each
+horizon issued from its own time so both predict that half-hour (e.g. for 23:00: +30 min
+issued 22:30, +60 min issued 22:00). The pages label it as a historical dataset
+prediction, not a live forecast.
+
+The target is **random, prioritising half-hours the model predicts to have extra
+dispatch-down** (`targets.py`):
+
+1. Shortlist: every target with both issue times whose observed EirGrid dispatch-down is
+   at least 20 MWh (≈456 of 1,431), from `/actuals/v1/batch`. Built once per server run
+   and warmed in the background at start-up (~7 s).
+2. Pick one at random, weighted by that energy, and request both horizons.
+3. Keep it only if the model **predicts** at least 20 MWh at both horizons; otherwise try
+   another (up to 6), else use the highest prediction. `selection` in the response says
+   how it was chosen.
+
+`GET /api/v1/scenario` without `target` picks a new random target; the page then sends
+`&target=` back so live refreshes and Volt stay on the same half-hour, and "↻ New target"
+picks another. `GRID_TO_EV_TARGET_TIMESTAMP` (default 2026-01-31T23:00Z, the final
+half-hour) is only used by the health probe.
 
 **Synthetic V1 scenario** (Dashboard header button). `POST /api/v1/synthetic-v1`
 `{"horizon": 30|60, "scenario": "ordinary"|"high-curtailment", "capacityMw": 100}`:

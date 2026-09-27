@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 from http.client import IncompleteRead
 import test_server as support
+
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 from server import available_forecast, normalize, post_prediction
 from demo import demo_payload
 from scenario import build_scenario
