@@ -78,23 +78,27 @@ def normalize(payload, capacity):
                            risk=risk, atRiskMwh=total, curtailmentMwh=curtailment, constraintMwh=constraint,
                            lowerMwh=lower, medianMwh=median, upperMwh=upper, potentialRecoveryMwh=recovered))
     points.sort(key=lambda p: p['horizonMinutes'])
-    if [p['horizonMinutes'] for p in points] != [30, 60] or len({p['issuedAt'] for p in points}) != 1 or len({p['modelVersion'] for p in points}) != 1:
-        raise ValueError('Forecast horizons must share an issue time and model')
+    # Both horizons forecast the same target half-hour, each from its own issue time.
+    if [p['horizonMinutes'] for p in points] != [30, 60] or len({p['targetAt'] for p in points}) != 1 or len({p['modelVersion'] for p in points}) != 1:
+        raise ValueError('Forecast horizons must share a target time and model')
     return dict(generatedAt=datetime.now(timezone.utc).isoformat(), source='grid-to-ev-model',
-                dataMode='historical-prediction', region='Ireland', intervalMinutes=30,
+                dataMode='historical-prediction', dataLabel='Historical dataset prediction', live=False,
+                region='Ireland', intervalMinutes=30, targetAt=points[0]['targetAt'],
                 flexibleCapacityMw=capacity, modelVersion=points[0]['modelVersion'], predictions=points,
                 fallback={'active': False, 'reason': None})
 
 
-# End of the historical window replayed in real time (must be within the dataset range)
-ISSUE_TIMESTAMP = os.environ.get('GRID_TO_EV_ISSUE_TIMESTAMP', '2026-01-10T00:00:00+00:00')
+# The dashboard shows the latest target half-hour in GridToEv's V1 historical dataset
+# (latest available date 31 January 2026). Each horizon is requested from its own issue
+# time so both predict this same target: +30 min issued 22:30, +60 min issued 22:00.
+# These are historical dataset predictions, not live forecasts.
+TARGET_TIMESTAMP = os.environ.get('GRID_TO_EV_TARGET_TIMESTAMP', '2026-01-31T23:00:00Z')
 
 
-def replay_issue_timestamp(now=None):
-    """The dataset half-hour matching the current UTC time of day, in the day before ISSUE_TIMESTAMP."""
-    now = now or datetime.now(timezone.utc)
-    day = (timestamp(ISSUE_TIMESTAMP) - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return (day + timedelta(minutes=(now.hour * 60 + now.minute) // 30 * 30)).isoformat()
+def issue_timestamp(horizon, target=None):
+    """The dataset issue time whose +horizon forecast lands on the target half-hour."""
+    issued = timestamp(target or TARGET_TIMESTAMP) - timedelta(minutes=horizon)
+    return issued.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def post_prediction(capacity, horizon):
@@ -103,7 +107,7 @@ def post_prediction(capacity, horizon):
     if key:
         headers['X-API-Key'] = key
     body = json.dumps({
-        'issue_timestamp_utc': replay_issue_timestamp(),
+        'issue_timestamp_utc': issue_timestamp(horizon),
         'forecast_horizon_minutes': horizon,
         'flexible_load_capacity_mw': capacity,
     }).encode()

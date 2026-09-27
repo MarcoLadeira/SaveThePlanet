@@ -1,4 +1,5 @@
 from functools import partial
+import io
 from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -10,17 +11,19 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import server
 from server import Handler, normalize
 
 
 def sample():
-    return {'predictions': [dict(model_version='test', issue_timestamp_utc='2026-01-31T22:00:00Z',
-        target_timestamp_utc=f'2026-01-31T{target}:00Z', forecast_horizon_minutes=horizon,
+    # Latest dataset target: +30 min issued 22:30 and +60 min issued 22:00 both predict 23:00.
+    return {'predictions': [dict(model_version='test', issue_timestamp_utc=f'2026-01-31T{issued}:00Z',
+        target_timestamp_utc='2026-01-31T23:00:00Z', forecast_horizon_minutes=horizon,
         dispatch_down_probability=.8, risk_level='high', predicted_dispatch_down_mwh=42,
         predicted_curtailment_mwh=12, predicted_constraint_mwh=30, prediction_interval_p10_mwh=20,
         prediction_interval_p50_mwh=40, prediction_interval_p90_mwh=60,
         flexible_load_capacity_mw=100, recoverable_surplus_mwh=42)
-        for horizon, target in [(30, '22:30'), (60, '23:00')]]}
+        for horizon, issued in [(30, '22:30'), (60, '22:00')]]}
 
 
 class ContractTests(unittest.TestCase):
@@ -33,7 +36,7 @@ class ContractTests(unittest.TestCase):
     def test_rejects_invalid_model_data(self):
         cases = [('dispatch_down_probability', 2), ('predicted_dispatch_down_mwh', float('nan')),
                  ('recoverable_surplus_mwh', 100), ('flexible_load_capacity_mw', .1),
-                 ('prediction_interval_p10_mwh', 90), ('issue_timestamp_utc', '2026-01-31T22:00:00'),
+                 ('prediction_interval_p10_mwh', 90), ('issue_timestamp_utc', '2026-01-31T22:30:00'),
                  ('forecast_horizon_minutes', 24)]
         for key, value in cases:
             with self.subTest(key=key):
@@ -44,6 +47,42 @@ class ContractTests(unittest.TestCase):
         for payload in ({'predictions': []}, {'predictions': [sample()['predictions'][0]] * 2}):
             with self.assertRaises(ValueError):
                 normalize(payload, 100)
+
+    def test_horizons_must_share_the_target_and_are_labelled_historical(self):
+        result = normalize(sample(), 100)
+        self.assertEqual(result['targetAt'], '2026-01-31T23:00:00+00:00')
+        self.assertEqual([p['issuedAt'] for p in result['predictions']], ['2026-01-31T22:30:00+00:00', '2026-01-31T22:00:00+00:00'])
+        self.assertEqual((result['dataLabel'], result['live']), ('Historical dataset prediction', False))
+        payload = sample()
+        payload['predictions'][1].update(issue_timestamp_utc='2026-01-31T22:30:00Z', target_timestamp_utc='2026-01-31T23:30:00Z')
+        with self.assertRaises(ValueError):
+            normalize(payload, 100)
+
+    def test_requests_latest_dataset_target_from_each_horizons_issue_time(self):
+        sent = []
+
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+
+        def fake_urlopen(request, timeout):
+            body = json.loads(request.data)
+            sent.append((request.full_url, body, request.get_header('X-api-key')))
+            return Response(json.dumps(next(r for r in sample()['predictions']
+                                            if r['forecast_horizon_minutes'] == body['forecast_horizon_minutes'])).encode())
+        with patch('server.urlopen', fake_urlopen), patch.dict('os.environ', {'GRID_TO_EV_API_KEY': 'team-key'}):
+            server.fetch_forecast(100)
+        self.assertEqual([(url.endswith('/predict/from-dataset'), body['issue_timestamp_utc'], body['forecast_horizon_minutes'], key)
+                          for url, body, key in sent],
+                         [(True, '2026-01-31T22:30:00Z', 30, 'team-key'), (True, '2026-01-31T22:00:00Z', 60, 'team-key')])
+
+    def test_demo_fallback_also_shares_one_target(self):
+        from datetime import datetime, timezone
+        from demo import demo_payload
+        for now in (None, datetime(2026, 9, 27, 17, 5, 20, tzinfo=timezone.utc)):
+            with self.subTest(now=now):
+                result = normalize(demo_payload(100, now), 100)
+                self.assertEqual(len({p['targetAt'] for p in result['predictions']}), 1)
 
     def test_zero_energy_and_capacity_bound(self):
         payload = sample()
