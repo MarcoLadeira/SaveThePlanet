@@ -185,6 +185,8 @@ function renderLive() {
     const active = document.activeElement;
     if (active?.closest("#app") && active.matches("input, select, textarea"))
         return;
+    // The Forecast page shows its own model replays, not this shared forecast.
+    if (pageFromHash() === "forecast") return;
     liveRender = true;
     render();
     liveRender = false;
