@@ -8,7 +8,7 @@
 // charts without data show a loading or "unavailable" state instead.
 
 const cgDay = { status: 'idle', data: null, key: '', request: 0 };
-const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '' };
+const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '', retried: '' };
 let cgAssumptionsOpen = false;
 let cgWeekMode = 'this';
 
@@ -57,7 +57,15 @@ async function cgLoadWeek(day) {
         if (!response.ok || !Array.isArray(body.days) || !body.days.length) throw new Error(body.error?.message || 'Daily model unavailable.');
         Object.assign(cgWeek, { status: 'ready', data: body });
     } catch (error) {
-        if (request === cgWeek.request) Object.assign(cgWeek, { status: 'error', data: null, message: error.message || 'Daily model unavailable.' });
+        if (request === cgWeek.request) {
+            Object.assign(cgWeek, { status: 'error', data: null, message: error.message || 'Daily model unavailable.' });
+            // The hosted model can take about a minute to wake: retry this week once automatically.
+            if (cgWeek.retried !== day) {
+                cgWeek.retried = day;
+                cgWeek.status = 'retrying';
+                setTimeout(() => { if (cgWeek.date === day && cgWeek.status === 'retrying') { cgWeek.date = ''; cgRerender(); } }, 20000);
+            }
+        }
     } finally {
         if (request === cgWeek.request) cgRerender();
     }
@@ -181,7 +189,10 @@ dashCharts.cgWeek = {
     },
     start: (t) => ({ ...t, v: t.v.map(() => 0) }),
     draw({ v, days, sel, status, message }) {
-        if (!v.length) return cgChartState(status, 'Loading the daily model…', `Weekly figures unavailable: ${escapeHtml(message || 'the daily model did not respond.')}`);
+        if (!v.length) {
+            if (status === 'retrying') return cgChartState('loading', 'The daily model is waking up. Trying again in a few seconds…');
+            return cgChartState(status, 'Loading the daily model…', `Weekly figures unavailable: ${escapeHtml(message || 'the daily model did not respond.')}<button class="studio-button cg-retry" type="button" data-cg-week-retry>Try again</button>`);
+        }
         const w = 540, h = 150, left = 50, bottom = 24, top = 16, { top: max, ticks } = cgAxis(Math.max(...v));
         const slot = (w - left - 8) / 7, bw = Math.min(46, slot * 0.58);
         const y = (val) => top + (h - top - bottom) * (1 - val / max);
@@ -245,7 +256,7 @@ function cgScheduleCard() {
 function cgMixCard() {
     const s = modelState.data.scenario, o = scenarioOutcome(), ev = s.evAssumptions;
     const grid = Math.max(0, s.totalDemandMwh - o.potentialRecoveryMwh);
-    return `<section class="dash-card cg-card cg-mix">${cardHead('green', 'Charging mix', `${cgTarget()} · upper-bound estimate`)}
+    return `<section class="dash-card cg-card cg-mix">${cardHead('green', 'Charging mix', cgTarget(), cgAssumptions())}
         <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null)} of charging could use renewable energy`, 'cg-donut')}
             <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>Renewable energy</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-grid"></i><span>Grid energy</span><b>${n(grid)} MWh</b></li></ul></div>
         <div class="cg-ev"><strong>In EV terms</strong><p><b>≈ ${n(Math.round(o.evChargesEquivalent * 10) / 10)}</b> × ${n(ev.kwhPerCharge)} kWh charges' worth of energy <small>(a comparison, not a count of cars)</small></p>
@@ -286,7 +297,7 @@ function renderCharging() {
         cgEnsureData();
         const d = modelState.data;
         const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Proposed charging = min(renewable surplus at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
-        return `<div class="cg-toolbar"><p class="cg-selected">${icon('calendar', 18)} Selected: <b>${cgTarget()}</b> · ${escapeHtml(modelTime(selectedPrediction().targetAt, true))} · +${modelState.horizon} min forecast</p>${cgAssumptions()}</div>${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgScatterCard()}</div>${foot}`;
+        return `${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgScatterCard()}</div>${foot}`;
     });
 }
 
@@ -357,5 +368,12 @@ window.addEventListener('submit', (event) => {
 document.addEventListener('change', (event) => {
     if (event.target.id !== 'cg-week-select') return;
     cgWeekMode = event.target.value === 'last' ? 'last' : 'this';
+    render();
+});
+
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-cg-week-retry]')) return;
+    cgWeek.date = '';
+    cgWeek.retried = '';
     render();
 });

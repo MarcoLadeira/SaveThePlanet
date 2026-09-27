@@ -119,3 +119,8 @@
 [data-current-page="charging"] .cg-select{margin-left:auto}
 [data-current-page="charging"] .cg-select select{height:34px;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:13px;font-weight:650}
 [data-current-page="charging"] .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[data-current-page="charging"] .cg-mix .dash-card-head{position:relative;z-index:6}
+[data-current-page="charging"] .cg-mix .cg-assumptions{margin-left:auto}
+[data-current-page="charging"] .cg-mix .cg-assumptions>summary{min-height:36px;padding:0 12px;border-radius:12px;background:var(--surface-2);box-shadow:none;border:1px solid var(--line);font-size:13px}
+[data-current-page="charging"] .cg-retry{width:auto;margin:4px 0 0;padding:0 16px;min-height:36px}
+[data-current-page="charging"] .cg-mix{z-index:6}
