@@ -140,8 +140,8 @@ financial/emissions estimate or actual charging execution is included.
   ceil(charging power kW / charger kW), the plugs needed to deliver it in the half-hour.
 - `scenario.recommendedWindow` is the recommended outcome's window plus
   `horizonMinutes`, or `null` when nothing can be recovered.
-- The assumptions are part of the scenario ID. Impact reads the same outcome, so
-  both pages always show the same EV figure.
+- The assumptions are part of the scenario ID. Impact reads the same outcomes, so
+  recovery figures always match across pages.
 
 Example: 0.5 MWh recoverable = 500 kWh / 30 kWh ≈ 17 EV charges; delivering it in
 30 minutes needs 1,000 kW, i.e. 46 chargers at 22 kW or 143 at 7 kW.

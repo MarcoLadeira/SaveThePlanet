@@ -58,9 +58,9 @@ appearance and the display toggles remain local preferences.
 - **Recommended action** states the charging window, recoverable MWh, EV charges and
   chargers needed in one sentence, with a button to switch to the recommended target.
   When nothing can be recovered it says why instead. Demo data is tagged "Example data".
-- The target chart marks the **Recommended** horizon (also on Impact).
+- The target chart marks the **Recommended** horizon.
 - **Charging assumptions** edits total and flexible demand (kWh, with the MWh
   conversion shown) and the EV assumptions (energy per charge in kWh, charger power
   in kW). Invalid values are flagged next to the field before any request is sent.
 - **How this is calculated** lists the backend methodology and unit conventions.
-- Impact repeats the same EV charge figure for the selected target.
+- Impact reads the same `/api/v1/scenario` outcomes, so recovery figures match.
