@@ -51,22 +51,17 @@ function fitDesktop(){
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
   document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
-  fitDashboardCards();
 }
 function render(){
   const page=pageFromHash();
   const app=document.getElementById('app');
-  const previous=app.querySelector('.outlook-ready');
-  if(previous)previous.remove();
+  const charts=chartsCollect(app);
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
   app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
-  const replacement=app.querySelector('.outlook-ready');
-  if(previous && replacement)replacement.replaceWith(previous);
-  else if(previous)outlookTeardown();
+  chartsRestore(app,charts);
   document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
-  const outlook=app.querySelector('.outlook-ready');
-  if(outlook)outlookSync(outlook);
+  chartsSync(app);
 }
 document.addEventListener('click',event=>{
   const horizon=event.target.closest('[data-horizon]');
