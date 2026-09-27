@@ -267,41 +267,91 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 
 **Historical dataset prediction.** The shared forecast (Dashboard, Charging, Impact, Volt)
 asks `POST /predict/from-dataset` for one target half-hour of the V1 dataset, with each
-horizon issued from its own time so both predict that half-hour (e.g. for 23:00: +30 min
-issued 22:30, +60 min issued 22:00). The pages label it as a historical dataset
+horizon issued from its own time, so both are *forecast vintages of the same half-hour*
+(e.g. for 23:00: +30 min issued 22:30, +60 min issued 22:00). The target timestamp labels
+the **start** of the half-hour ("the half-hour beginning 30 or 60 minutes after issue"),
+so target 23:00 is the window 23:00–23:30. The pages label it as a historical dataset
 prediction, not a live forecast.
 
-The target is **random, prioritising half-hours the model predicts to have extra
-dispatch-down** (`targets.py`):
+**How the target is chosen** (`targets.py`, predictions only, never observed outcomes):
 
-1. Shortlist: every target with both issue times whose observed EirGrid dispatch-down is
-   at least 20 MWh (≈456 of 1,431), from `/actuals/v1/batch`. Built once per server run
-   and warmed in the background at start-up (~7 s).
-2. Pick one at random, weighted by that energy, and request both horizons.
-3. Keep it only if the model **predicts** at least 20 MWh at both horizons; otherwise try
-   another (up to 6), else use the highest prediction. `selection` in the response says
-   how it was chosen.
+- `predicted` (default): sample dataset targets uniformly at random and keep the first the
+  model predicts to have at least 20 MWh at both horizons (up to 10 tries; otherwise the
+  highest prediction, and the header says the threshold was not met).
+- `unfiltered`: one uniformly random dataset target, whatever its prediction.
 
-`GET /api/v1/scenario` without `target` picks a new random target; the page then sends
-`&target=` back so live refreshes and Volt stay on the same half-hour, and "↻ New target"
-picks another. `GRID_TO_EV_TARGET_TIMESTAMP` (default 2026-01-31T23:00Z, the final
-half-hour) is only used by the health probe.
+Every response carries a `selection` record (mode, attempts, `metThreshold`,
+`usesObservedOutcomes: false`, plain-language `note`) that the header chip, provenance
+line and Volt use. A chosen half-hour is deliberately not typical, and the pages say so.
+
+**One pinned target.** `GET /api/v1/scenario?selection=predicted|unfiltered` without
+`target` picks a new target; the page pins it (`frontend/pinning.js`) and sends `&target=`
+back, so live refreshes, Charging, Impact and Volt stay on it. The pin only moves on a
+real, fresh forecast. During a model outage a pinned target gets its **own** last real
+forecast for up to 30 minutes, marked `stale` (for every reader, including Volt), and
+never another target's. With nothing real, the demo data is an explicitly labelled
+"Offline example (simulated)" that records the `requestedTarget` it stands in for and keeps
+its own unrelated time. `GRID_TO_EV_TARGET_TIMESTAMP` (default 2026-01-31T23:00Z) is only
+the health probe's target.
+
+**Recommendation.** When both outcomes share a target, the scenario plans on the most
+recent (+30 min) forecast (`recommendationBasis: most-recent-forecast`) rather than the
+larger of two estimates of one half-hour. Distinct targets keep the greatest-recovery rule.
+Recovery is an **upper bound**: it assumes flexible load is connected where and when the
+dispatch-down happens; location, local grid constraints, fleet connection, charging power
+and response time can all reduce it.
+
+**Replay admission control** (`gate.py`). Window replays (Forecast day replays, Impact day
+replays and prefetches, issue-time verification) share one server-wide gate:
+
+- one upstream replay at a time;
+- identical requests share one call across clients;
+- on-screen work runs before prefetches;
+- a newer request from the same viewer (`client`, `seq`) drops that viewer's older
+  queued work (HTTP 409);
+- waits are bounded at 45 s (HTTP 503 + `Retry-After`; the page backs off and retries).
+
+Measured on the hosted model: two viewers on different days took 13.8 s and 28.0 s
+(previously ~39 s each when overlapping); superseded requests were dropped in 0.1 s.
+
+**Page roles.** Each page has one visual job:
+
+| Page | Job |
+| --- | --- |
+| Dashboard | Risk of the selected half-hour, with its two vintages |
+| Forecast | Estimate vintages against observations, with uncertainty |
+| Charging | Conditional absorption under EV capacity limits (#26) |
+| Impact | Projected balance over time (#23) |
 
 **Synthetic V1 scenario** (Dashboard header button). `POST /api/v1/synthetic-v1`
-`{"horizon": 30|60, "scenario": "ordinary"|"high-curtailment", "capacityMw": 100}`:
+`{"horizon": 30|60, "scenario": "ordinary"|"high-curtailment", "issueTime": "example"|"current", "capacityMw": 100}`.
+A synthetic API demonstration and stress test, not realistic current telemetry.
 
-- Starts from the complete example request in the model's `GET /openapi.json`
+- It starts from the complete example request in the model's `GET /openapi.json`
   (`paths["/predict/v1/from-raw"].post.requestBody.content["application/json"].example`,
-  cached for an hour), so no dataset access is needed.
-- Varies numeric inputs to 90–110% of the example (example zeros stay zero) and keeps
-  the five history signals within January 2026 demo bounds: Ireland wind 190–3,220 MW,
-  demand 3,650–5,465 MW, price €85–203/MWh, SNSP 0.31–0.70, oversupply 0 MW. The bounds
-  win where they conflict with 90–110%. They are demo bounds, not verified ranges for today.
-- Observed past dispatch-down is 0, or 10–230 MWh for the labelled high-curtailment scenario.
-- 48 consecutive history rows end 30 minutes before a current UTC :00/:30 issue time.
-  Availability ≥ generation, all-island ≥ Ireland, ratios in 0–1, only API-signed
-  fields (price, interconnector flows) may be negative, and each :30 price copies the
-  preceding :00. Availability timestamps are ≤ issue time and are synthetic metadata.
-- `synthetic.check_request` verifies all of this before sending; a failing request is
-  never sent. The result is labelled "Synthetic scenario — not a forecast of today's
-  actual grid conditions." and is never cached, stored, charted or passed to Volt.
+  cached for an hour). The example is checked against the document's own
+  `V1RawCurrentObservation` / `V1RawHistoryObservation` schemas and the fields the
+  generator relies on. On any drift nothing is sent (502 `EXAMPLE_SCHEMA_DRIFT`).
+- Numeric inputs vary to 90–110% of the example (example zeros stay zero).
+- The five history signals stay within January 2026 demo bounds (Ireland wind 190–3,220 MW,
+  demand 3,650–5,465 MW, price €85–203/MWh, SNSP 0.31–0.70, oversupply 0 MW), which win over
+  90–110%. These are demo bounds, not verified ranges for today.
+- Observed past dispatch-down is 0, or 10–230 MWh for the labelled high-curtailment
+  scenario (invented, not derived from the other inputs).
+- There are 48 consecutive history rows before the issue time. The issue time defaults to
+  the example's own disclosed date (31 Jan 2026 22:30 UTC); `current` uses the current UTC
+  half-hour, but the values are still January's.
+- Values stay coherent: availability ≥ generation, all-island ≥ Ireland, recomputed ratios
+  in 0–1, only API-signed fields (price, interconnector flows) negative, and each :30 price
+  copies the preceding :00. Availability timestamps are ≤ issue time and are synthetic
+  metadata, not proof of publication.
+- `synthetic.check_request` verifies these **structural** invariants before sending; it
+  does not establish seasonal or physical feasibility.
+- Results are labelled "Synthetic scenario — not a forecast of today's actual grid
+  conditions." and are never cached, stored, charted or passed to Volt. The panel is a
+  native modal `<dialog>` (focus contained, restored to the opener on close).
+
+**Consistency evidence.** Run `node scripts/capture-consistency.mjs` (needs the server and
+Chrome) to drive one headless session across Dashboard → Charging → Impact → Volt. It
+saves screenshots and a `summary.json` of the pinned target each view shows to
+`docs/screenshots/pr40/`.

@@ -282,7 +282,7 @@ function fxDayChart() {
   const status = ready ? '' : `<div class="fx-chart-status ${retry ? 'is-error' : ''}" role="status">${retry || `<span class="fx-dot-spin"></span>Observed values shown · replaying the +${h} min forecast (about 15 s)…`}</div>`;
   // The x-axis is the day's 48 target half-hours (00:00-23:30 UTC); observed values cover every slot.
   const observed = (day.observed || []).filter((o) => o.actualMwh !== null);
-  const W = 720, H = 270, left = 52, right = 12, top = 18, base = 228;
+  const W = 720, H = 270, left = 52, right = 84, top = 18, base = 228; // right margin holds the direct line labels
   const start = Date.parse(`${day.date}T00:00:00Z`);
   const x = (stamp) => left + ((Date.parse(stamp) - start) / 18e5 / 47) * (W - left - right);
   const max = Math.max(1, ...pts.map((p) => p.upperMwh), ...observed.map((o) => o.actualMwh)) * 1.08;
@@ -299,7 +299,12 @@ function fxDayChart() {
   const hitW = (W - left - right) / 47;
   const hits = pts.map((p) => `<rect class="fx-hit" data-fx-target="${p.targetAt}" x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${fxIssueLabel(p.issuedAt, day.date)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
   const actualDots = observed.map((o) => `<circle class="fx-actual-dot" cx="${x(o.targetAt).toFixed(1)}" cy="${y(o.actualMwh).toFixed(1)}" r="2.4"/>`).join('');
-  return `<div class="fx-chart-stack">${status}<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${hours}${hits}</svg></div>`;
+  // Direct labels at the end of each line (readable without the legend), nudged apart if they collide.
+  const lastPred = pts.at(-1), lastObs = observed.at(-1);
+  let predY = lastPred ? y(lastPred.atRiskMwh) : null, obsY = lastObs ? y(lastObs.actualMwh) : null;
+  if (predY !== null && obsY !== null && Math.abs(predY - obsY) < 14) { const mid = (predY + obsY) / 2; predY = mid - 7; obsY = mid + 7; }
+  const direct = `${lastPred ? `<text class="fx-direct is-pred" x="${(x(lastPred.targetAt) + 6).toFixed(1)}" y="${(predY + 4).toFixed(1)}">Predicted +${h}</text>` : ''}${lastObs ? `<text class="fx-direct is-actual" x="${(x(lastObs.targetAt) + 6).toFixed(1)}" y="${(obsY + 4).toFixed(1)}">Observed</text>` : ''}`;
+  return `<div class="fx-chart-stack">${status}<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${direct}${hours}${hits}</svg></div>`;
 }
 
 // ---------------------------------------------------------------- model information
