@@ -1,18 +1,7 @@
 /* Impact page — KPI row, energy-flow hero + time chart, events + cumulative/allocation. */
-.dashboard-main[data-current-page="impact"]{container:impact/inline-size;--imp-blue:#ff9a52;--imp-blue-soft:#fff0e5;--imp-radius:22px}
-.dashboard-main[data-current-page="impact"][data-theme="dark"]{--imp-blue:#ff9a52;--imp-blue-soft:#503322}
+.dashboard-main[data-current-page="impact"]{container:impact/inline-size;--imp-charge:#ff9a52;--imp-charge-soft:#fff0e5;--imp-radius:22px}
+.dashboard-main[data-current-page="impact"][data-theme="dark"]{--imp-charge:#ff9a52;--imp-charge-soft:#503322}
 
-/* header controls */
-.impact-toolbar{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-width:0}
-.impact-toolbar .studio-toolbar{flex:1;min-width:0}
-.impact-date{display:flex;align-items:center;gap:4px;min-height:47px;padding:5px 8px;border-radius:16px;background:var(--surface);box-shadow:0 3px 0 var(--edge)}
-.impact-date button{width:30px;height:30px;border:0;border-radius:9px;background:var(--surface-2);color:var(--ink);font-size:18px;font-weight:700;line-height:1}
-.impact-date button:disabled{opacity:.4;cursor:not-allowed}
-.impact-date label{display:flex;align-items:center;gap:6px;padding:0 6px;color:var(--ink-2)}
-.impact-date input{border:0;background:none;color:var(--ink);font:inherit;font-size:12px;font-weight:750}
-.impact-date input:disabled{color:var(--ink-3)}
-.impact-period{padding:7px 12px;border-radius:9px;background:var(--forest);color:#fff;font-size:12px;font-weight:750;white-space:nowrap}
-.impact-date.is-off .impact-period{background:var(--surface-2);color:var(--ink-3)}
 
 /* day-replay loading placeholders */
 .impact-skeleton{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:6px 4px 0}
@@ -21,11 +10,10 @@
 .impact-skeleton span{font-size:11.5px;font-weight:700;color:var(--ink-3)}
 .impact-skel-bars i,.impact-micro-skel{background:linear-gradient(90deg,var(--surface-2) 30%,var(--green-soft) 50%,var(--surface-2) 70%) 0 0/300% 100%;animation:impact-shimmer 1.4s ease-in-out infinite}
 .impact-micro-skel{display:block;border-radius:6px}
-.impact-date.is-loading .impact-period{background:var(--green-soft);color:var(--green-deep)}
 @keyframes impact-shimmer{from{background-position:100% 0}to{background-position:0 0}}
 
 /* grid */
-.impact-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1.55fr) minmax(0,1fr);gap:12px;flex:1;min-height:0}
+.impact-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:12px;flex:1;min-height:0}
 .impact-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .impact-flow{grid-column:1;grid-row:2}
 .impact-time{grid-column:2;grid-row:2}
@@ -40,14 +28,14 @@
 .impact-legend li{display:flex;align-items:center;gap:6px}
 .impact-legend small{color:var(--ink-3);font-size:10px}
 .impact-legend i,.impact-alloc-key i{width:9px;height:9px;border-radius:50%;display:inline-block}
-i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amber{background:var(--amber)}i.is-grey{background:var(--line)}
+i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-amber{background:var(--amber)}i.is-grey{background:var(--line)}
 
 /* KPI cards */
 .impact-kpi{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:13px 16px;border-radius:var(--imp-radius);background:var(--surface);box-shadow:0 4px 0 var(--edge)}
-.impact-layout .dash-tile,.impact-toolbar .dash-tile{display:grid;place-items:center;margin:0;padding:0;box-shadow:none}
+.impact-layout .dash-tile{display:grid;place-items:center;margin:0;padding:0;box-shadow:none}
 .impact-layout .dash-tile svg{display:block}
 .impact-kpi .dash-tile{align-self:start}
-.impact-kpi.is-blue .dash-tile{background:var(--imp-blue-soft);color:var(--imp-blue)}
+.impact-kpi.is-blue .dash-tile{background:var(--imp-charge-soft);color:var(--imp-charge)}
 .impact-kpi-copy{display:flex;flex-direction:column;gap:5px;min-width:0}
 .impact-kpi-copy span{font-size:12px;font-weight:700;color:var(--ink-2);line-height:1.25}
 .impact-kpi-copy strong{font-size:28px;line-height:1;font-weight:800;letter-spacing:-.04em;color:var(--ink);white-space:nowrap}
@@ -57,41 +45,25 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .impact-micro{width:56px;height:34px}
 .impact-micro rect{fill:var(--green-soft)}
 .impact-micro rect.on,.impact-kpi .impact-micro:not(:has(.on)) rect{fill:var(--green)}
-.impact-kpi.is-blue .impact-micro rect{fill:var(--imp-blue-soft)}
-.impact-kpi.is-blue .impact-micro rect.on,.impact-kpi.is-blue .impact-micro:not(:has(.on)) rect{fill:var(--imp-blue)}
+.impact-kpi.is-blue .impact-micro rect{fill:var(--imp-charge-soft)}
+.impact-kpi.is-blue .impact-micro rect.on,.impact-kpi.is-blue .impact-micro:not(:has(.on)) rect{fill:var(--imp-charge)}
 .impact-kpi-micro figcaption{font-size:9.5px;color:var(--ink-3);white-space:nowrap}
 
 /* energy flow hero */
 /* the canvas keeps the scene ratio and fits inside whatever height the card has, so callouts stay aligned */
 .flow-stage{flex:1;min-height:0;container-type:size;display:grid;place-items:end center}
 .flow-canvas{position:relative;width:min(100cqw,calc(100cqh * 1000 / 240));aspect-ratio:1000/240}
-.flow-scene{position:absolute;inset:0;width:100%;height:100%}
-.flow-water{fill:#d7ecf4}.flow-land{fill:#e4efe4}.flow-land-edge{fill:#c8dcc9}.flow-hill{fill:#bfe0c3}
-.flow-tree rect{fill:#6b8f6f}.flow-tree circle{fill:#3fa36a}
-.flow-turbine path,.flow-turbine circle{fill:#fff;stroke:#c9d6cc;stroke-width:1}
-.flow-blades{animation:flow-spin 6s linear infinite}
-.flow-ribbon{fill:none;stroke-linecap:round;stroke-width:22;opacity:.28}
-.flow-ribbon.core{stroke-width:8;opacity:1;stroke-dasharray:14 10;animation:flow-dash 1.4s linear infinite}
-.flow-ribbon.green{stroke:var(--green)}.flow-ribbon.blue{stroke:var(--imp-blue)}
-.flow-battery .face{fill:#2f8f5f}.flow-battery .side{fill:#1f6b45}.flow-battery .top{fill:#6fcf99}.flow-battery .bolt{fill:#e9ffe9}
-.flow-bay{fill:#d5dde6}
-.flow-charger .face{fill:#fff}.flow-charger .side{fill:#c9d5e3}.flow-charger .top{fill:#eef3f9}.flow-charger .screen{fill:var(--imp-blue)}
-.dashboard-main[data-theme="dark"] .flow-water{fill:#16303b}
-.dashboard-main[data-theme="dark"] .flow-land{fill:#1f3a2b}
-.dashboard-main[data-theme="dark"] .flow-land-edge{fill:#15291e}
-.dashboard-main[data-theme="dark"] .flow-hill{fill:#275038}
-.dashboard-main[data-theme="dark"] .flow-bay{fill:#2a3947}
 .flow-callout{position:absolute;display:flex;align-items:center;gap:8px;max-width:28%;padding:6px 10px 6px 6px;border-radius:14px;background:var(--surface);box-shadow:0 6px 18px rgba(20,50,30,.12),0 2px 0 var(--edge)}
 .flow-callout .dash-tile{width:34px;height:34px;flex:0 0 34px;border-radius:11px}
-.flow-callout.is-blue .dash-tile{background:var(--imp-blue-soft);color:var(--imp-blue)}
+.flow-callout.is-blue .dash-tile{background:var(--imp-charge-soft);color:var(--imp-charge)}
 .flow-callout strong{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;color:var(--ink);white-space:nowrap}
 .flow-callout strong small{margin-left:3px;font-size:11px;font-weight:700;color:var(--ink-2)}
 .flow-callout span{display:block;font-size:10.5px;line-height:1.3;color:var(--ink-3)}
-.flow-callout.at-source{left:16%;top:-4%;transform:translateX(-50%);background:var(--forest)}
+.flow-callout.at-source{left:32%;top:4%;transform:translateX(-50%);background:var(--forest)}
 .flow-callout.at-source strong,.flow-callout.at-source strong small{color:#fff}
 .flow-callout.at-source span{color:var(--forest-muted)}
-.flow-callout.at-battery{left:50%;top:-2%;transform:translateX(-50%)}
-.flow-callout.at-chargers{left:85%;top:4%;transform:translateX(-50%)}
+.flow-callout.at-battery{left:60%;top:10%;transform:translateX(-50%)}
+.flow-callout.at-chargers{left:82%;top:22%;transform:translateX(-50%)}
 .flow-steps{display:none;margin:0;padding:0;list-style:none;gap:8px}
 .flow-steps li{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2);font-size:12px;color:var(--ink-2)}
 .flow-steps span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--forest);color:#fff;font-size:11px;font-weight:800}
@@ -130,15 +102,15 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .impact-data-table[open]{max-height:120px;overflow:auto}
 
 /* events */
-.impact-event-list{display:grid;gap:8px}
-.impact-event{display:grid;grid-template-columns:1.2fr repeat(4,minmax(0,1fr));align-items:center;gap:10px;width:100%;padding:11px 14px;border:2px solid transparent;border-radius:14px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:13px;font-weight:750;text-align:right;cursor:pointer}
-.impact-event>span{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+.impact-event-list{display:grid;gap:6px}
+.impact-event{display:grid;grid-template-columns:1.2fr repeat(4,minmax(0,1fr));align-items:center;gap:10px;width:100%;padding:7px 14px;border:2px solid transparent;border-radius:12px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:13px;font-weight:750;text-align:right;cursor:pointer}
+.impact-event>span{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
 .impact-event small{font-size:10px;font-weight:600;color:var(--ink-3)}
 .impact-event .impact-event-time{text-align:left}
 .impact-event-time em{font-style:normal;color:var(--green-deep);font-weight:800}
-.impact-event .is-green{color:var(--green-deep)}.impact-event .is-blue{color:var(--imp-blue)}
+.impact-event .is-green{color:var(--green-deep)}.impact-event .is-blue{color:var(--imp-charge)}
 .impact-event.is-selected{border-color:var(--green);background:var(--green-soft)}
-.impact-event:focus-visible{outline:3px solid var(--imp-blue);outline-offset:2px}
+.impact-event:focus-visible{outline:3px solid var(--imp-charge);outline-offset:2px}
 .impact-note{margin:auto 0 0;font-size:11px;color:var(--ink-3)}
 .impact-note b{color:var(--ink-2)}
 
@@ -172,7 +144,6 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
   .impact-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .impact-time .impact-chart-wrap,.impact-cumulative .impact-chart-wrap{height:240px;flex:none}
   .impact-flow{height:360px}
-  .impact-toolbar{flex-wrap:wrap}
 }
 @container impact (max-width:620px){
   .impact-kpis{grid-template-columns:minmax(0,1fr)}
@@ -181,24 +152,22 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
   .impact-event .impact-event-time{grid-column:1/-1}
   .impact-card-head{flex-direction:column}
 }
-@keyframes flow-dash{to{stroke-dashoffset:-24}}
-@keyframes flow-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.flow-ribbon.core,.flow-blades,.impact-skel-bars i,.impact-micro-skel{animation:none}.impact-tooltip{transition:none}}
+@media(prefers-reduced-motion:reduce){.impact-skel-bars i,.impact-micro-skel{animation:none}.impact-tooltip{transition:none}}
 
 /* ---------- glow: shared defs, sparklines, area charts ---------- */
 .impact-defs{position:absolute;width:0;height:0;overflow:hidden}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.stop-green{stop-color:var(--green)}.stop-blue{stop-color:var(--imp-blue)}.stop-amber{stop-color:var(--amber)}
+.stop-green{stop-color:var(--green)}.stop-blue{stop-color:var(--imp-charge)}.stop-amber{stop-color:var(--amber)}
 .impact-spark{width:96px;height:40px;overflow:visible}
 .impact-spark .line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
-.impact-spark.is-green .line{stroke:var(--green)}.impact-spark.is-blue .line{stroke:var(--imp-blue)}
+.impact-spark.is-green .line{stroke:var(--green)}.impact-spark.is-blue .line{stroke:var(--imp-charge)}
 .impact-kpi-scope{font-size:9.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .impact-delta{font-size:11px;font-weight:800;color:var(--ink-2);white-space:nowrap}
 .impact-delta small{font-weight:600;color:var(--ink-3)}
 .impact-delta.is-up{color:var(--green-deep)}.impact-delta.is-down{color:#c2572b}
 
 .impact-area .line{fill:none;stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round}
-.impact-area.is-green .line{stroke:var(--green)}.impact-area.is-blue .line{stroke:var(--imp-blue)}.impact-area.is-amber .line{stroke:var(--amber)}
+.impact-area.is-green .line{stroke:var(--green)}.impact-area.is-blue .line{stroke:var(--imp-charge)}.impact-area.is-amber .line{stroke:var(--amber)}
 .impact-pt .hit{fill:transparent}
 .impact-pt .guide{stroke:var(--ink-3);stroke-dasharray:3 3;opacity:0}
 .impact-pt circle{fill:var(--surface);stroke:var(--forest);stroke-width:2;opacity:0}
@@ -208,26 +177,20 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .impact-peak text{fill:#fff;font-size:10.5px;font-weight:800}
 .impact-peak text.sub{fill:var(--forest-muted);font-size:8.5px;font-weight:600}
 .impact-peak .dot{stroke:var(--surface);stroke-width:2}
-.impact-peak .dot.is-green{fill:var(--green)}.impact-peak .dot.is-blue{fill:var(--imp-blue)}.impact-peak .dot.is-amber{fill:var(--amber)}
+.impact-peak .dot.is-green{fill:var(--green)}.impact-peak .dot.is-blue{fill:var(--imp-charge)}.impact-peak .dot.is-amber{fill:var(--amber)}
 .impact-select select{height:30px;padding:0 28px 0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
 .impact-select select:focus-visible{outline:2px solid var(--green);outline-offset:1px}
 
 /* event driver chip (from the model's curtailment/constraint split) */
 .impact-driver{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:750;vertical-align:middle}
-.impact-driver.is-constraint{background:var(--imp-blue-soft);color:var(--imp-blue)}
+.impact-driver.is-constraint{background:var(--imp-charge-soft);color:var(--imp-charge)}
 .impact-driver.is-curtailment{background:var(--green-soft);color:var(--green-deep)}
 .impact-driver.is-none{background:var(--surface-2);color:var(--ink-3)}
 
-/* glowing energy ribbons with a travelling light pulse */
-.flow-ribbon.pulse{stroke-width:5;opacity:.95;stroke-dasharray:6 94;animation:flow-pulse 2.6s linear infinite}
-.flow-ribbon.green.pulse{stroke:#d9ffe9}.flow-ribbon.blue.pulse{stroke:#fff0e5}
-.flow-ribbon.blue.pulse{animation-delay:1.3s}
-@keyframes flow-pulse{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
-@media(prefers-reduced-motion:reduce){.flow-ribbon.pulse{animation:none;opacity:0}}
 
 /* Generated landscape with a precisely aligned animated light overlay. */
 .flow-canvas{width:100%;height:100%;aspect-ratio:auto;isolation:isolate;border-radius:14px;overflow:hidden;background:#fff}
-.flow-artwork{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill}
+.flow-artwork{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:50% 50%}
 .flow-motion{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .flow-light{fill:none;stroke:#f3fff5;stroke-width:5;stroke-linecap:round;stroke-dasharray:5 95;filter:drop-shadow(0 0 5px #67ed87);animation:flow-art-pulse 4s linear infinite}
 .flow-light.blue{stroke:#fff0e5;filter:drop-shadow(0 0 5px #ff9a52);animation-duration:3.6s}
@@ -239,14 +202,14 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .flow-motion-toggle:disabled{cursor:default;opacity:.65}
 .flow-motion-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .flow-callout{z-index:1;max-width:29%;box-shadow:0 5px 20px #123e2514,0 1px 2px #123e2510}
-.flow-callout.at-source{left:28%;top:4%}
-.flow-callout.at-battery{left:60%;top:10%}
-.flow-callout.at-chargers{left:82%;top:22%}
 @media(prefers-reduced-motion:reduce){.flow-light{animation:none;display:none}.flow-motion-toggle{display:none}}
 
 /* Rotors share the artwork coordinates, including the full-width scene scaling. */
 .flow-rotor{transform-box:view-box;transform-origin:0 0;animation:flow-rotor-spin 9s linear infinite}
 @keyframes flow-rotor-spin{to{transform:rotate(360deg)}}
 .is-motion-paused .flow-rotor{animation-play-state:paused}
-.flow-callout.at-source{left:32%;top:4%}
 @media(prefers-reduced-motion:reduce){.flow-rotor{animation:none}}
+
+/* The bottom row is sized by the event list; the cumulative chart fills whatever height that
+   gives it instead of setting the row height from its own aspect ratio. */
+.impact-cumulative .impact-chart-wrap,.impact-cumulative .impact-skeleton{contain:size;flex:1 1 0;min-height:0}

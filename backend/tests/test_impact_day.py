@@ -171,6 +171,12 @@ class ImpactDayHttpTests(unittest.TestCase):
         self.assertEqual(len(body['intervals']), 48)
         self.assertEqual(body['dataMode'], 'derived-scenario')
 
+    def test_default_day_matches_forecast_issue_day(self):
+        for now in (datetime(2026, 9, 27, 0, 5, tzinfo=timezone.utc), datetime(2026, 9, 27, 23, 55, tzinfo=timezone.utc)):
+            with self.subTest(now=now):
+                issued = datetime.fromisoformat(server.replay_issue_timestamp(now))
+                self.assertEqual(server.default_replay_day(now), issued.date())
+
     def test_defaults_to_configured_issue_day(self):
         with patch('server.model_request', FakeModel([1] * 48)):
             status, body = self.get('/api/v1/impact/day')

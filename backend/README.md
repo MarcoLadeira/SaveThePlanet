@@ -62,14 +62,15 @@ Connection/timeout/non-2xx failures and malformed or inconsistent model response
 ### Impact day replay
 
 `GET /api/v1/impact/day?date=YYYY-MM-DD&capacityMw=100&totalDemandKwh=1000&flexibleDemandKwh=500`
-powers the Impact page's date picker, "Impact over time" and "Cumulative impact" charts. It calls
+powers the Impact page's "Impact over time" and "Cumulative impact" charts and KPI sparklines
+(the page omits `date`, so it always shows the live forecast day; it also requests the day before
+for the day-over-day change). It calls
 GridToEv `POST /predict/window/from-dataset` once (24 h of +30-minute forecasts, ~15 s upstream,
-then cached per date and capacity). After serving a day, a background worker replays up to
-`PREFETCH_DAYS` (3) neighbouring days, previous day first, then nearest first, one upstream call at a time, so stepping
-through dates is usually instant; a request for a day already being fetched waits for that call
-instead of starting another. `GET /dataset/info` supplies the selectable range
-(currently 2026-01-02 to 2026-01-31; the last day is partial). `date` defaults to the day of
-`GRID_TO_EV_ISSUE_TIMESTAMP`.
+then cached per date and capacity). A background prefetch of neighbouring days exists but is off
+(`PREFETCH_DAYS = 0`) because the Impact page follows the live forecast day without a date picker;
+concurrent requests for the same day still share one upstream call. `GET /dataset/info` supplies the valid range
+(currently 2026-01-02 to 2026-01-31; the last day is partial). `date` defaults to the day the
++30/+60 forecast is issued on (the day before `GRID_TO_EV_ISSUE_TIMESTAMP`), so every card shows one day.
 
 The response has `date`, `range{min,max}`, `intervals[]` (`targetAt`, `atRiskMwh`,
 `potentialRecoveryMwh`, `remainingWasteMwh`, `avoidedEmissionsTco2`, `evRangeKm`), `totals`,

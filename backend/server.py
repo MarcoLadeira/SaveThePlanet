@@ -131,9 +131,11 @@ def fetch_forecast(capacity):
 # A 24-hour window replay takes ~15 s upstream (well beyond the per-call TIMEOUT), and the
 # hosted model serves requests one at a time, so allow for one queued replay ahead of it.
 WINDOW_TIMEOUT = 90
-# Days either side of a served day that are replayed in the background, nearest first,
-# so stepping through the date picker is usually instant.
-PREFETCH_DAYS = 3
+# Days either side of a served day to replay in the background. Off (0): the Impact page follows
+# the live forecast day and has no date picker, so neighbours would only occupy the single-worker
+# model. The page requests the previous day itself for its day-over-day comparison. Set to e.g. 3
+# if date browsing returns.
+PREFETCH_DAYS = 0
 _day_cache = {}
 _day_inflight = {}  # key -> Event set when the owning fetch finishes (success or failure)
 _day_cache_lock = threading.Lock()
@@ -292,8 +294,9 @@ class user_replay:
             _prefetch_wakeup.notify_all()
 
 
-def default_replay_day():
-    return timestamp(ISSUE_TIMESTAMP).date()
+def default_replay_day(now=None):
+    """The day the +30/+60 forecast is issued on, so the day replay and the scenario cards agree."""
+    return timestamp(replay_issue_timestamp(now)).date()
 
 
 # def fetch_forecast(capacity):
