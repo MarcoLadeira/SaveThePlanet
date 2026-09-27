@@ -24,8 +24,15 @@ def v1_row(issue, horizon, mwh=10.0):
                 prediction_interval_p90_mwh=15.0, flexible_load_capacity_mw=100.0, recoverable_surplus_mwh=mwh)
 
 
+def http_error(code, body):
+    """An HTTPError as explorer.call re-raises it: body re-readable, parsed detail attached."""
+    error = HTTPError('http://model', code, 'Error', {}, BytesIO(body))
+    error.model_detail = explorer._model_detail(body)
+    return error
+
+
 def not_found():
-    return HTTPError('http://model', 404, 'Not Found', {}, BytesIO(b'{"detail":{"error":"dataset_timestamp_not_available"}}'))
+    return http_error(404, b'{"detail":{"error":"dataset_timestamp_not_available"}}')
 
 
 V1_INFO = {'model': {'partitions': {'train': {'from': '2026-01-02T00:00:00Z', 'to': '2026-01-22T22:00:00Z', 'rows': 1},
@@ -69,6 +76,23 @@ class ModelCallTests(unittest.TestCase):
         self.assertEqual([p['horizonMinutes'] for p in result['predictions']], [30])
         self.assertEqual(result['predictions'][0]['actual']['dispatchDownMwh'], 12.0)
         self.assertEqual(result['partition'], 'test')
+
+    @patch('explorer.short_term_info', return_value=V1_INFO)
+    @patch('explorer.call')
+    def test_other_404s_are_not_treated_as_missing_rows(self, call, _info):
+        for body in (b'{"detail":"Not Found"}', b'{"detail":{"error":"something_else"}}', b'not json'):
+            with self.subTest(body=body):
+                call.side_effect = lambda path, b=None, body=body: (_ for _ in ()).throw(http_error(404, body))
+                with self.assertRaises(HTTPError):
+                    explorer.short_term_predict('2026-01-31T22:30:00Z', 100)
+
+    def test_call_keeps_upstream_error_body_readable(self):
+        upstream = HTTPError('http://model/x', 404, 'Not Found', {},
+                             BytesIO(b'{"detail":{"error":"dataset_window_not_available","first_missing_issue_timestamp_utc":"2026-01-14T15:00:00+00:00"}}'))
+        with patch('explorer.urlopen', side_effect=upstream), self.assertRaises(HTTPError) as caught:
+            explorer.call('/predict/window/from-dataset', {})
+        self.assertTrue(explorer.missing_row(caught.exception))
+        self.assertIn(b'dataset_window_not_available', caught.exception.read())
 
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')

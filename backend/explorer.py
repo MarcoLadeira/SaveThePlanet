@@ -8,6 +8,7 @@ The API key stays on the server; the browser only sees normalized results.
 """
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
+import io
 import json
 import math
 import os
@@ -20,6 +21,9 @@ from urllib.request import Request, urlopen
 # can take up to a minute to wake, so explorer calls get a longer budget.
 TIMEOUT = 60
 INFO_CACHE_SECONDS = 600
+# Error codes GridToEv returns (HTTP 404, detail.error) when a requested row or
+# window is outside its fixed historical dataset. Any other 404 is a real failure.
+MISSING_ROW_ERRORS = {'dataset_timestamp_not_available', 'dataset_window_not_available'}
 _cache_lock = threading.Lock()
 _cache = {}
 
@@ -39,8 +43,31 @@ def call(path, body=None):
         headers['Content-Type'] = 'application/json'
         data = json.dumps(body).encode()
     request = Request(f'{_base_url()}{path}', data=data, headers=headers, method='POST' if data else 'GET')
-    with urlopen(request, timeout=TIMEOUT) as response:
-        return json.load(response)
+    try:
+        with urlopen(request, timeout=TIMEOUT) as response:
+            return json.load(response)
+    except HTTPError as error:
+        raw = error.read()
+        # Re-raise with a re-readable body so server.diagnose can still report the upstream detail.
+        replay = HTTPError(error.url, error.code, error.reason, error.headers, io.BytesIO(raw))
+        replay.model_detail = _model_detail(raw)
+        raise replay from None
+
+
+def _model_detail(raw):
+    """The structured FastAPI `detail` object from an error body, or {}."""
+    try:
+        detail = json.loads(raw or b'null').get('detail')
+    except (ValueError, AttributeError):
+        return {}
+    return detail if isinstance(detail, dict) else {}
+
+
+def missing_row(error):
+    """True only for the model's own 'not in the dataset' 404s, e.g. the +60 min row
+    after the final issue time. Wrong routes or other 404s are not swallowed."""
+    return (isinstance(error, HTTPError) and error.code == 404
+            and getattr(error, 'model_detail', {}).get('error') in MISSING_ROW_ERRORS)
 
 
 def cached(key, seconds, build):
@@ -191,11 +218,6 @@ def validate_issue(value):
     return moment, info
 
 
-def _missing_row(error):
-    """The model answers 404 when a horizon's target row is outside the dataset (e.g. its last half-hour)."""
-    return isinstance(error, HTTPError) and error.code == 404
-
-
 def short_term_predict(issue, capacity):
     issue, info = validate_issue(issue)
 
@@ -204,7 +226,7 @@ def short_term_predict(issue, capacity):
             return call('/predict/from-dataset', {'issue_timestamp_utc': issue, 'forecast_horizon_minutes': horizon,
                                                   'flexible_load_capacity_mw': capacity})
         except HTTPError as error:
-            if _missing_row(error):
+            if missing_row(error):
                 return None
             raise
     rows = [row for row in parallel(lambda: one(30), lambda: one(60)) if row]
@@ -237,7 +259,7 @@ def _window(run, horizon):
     try:
         return replay(len(run) / 2)
     except HTTPError as error:
-        if not _missing_row(error):
+        if not missing_row(error):
             raise
     return replay(len(run) / 2 - 0.5) if len(run) > 1 else []
 
