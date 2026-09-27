@@ -1,5 +1,4 @@
 """Deterministic flexible charging scenarios; no vehicle scheduling is claimed."""
-from datetime import datetime, timedelta
 import hashlib
 import json
 import math
@@ -26,18 +25,22 @@ def validate_ev(kwh_per_charge, charger_kw):
             raise ValueError(f'{name} must be between 1 and {maximum}.')
 
 
-def charging_window(target_at, interval_minutes):
-    """The forecast target labels the start of its half-hour interval."""
-    end = datetime.fromisoformat(target_at) + timedelta(minutes=interval_minutes)
-    return dict(startAt=target_at, endAt=end.isoformat())
-
-
 def ev_translation(outcome, interval_minutes, kwh_per_charge, charger_kw):
-    """Charging window, EV charge equivalents and chargers needed for one outcome."""
-    power_kw = outcome['proposedPowerMw'] * 1000
-    return dict(window=charging_window(outcome['targetAt'], interval_minutes),
-                evChargesEquivalent=outcome['potentialRecoveryMwh'] * 1000 / kwh_per_charge,
-                chargersNeeded=math.ceil(round(power_kw / charger_kw, 9)))
+    """Two separate, conditional readings of the same potential recovery.
+
+    - evChargesEquivalent: recovered kWh expressed as charging sessions of kwh_per_charge.
+      An energy comparison only; it does not say those sessions fit in the interval.
+    - minConcurrentPorts: the fewest ports that could draw the recovered energy within the
+      interval at continuous rated power, with 100% efficiency and a vehicle accepting power
+      on every port. A theoretical minimum, not a dispatchable plan.
+    """
+    hours = interval_minutes / 60
+    recovered_kwh = outcome['potentialRecoveryMwh'] * 1000
+    ports = math.ceil(round(recovered_kwh / (charger_kw * hours), 9))
+    return dict(evChargesEquivalent=recovered_kwh / kwh_per_charge,
+                minConcurrentPorts=ports,
+                portKwhLimit=charger_kw * hours,
+                kwhPerPort=recovered_kwh / ports if ports else 0)
 
 
 def interval_outcome(prediction, capacity_mwh, interval_hours, total, flexible):
@@ -81,7 +84,6 @@ def build_scenario(forecast, total_kwh, flexible_kwh, kwh_per_charge=DEFAULT_KWH
         source=forecast['source'], totalDemandKwh=total_kwh,
         flexibleDemandKwh=flexible_kwh, totalDemandMwh=total, flexibleDemandMwh=flexible,
         recommendedHorizonMinutes=recommended and recommended['horizonMinutes'],
-        recommendedWindow=recommended and dict(recommended['window'], horizonMinutes=recommended['horizonMinutes']),
         evAssumptions=dict(kwhPerCharge=kwh_per_charge, chargerKw=charger_kw),
         assumptions=dict(gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM),
         outcomes=outcomes, commitmentsMet=None, missedTargets=None, connectedEvs=None,
@@ -93,8 +95,8 @@ def build_scenario(forecast, total_kwh, flexible_kwh, kwh_per_charge=DEFAULT_KWH
             f'Avoided emissions assume each recovered MWh displaces grid-average charging at {GRID_INTENSITY_T_PER_MWH:g} tCO2/MWh (derived estimate).',
             f'EV range equivalent assumes {EV_KWH_PER_KM:g} kWh/km; it is illustrative, not a vehicle count.',
             f'EV charges = potential recovery in kWh / {kwh_per_charge:g} kWh per charge. This is an energy equivalent, not a count of connected vehicles.',
-            f'Chargers needed = charging power in kW / {charger_kw:g} kW per charger, rounded up, to deliver the energy within the half-hour.',
-            'The charging window starts at the forecast target time and lasts one half-hour interval.',
+            f'Minimum ports = recovered kWh / ({charger_kw:g} kW x 0.5 h), rounded up: the fewest {charger_kw:g} kW ports that could draw it within the half-hour at continuous rated power, with a vehicle accepting power on every port and 100% efficiency. Each port then delivers at most {charger_kw * 0.5:g} kWh, so this is not the same as the charge-equivalent count.',
+            'Upper-bound estimate: connected vehicles, available ports, onboard charger limits, conversion losses and local grid deliverability are not modelled.',
             'Results are projected from historical forecasts, not measured charging or emissions savings.',
         ],
     )
@@ -114,7 +116,8 @@ def build_day(replay, total_kwh, flexible_kwh):
     total, flexible = total_kwh / 1000, flexible_kwh / 1000
     hours = replay['intervalMinutes'] / 60
     capacity = replay['flexibleCapacityMw'] * hours
-    intervals = [{k: v for k, v in interval_outcome(p, capacity, hours, total, flexible).items() if k in DAY_FIELDS}
+    intervals = [dict({k: v for k, v in interval_outcome(p, capacity, hours, total, flexible).items() if k in DAY_FIELDS},
+                      probability=p.get('probability'))
                  for p in replay['predictions']]
     totals = {k: sum(i[k] for i in intervals) for k in DAY_FIELDS[1:]}
     return dict(

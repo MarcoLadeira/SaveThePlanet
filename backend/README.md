@@ -132,19 +132,26 @@ financial/emissions estimate or actual charging execution is included.
 
 `/api/v1/scenario` also accepts `kwhPerCharge` (1-200, default 30) and `chargerKw`
 (1-400, default 22). They are illustrative assumptions, not vehicle data.
+`scenario.evAssumptions` echoes the values used; they are part of the scenario ID.
 
-- `scenario.evAssumptions` echoes the values used.
-- Each outcome adds `window` (`startAt`/`endAt`: the target time plus one interval),
-  `evChargesEquivalent` = potential recovery kWh / kWh per charge (an energy
-  equivalent, not a count of connected vehicles) and `chargersNeeded` =
-  ceil(charging power kW / charger kW), the plugs needed to deliver it in the half-hour.
-- `scenario.recommendedWindow` is the recommended outcome's window plus
-  `horizonMinutes`, or `null` when nothing can be recovered.
-- The assumptions are part of the scenario ID. Impact reads the same outcomes, so
-  recovery figures always match across pages.
+Each outcome adds two separate, conditional readings of the same potential recovery:
 
-Example: 0.5 MWh recoverable = 500 kWh / 30 kWh ≈ 17 EV charges; delivering it in
-30 minutes needs 1,000 kW, i.e. 46 chargers at 22 kW or 143 at 7 kW.
+- `evChargesEquivalent` = recovered kWh / kWh per charge. An energy comparison only:
+  it does not claim those sessions fit in the half-hour.
+- `minConcurrentPorts` = ceil(recovered kWh / (charger kW x 0.5 h)): the fewest ports that
+  could draw the energy within the half-hour at continuous rated power, with a vehicle
+  accepting power on every port and 100% efficiency. `portKwhLimit` (charger kW x 0.5 h)
+  and `kwhPerPort` show what each port would deliver.
+
+Example: 0.5 MWh = 500 kWh is about 16.7 x 30 kWh charge equivalents. Drawing it in
+30 minutes needs at least 46 x 22 kW ports running together, each delivering at most
+11 kWh (about 10.9 kWh here), or 143 x 7 kW ports. These are upper-bound estimates:
+connected vehicles, available ports, onboard charger limits, losses and local grid
+deliverability are not modelled. No charging time window is claimed, because whether a
+target time labels the start or the end of its half-hour is not yet confirmed.
+
+Day replay intervals (`/api/v1/impact/day`) also carry the model `probability`, used by
+the Charging page's "When is charging most useful?" chart.
 
 ## Automatic demo fallback
 

@@ -53,14 +53,23 @@ appearance and the display toggles remain local preferences.
 
 ## Charging page
 
-`charging.js` renders the Charging page from the shared scenario:
+`charging.js` and `charging.css` hold the whole page (loaded after `studio.js` and
+`charts3d.js`, so this `renderCharging` replaces the older one). All styles are scoped to
+`[data-current-page="charging"]`. Charts use the shared animation engine in `charts3d.js`.
 
-- **Recommended action** states the charging window, recoverable MWh, EV charges and
-  chargers needed in one sentence, with a button to switch to the recommended target.
-  When nothing can be recovered it says why instead. Demo data is tagged "Example data".
-- The target chart marks the **Recommended** horizon.
-- **Charging assumptions** edits total and flexible demand (kWh, with the MWh
-  conversion shown) and the EV assumptions (energy per charge in kWh, charger power
-  in kW). Invalid values are flagged next to the field before any request is sent.
-- **How this is calculated** lists the backend methodology and unit conventions.
-- Impact reads the same `/api/v1/scenario` outcomes, so recovery figures match.
+- **KPI row** for the selected forecast half-hour: total and flexible demand (your
+  assumptions), energy at risk (model) and potential absorption (upper bound), with
+  replay-day profiles as sparklines.
+- **Charging opportunity through the day**: energy at risk and potential absorption for
+  each half-hour of the replay day (`/api/v1/impact/day`), with a hover tooltip.
+- **Charging mix**: share of total demand that could use renewable energy at risk, with
+  the EV readings (charge equivalents and minimum concurrent ports) stated separately.
+- **Chargeable energy opportunity**: predicted curtailment per day from the daily model
+  (`/api/v1/explorer/daily/week`); shows "unavailable" when that model cannot be reached.
+- **When is charging most useful?**: each replay-day half-hour by energy at risk and event
+  probability; half-hours with probability of at least 70% and top-quarter energy are listed.
+- **Assumptions** drawer: demand and EV assumptions with field-level validation, plus the
+  backend methodology.
+
+Everything is labelled as a historical dataset prediction or example data and an
+upper-bound estimate. Times are shown as "forecast half-hours", without a start/end claim.

@@ -95,6 +95,26 @@ function scenarioView(page) {
         `<div class="scenario-grid">${scenarioComparison(impact)}<section class="card scenario-details">${details}</section></div><section class="card scenario-method"><h2 class="card-title">Assumptions and limits</h2><p>${escapeHtml(s.methodology[0])}</p><p>Flexible demand is assumed available at either target, with no charging losses. Vehicle counts, commitments, missed targets, money and emissions savings are not evaluated.</p></section>`
     );
 }
+document.addEventListener("submit", (event) => {
+    if (event.target.id !== "charging-scenario-form") return;
+    event.preventDefault();
+    const total = Number(document.getElementById("scenario-total").value),
+        flexible = Number(document.getElementById("scenario-flexible").value);
+    if (
+        !Number.isFinite(total) ||
+        !Number.isFinite(flexible) ||
+        total < 0 ||
+        flexible < 0 ||
+        flexible > total
+    ) {
+        document.getElementById("scenario-validation").textContent =
+            "Flexible demand must be between zero and total demand.";
+        return;
+    }
+    modelState.totalDemandKwh = total;
+    modelState.flexibleDemandKwh = flexible;
+    loadModelForecast();
+});
 document.addEventListener("click", (event) => {
     if (event.target.closest("#scenario-use-best")) {
         modelState.horizon = modelState.data.scenario.recommendedHorizonMinutes;
