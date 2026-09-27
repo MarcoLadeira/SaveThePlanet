@@ -170,6 +170,29 @@ def _available_times(dataset, listed):
     return [iso(t) for t in cached(key, None, lambda: _verify_by_replay(candidates)) + listed], 'replay'
 
 
+def forecast_issues(target, times, last_issue=None):
+    """{horizon: issue time} for each forecast the model can make for this target half-hour.
+
+    A dataset row exists for (issue, horizon) only when the issue time is in the dataset and
+    the target is no later than the last labelled target (last issue time + 30 minutes); e.g.
+    the final 22:30 issue has a +30 row (23:00) but no +60 row (23:30).
+    """
+    available = times if isinstance(times, set) else set(times)
+    last_target = utc(last_issue or max(available)) + timedelta(minutes=30)
+    moment = utc(target)
+    if moment > last_target:
+        return {}
+    issues = {h: iso(moment - timedelta(minutes=h)) for h in (30, 60)}
+    return {h: t for h, t in issues.items() if t in available}
+
+
+def valid_targets(times):
+    """Every target half-hour with at least one forecast row in the dataset."""
+    available, last = set(times), max(times)
+    candidates = {iso(utc(t) + timedelta(minutes=h)) for t in times for h in (30, 60)}
+    return sorted(t for t in candidates if forecast_issues(t, available, last))
+
+
 def short_term_info():
     def build():
         dataset, listed, info = parallel(lambda: call('/dataset/info'),
@@ -211,6 +234,7 @@ def short_term_info():
                         'verification': verification,
                         'intervalMinutes': dataset.get('interval_minutes', 30)},
             'times': times,
+            'targets': valid_targets(times),
         }
     return cached('v1-info', INFO_CACHE_SECONDS, build)
 
@@ -255,8 +279,7 @@ def short_term_predict(target, capacity):
     """
     info = short_term_info()
     target, available = iso(utc(target)), set(info['times'])
-    issues = {h: iso(utc(target) - timedelta(minutes=h)) for h in (30, 60)}
-    issues = {h: t for h, t in issues.items() if t in available}
+    issues = forecast_issues(target, available)
     if not issues:
         raise LookupError('No dataset issue time forecasts that target half-hour.')
 
@@ -323,8 +346,8 @@ def short_term_day(day):
     available, targets = set(info['times']), day_targets(day)
 
     def issues(horizon):
-        shifted = (iso(utc(t) - timedelta(minutes=horizon)) for t in targets)
-        return [t for t in shifted if t in available]
+        found = (forecast_issues(t, available).get(horizon) for t in targets)
+        return [t for t in found if t]
 
     def build():
         jobs = [lambda r=r, h=h: _window(r, h) for h in (30, 60) for r in contiguous_runs(issues(h))]

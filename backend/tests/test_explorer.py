@@ -80,6 +80,19 @@ class HelperTests(unittest.TestCase):
         runs = explorer.contiguous_runs(['2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z'])
         self.assertEqual([len(run) for run in runs], [2, 1])
 
+    def test_forecast_rows_stop_at_the_last_labelled_target(self):
+        times = {'2026-01-31T22:00:00Z', '2026-01-31T22:30:00Z'}
+        # The final 22:30 issue has a +30 row (23:00) but no +60 row (23:30).
+        self.assertEqual(explorer.forecast_issues('2026-01-31T23:00:00Z', times),
+                         {30: '2026-01-31T22:30:00Z', 60: '2026-01-31T22:00:00Z'})
+        self.assertEqual(explorer.forecast_issues('2026-01-31T23:30:00Z', times), {})
+        self.assertEqual(explorer.valid_targets(times), ['2026-01-31T22:30:00Z', '2026-01-31T23:00:00Z'])
+
+    def test_targets_beside_a_dataset_gap_keep_their_remaining_horizon(self):
+        times = {'2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z', '2026-01-14T16:30:00Z'}
+        self.assertEqual(explorer.forecast_issues('2026-01-14T15:30:00Z', times), {60: '2026-01-14T14:30:00Z'})
+        self.assertEqual(explorer.forecast_issues('2026-01-14T16:00:00Z', times), {})
+
     def test_partition_lookup(self):
         self.assertEqual(explorer.partition_of('2026-03-15', V2_INFO['dataset']['partitions']), 'test')
         self.assertIsNone(explorer.partition_of('2025-03-15', V2_INFO['dataset']['partitions']))
@@ -150,8 +163,9 @@ class ModelCallTests(unittest.TestCase):
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')
     def test_target_without_dataset_issue_time_never_calls_model(self, call, _info):
-        with self.assertRaises(LookupError):
-            explorer.short_term_predict('2026-01-31T12:00:00Z', 100)
+        for target in ('2026-01-31T12:00:00Z', '2026-01-31T23:30:00Z'):  # 23:30 is past the last labelled target
+            with self.subTest(target=target), self.assertRaises(LookupError):
+                explorer.short_term_predict(target, 100)
         call.assert_not_called()
 
     @patch('explorer.call')

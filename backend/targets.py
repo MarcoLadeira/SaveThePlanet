@@ -13,7 +13,6 @@ have extra dispatch-down energy:
    otherwise try another candidate. After MAX_ATTEMPTS the pick with the highest
    predicted energy is used.
 """
-from datetime import timedelta
 import random
 import threading
 
@@ -25,14 +24,9 @@ _lock = threading.Lock()
 
 
 def both_horizon_targets(times):
-    """Target half-hours whose +30 and +60 minute issue times are both in the dataset."""
-    available = set(times)
-    targets = set()
-    for issued in times:
-        target = explorer.utc(issued) + timedelta(minutes=30)
-        if explorer.iso(target - timedelta(minutes=60)) in available:
-            targets.add(explorer.iso(target))
-    return sorted(targets)
+    """Target half-hours the model can forecast at both +30 and +60 minutes."""
+    available, last = set(times), max(times)
+    return [t for t in explorer.valid_targets(times) if len(explorer.forecast_issues(t, available, last)) == 2]
 
 
 def candidates():

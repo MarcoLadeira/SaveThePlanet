@@ -60,9 +60,10 @@ async function fxLoadInfo(kind) {
   try {
     s.info = await fxGet(`/api/v1/explorer/${kind === 'daily' ? 'daily' : 'short-term'}`);
     if (kind === 'short') {
-      // A target is selectable when the dataset has its +30 or +60 minute issue time.
+      // Selectable targets come from the server: only half-hours the model has a dataset row
+      // for at +30 or +60 min (e.g. not 31 Jan 23:30, which is past the last labelled target).
       s.issueSet = new Set(s.info.times);
-      s.targets = [...new Set(s.info.times.flatMap((t) => [fxShift(t, 30), fxShift(t, 60)]))].sort();
+      s.targets = s.info.targets;
       s.byDate = new Map();
       for (const t of s.targets) { const d = t.slice(0, 10); if (!s.byDate.has(d)) s.byDate.set(d, []); s.byDate.get(d).push(t); }
     }
