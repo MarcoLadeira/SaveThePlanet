@@ -41,9 +41,32 @@ function dashboardRecoveryChannel(p,o){
 }
 
 function dashboardRecoveryOrbit(p,o){
-  const ratio=p.atRiskMwh?o.potentialRecoveryMwh/p.atRiskMwh:0;
-  const rate=Math.min(1,Math.max(0,ratio));
-  return `<div class="dash-recovery-channel dash-orbit" role="img" aria-label="${n(o.potentialRecoveryMwh)} MWh recoverable of ${n(p.atRiskMwh)} MWh at risk"><svg viewBox="0 0 190 190" aria-hidden="true"><circle cx="95" cy="95" r="70" fill="none" stroke="#e4eef1" stroke-width="22"/><circle class="dash-orbit-progress" cx="95" cy="95" r="70" fill="none" stroke="#16ad76" stroke-width="22" stroke-linecap="round" stroke-dasharray="${(rate*440).toFixed(2)} 440" transform="rotate(-90 95 95)"/></svg><div class="dash-channel-label"><strong>${pct(o.recoveryRate)}</strong><span>can be absorbed</span></div></div>`;
+  const rate=p.atRiskMwh?Math.min(1,Math.max(0,o.potentialRecoveryMwh/p.atRiskMwh)):0;
+  return `<div class="recovery-ring" role="img" aria-label="${pct(rate)} of predicted at-risk energy can be absorbed">
+    <svg viewBox="0 0 220 220" aria-hidden="true"><defs>
+      <linearGradient id="recovery-ring-green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#15d69c"/><stop offset=".45" stop-color="#00c68b"/><stop offset="1" stop-color="#00bb83"/></linearGradient>
+      <radialGradient id="recovery-ring-center"><stop offset=".6" stop-color="#fff"/><stop offset="1" stop-color="#f5fffa"/></radialGradient>
+    </defs><circle cx="110" cy="110" r="104" fill="url(#recovery-ring-center)" stroke="#edfff6" stroke-width="7"/>
+    <circle cx="110" cy="110" r="89" fill="none" stroke="#e4f4ec" stroke-width="26"/>
+    <circle class="recovery-ring-progress" cx="110" cy="110" r="89" fill="none" stroke="url(#recovery-ring-green)" stroke-width="26" stroke-linecap="round" pathLength="100" stroke-dasharray="${rate*100} 100" stroke-opacity="${rate?1:0}" transform="rotate(-90 110 110)"/>
+    </svg><div class="recovery-ring-label"><strong>${pct(rate)}</strong><span>can be absorbed</span></div>
+  </div>`;
+}
+
+function dashboardRecoveryCard(p,o){
+  const rate=p.atRiskMwh?Math.min(1,Math.max(0,o.potentialRecoveryMwh/p.atRiskMwh)):0;
+  const caption=p.atRiskMwh===0?'No predicted at-risk energy for this window.'
+    :o.remainingWasteMwh===0?'All predicted at-risk energy can be recovered.'
+    :`${pct(rate)} of at-risk energy could be recovered.`;
+  return `<section class="dash-card dash-recovery recovery-reference" aria-label="Recovery potential"><div class="recovery-content">
+    <header class="recovery-header"><span class="recovery-icon">${icon('leaf',24)}</span><div><h2>Recovery potential</h2><p>Clean energy flexible load could retain</p></div></header>
+    <div class="recovery-main"><div class="recovery-copy">
+      <div class="recovery-amount"><strong>${n(o.potentialRecoveryMwh)}</strong><span>MWh</span></div>
+      <p class="recovery-caption">${caption}</p>
+      <ul class="recovery-breakdown"><li class="is-absorbable"><i></i><span>Absorbable</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li class="is-remaining"><i></i><span>Still at risk</span><b>${n(o.remainingWasteMwh)} MWh</b></li></ul>
+    </div>${dashboardRecoveryOrbit(p,o)}</div>
+    <footer class="recovery-bottom"><div class="recovery-progress" role="img" aria-label="${pct(rate)} potentially recoverable"><i style="width:${rate*100}%"></i></div><div class="recovery-totals"><span><b>${n(o.potentialRecoveryMwh)} MWh</b> potential</span><span><b>${n(o.remainingWasteMwh)} MWh</b> remaining</span></div></footer>
+  </div></section>`;
 }
 
 function dashboardPillars(p,o){
@@ -57,7 +80,7 @@ function renderDashboard(){
     const p=selectedPrediction(),o=scenarioOutcome(p),flex=modelState.data.scenario.flexibleDemandMwh;
     return `<div class="dash-grid restored-dashboard dashboard-redesign">
       <section class="dash-card dash-hero">${cardHead('turbine','green','Renewable energy at risk','Selected half-hour model forecast',`<span class="dash-chip is-amber">${n(p.probability*100)}% likely</span>`)}<div class="dash-hero-body"><div class="dash-hero-figure"><strong>${n(p.atRiskMwh)}</strong><span>MWh</span></div><div class="dash-hero-terrain">${dashboardRiskSurface()}</div><div class="dash-hero-legend"><span><i class="is-amber"></i>At risk</span><span><i class="is-green"></i>Absorbable</span></div></div><div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Risk level</span><strong>${escapeHtml(p.risk)}</strong></div></div></section>
-      <section class="dash-card dash-recovery">${cardHead('leaf','green','Recovery potential','Clean energy flexible load could retain')}<div class="dash-recovery-body restored-recovery"><div class="dash-recovery-copy"><div class="dash-figure"><strong>${n(o.potentialRecoveryMwh)}</strong><span>MWh</span></div><p>of ${n(p.atRiskMwh)} MWh predicted at risk</p><ul class="dash-key"><li><i class="is-green"></i><span>Absorbable</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-amber"></i><span>Still at risk</span><b>${n(o.remainingWasteMwh)} MWh</b></li></ul></div>${dashboardRecoveryOrbit(p,o)}</div><div class="dash-recovery-scale"><i style="width:${Math.min(100,Math.max(0,o.recoveryRate*100))}%"></i></div><div class="dash-recovery-foot"><span><b>${n(o.potentialRecoveryMwh)}</b> MWh potential</span><span><b>${n(o.remainingWasteMwh)}</b> MWh remaining</span></div></section>
+      ${dashboardRecoveryCard(p,o)}
       <section class="dash-card dash-fleet">${cardHead('car','blue','Flexible charging','Scenario input, not vehicle telemetry')}<div class="dash-fleet-body"><div class="dash-fleet-intro"><div class="dash-figure"><strong>${n(flex)}</strong><span>MWh</span></div><p>flexible demand</p></div>${dashboardCharger()}</div><div class="dash-meter"><div class="dash-meter-head"><span>Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(modelState.capacity)} MW</span></div><div class="dash-bar"><i style="--fill:${Math.min(1,o.proposedPowerMw/modelState.capacity)}"></i></div></div><div class="dash-fleet-stats"><div><span class="dash-mini is-green">${icon('check',18)}</span><strong>${n(o.potentialRecoveryMwh)} MWh</strong><small>absorbable</small></div><div><span class="dash-mini is-blue">${icon('clock',18)}</span><strong>${n(o.remainingFlexibleMwh)} MWh</strong><small>flexibility left</small></div></div></section>
       ${outlookCard(p)}
       <section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation',`<span class="dash-chip is-ready"><i></i>Projected</span>`)}<h3>Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at ${escapeHtml(modelTime(p.targetAt))}.</h3>${dashboardPillars(p,o)}<p class="restored-plan-note">Demand and capacity limit the estimate. Vehicle decisions are not supplied.</p><button class="dash-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',18)}</button></section>
