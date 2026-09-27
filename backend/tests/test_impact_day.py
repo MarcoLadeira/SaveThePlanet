@@ -198,12 +198,14 @@ class ImpactDayHttpTests(unittest.TestCase):
             handler.impact_day({'date': ['2026-01-10']})  # must not raise
         self.assertIn(('2026-01-10', 100.0), server._day_cache)
 
-    def test_upstream_failures(self):
-        for error, code in [(TimeoutError(), 'MODEL_UNAVAILABLE'), (KeyError('predictions'), 'INVALID_MODEL_RESPONSE')]:
-            with self.subTest(code=code), patch('server.model_request', side_effect=error):
+    def test_upstream_failures_serve_a_labelled_demo_day(self):
+        for error in (TimeoutError(), KeyError('predictions')):
+            with self.subTest(error=type(error).__name__), patch('server.model_request', side_effect=error):
                 status, body = self.get('/api/v1/impact/day?date=2026-01-10')
-            self.assertEqual(status, 502)
-            self.assertEqual(body['error']['code'], code)
+            self.assertEqual(status, 200)
+            self.assertEqual((body['dataMode'], body['source'], body['date']), ('simulated', 'local-demo-fixture', '2026-01-10'))
+            self.assertEqual(len(body['intervals']), 48)
+            self.assertTrue(all(i['atRiskMwh'] >= i['potentialRecoveryMwh'] >= 0 for i in body['intervals']))
 
 
 if __name__ == '__main__':

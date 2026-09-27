@@ -1,6 +1,6 @@
 """Synthetic demo data. Without a clock it is the fixed, versioned example;
 with one it follows the clock so the dashboard updates in real time."""
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import math
 
 FIXED = (
@@ -29,6 +29,22 @@ def live_energy(at):
              + .1 * math.sin(2 * math.pi * hours / .78 + 1.1)
              + .05 * math.sin(2 * math.pi * hours / .12 + .4))
     return round(max(.08, value), 2)
+
+
+def demo_day_rows(capacity, day):
+    """48 synthetic +30 minute predictions across one UTC day, shaped like the model's window replay."""
+    start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    scale = .75 + .5 * ((day.toordinal() * 37) % 11) / 10
+    rows = []
+    for step in range(48):
+        issued = start + timedelta(minutes=30 * step)
+        target = issued + timedelta(minutes=30)
+        total = round(max(.05, live_energy(target) * scale), 2)
+        curtailed = round(total * (.3 + .08 * math.sin(target.hour / 3)), 2)
+        rows.append(row(capacity, 'demo-live-v1', issued.isoformat(), target.isoformat(), 30,
+                        round(min(.95, .3 + .55 * total), 2), total, curtailed, round(total - curtailed, 2),
+                        round(total * .55, 2), round(total * .92, 2), round(total * 1.35, 2)))
+    return rows
 
 
 def demo_payload(capacity, now=None):
