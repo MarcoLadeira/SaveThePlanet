@@ -70,9 +70,12 @@ async function fxLoadInfo(kind) {
   else fxRerender();
 }
 
-async function fxSelectDaily(day) {
+// keepWeek: a day clicked on the week chart only updates the details; any other
+// selection (calendar, shortcuts) starts a new week on the chosen day.
+async function fxSelectDaily(day, keepWeek = false) {
   const s = fx.daily, token = ++fxTokens.daily;
-  const weekChanged = !s.week || !s.week.days.some((d) => d.date === day);
+  const inWeek = Boolean(s.week?.days.some((d) => d.date === day));
+  const weekChanged = keepWeek ? !inWeek : s.week?.days[0]?.date !== day;
   s.date = day; s.loading = true; s.error = ''; fxRerender();
   if (weekChanged) fxLoadWeek(day);
   else s.week = { ...s.week, selected: day };
@@ -111,7 +114,7 @@ async function fxLoadDay(day) {
 function fxStep(delta) {
   if (fx.model === 'daily') {
     const s = fx.daily, next = fxAddDays(s.date, delta);
-    if (s.info && next >= s.info.dataset.from && next <= s.info.dataset.to) fxSelectDaily(next);
+    if (s.info && next >= s.info.dataset.from && next <= s.info.dataset.to) fxSelectDaily(next, true);
   } else {
     const s = fx.short, i = s.info.times.indexOf(s.issue) + delta;
     if (i >= 0 && i < s.info.times.length) fxSelectShort(s.info.times[i]);
@@ -188,7 +191,7 @@ function fxPicker() {
 // ---------------------------------------------------------------- charts
 function fxWeekChart() {
   const s = fx.daily;
-  if (!s.week) return `<div class="fx-chart-empty">${s.weekLoading ? '<span class="studio-spinner"></span>Loading the surrounding week…' : 'Week context unavailable.'}</div>`;
+  if (!s.week) return `<div class="fx-chart-empty">${s.weekLoading ? '<span class="studio-spinner"></span>Loading the week…' : 'Week context unavailable.'}</div>`;
   const days = s.week.days, W = 720, H = 270, top = 42, base = 222, left = 58;
   const max = Math.max(1, ...days.map((d) => Math.max(d.predictedMwh, d.actual.curtailmentMwh ?? 0))) * 1.08;
   const y = (v) => base - (v / max) * (base - top);
@@ -197,7 +200,7 @@ function fxWeekChart() {
   const bars = days.map((d, i) => {
     const x = left + i * step, w = Math.min(26, step / 3.4), cx = x + step / 2, sel = d.date === s.date;
     const actual = d.actual.curtailmentMwh;
-    return `<g class="fx-week-day ${sel ? 'is-selected' : ''}" data-fx-day="${d.date}" role="button" tabindex="0" aria-label="${fxDateLabel(d.date)}: predicted ${n(d.predictedMwh)} MWh, observed ${fxMwh(actual)} MWh">
+    return `<g class="fx-week-day ${sel ? 'is-selected' : ''}" data-fx-day="${d.date}" data-fx-in-week role="button" tabindex="0" aria-label="${fxDateLabel(d.date)}: predicted ${n(d.predictedMwh)} MWh, observed ${fxMwh(actual)} MWh">
       <rect class="fx-week-hit" x="${x + 3}" y="8" width="${step - 6}" height="${H - 12}" rx="14"/>
       <text class="fx-prob" x="${cx}" y="30" text-anchor="middle">${fxPercent(d.probability)}</text>
       <rect class="fx-bar-pred" x="${cx - w - 2}" y="${y(d.predictedMwh)}" width="${w}" height="${base - y(d.predictedMwh)}" rx="5"/>
@@ -206,7 +209,7 @@ function fxWeekChart() {
       <text class="fx-axis" x="${cx}" y="${base + 36}" text-anchor="middle">${fxDateLabel(d.date, 'short').replace(/ \d{4}$/, '')}</text>
     </g>`;
   }).join('');
-  return `<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted versus observed curtailment for the surrounding week"><text class="fx-axis" x="8" y="14">MWh / day</text>${grid}${bars}</svg>`;
+  return `<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted versus observed curtailment for the selected week"><text class="fx-axis" x="8" y="14">MWh / day</text>${grid}${bars}</svg>`;
 }
 
 function fxDayChart() {
@@ -297,7 +300,7 @@ function fxDailyView() {
       fxPartitionMetric(r.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', 'The week around your day', 'Predicted vs observed daily curtailment · click a day to select it')}
+      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', 'Your week ahead', 'Your day and the six after it · click a bar to see that day')}
         <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span><span><i class="is-prob"></i>% = event probability</span></div>
         <div class="fx-chart-wrap">${fxWeekChart()}</div></section>
       <section class="dash-card studio-side-card">${cardHead('calendar', 'green', fxDateLabel(r.date), 'Selected target day')}
@@ -411,7 +414,7 @@ document.addEventListener('click', (event) => {
   }
   if ((el = pick('data-fx-quick'))) { fxQuick(el.dataset.fxQuick); return; }
   if ((el = pick('data-fx-issue'))) { fx.picker = null; fxSelectShort(el.dataset.fxIssue, 'fxKeepDay' in el.dataset); return; }
-  if ((el = pick('data-fx-day'))) { fxChooseDay(el.dataset.fxDay); return; }
+  if ((el = pick('data-fx-day'))) { if ('fxInWeek' in el.dataset) fxSelectDaily(el.dataset.fxDay, true); else fxChooseDay(el.dataset.fxDay); return; }
   if ((el = pick('data-fx-step'))) { fxStep(Number(el.dataset.fxStep)); return; }
   if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); render(); return; }
   if ((el = pick('data-fx-retry'))) {
@@ -425,5 +428,5 @@ document.addEventListener('click', (event) => {
 document.addEventListener('keydown', (event) => {
   if (pageFromHash() !== 'forecast') return;
   if (event.key === 'Escape' && fx.picker) { fx.picker = null; render(); document.querySelector('[data-fx-picker]')?.focus(); return; }
-  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('g[data-fx-day]')) { event.preventDefault(); fxChooseDay(event.target.dataset.fxDay); }
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('g[data-fx-day]')) { event.preventDefault(); fxSelectDaily(event.target.dataset.fxDay, true); }
 });

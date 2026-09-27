@@ -208,7 +208,7 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 | --- | --- |
 | `GET /api/v1/explorer/daily` | V2 `/model-info/daily-curtailment` + `/dataset/daily-curtailment/coverage` (cached 10 min) |
 | `GET /api/v1/explorer/daily/predict?date=YYYY-MM-DD` | V2 `/predict/curtailment/day` + `/actuals/daily-curtailment` |
-| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for 7 days around the date, clipped to the dataset |
+| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for the date and the 6 days after it (shifted back near the dataset end) |
 | `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
 | `GET /api/v1/explorer/short-term/predict?issue=…Z&capacityMw=100` | V1 `/predict/from-dataset` for 30 and 60 min + `/actuals/v1/batch` |
 | `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per horizon and gap-free run, so targets cover 00:00-23:30 of the day, + actuals for all 48 targets |

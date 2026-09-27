@@ -116,6 +116,12 @@ class ModelCallTests(unittest.TestCase):
 
     @patch('explorer.daily_info', return_value=V2_INFO)
     @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
+    def test_week_starts_on_the_selected_day(self, _one, _info):
+        days = [d['date'] for d in explorer.daily_week('2025-06-10')['days']]
+        self.assertEqual((days[0], days[-1], len(days)), ('2025-06-10', '2025-06-16', 7))
+
+    @patch('explorer.daily_info', return_value=V2_INFO)
+    @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
     def test_week_is_clipped_to_dataset_end(self, _one, _info):
         days = [d['date'] for d in explorer.daily_week('2026-08-30')['days']]
         self.assertEqual(days, ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'])

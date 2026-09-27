@@ -354,10 +354,11 @@ def daily_predict(day):
 
 
 def daily_week(day):
-    """Seven days centred on the selection (clipped to the dataset) for context."""
+    """Seven days starting on the selection, for context. Near the dataset end the week
+    shifts back so it still shows seven days and includes the selection."""
     day, info = validate_day(day)
     first, last = date.fromisoformat(info['dataset']['from']), date.fromisoformat(info['dataset']['to'])
-    start = min(max(date.fromisoformat(day) - timedelta(days=3), first), max(first, last - timedelta(days=6)))
+    start = min(date.fromisoformat(day), max(first, last - timedelta(days=6)))
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)
             if start + timedelta(days=i) <= last]
     results = parallel(*[lambda d=d: _daily_one(d) for d in days])
