@@ -53,17 +53,14 @@
   margin-top: 6px;
 }
 .causes-donut { width: 100%; height: auto; max-height: 100%; }
-.donut-shadow { fill: rgba(20, 70, 60, .1); }
-.donut-track { fill: none; stroke: var(--line); stroke-dasharray: 3 4; }
-.donut-top { stroke: rgba(255, 255, 255, .75); stroke-width: .8; }
-.donut-top.is-constraint { fill: #ff9a52; }
-.donut-wall.is-constraint { fill: #e0691e; }
-.donut-inner.is-constraint { fill: #b9540f; }
-.donut-top.is-curtailment { fill: #22b574; }
-.donut-wall.is-curtailment { fill: #169b62; }
-.donut-inner.is-curtailment { fill: #0f7a4c; }
-.donut-value { fill: var(--ink); font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
-.donut-caption { fill: var(--ink-3); font-size: 8px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.donut-shadow { fill: rgba(20, 70, 60, .22); }
+.donut-hole { fill: var(--surface); }
+.donut-top { stroke: rgba(255, 255, 255, .6); stroke-width: .6; }
+.donut-inner.is-orange { fill: #a9480b; }
+.donut-inner.is-green { fill: #0a5a37; }
+.donut-value { font-size: 19px; font-weight: 800; letter-spacing: -.03em; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.donut-value.is-orange { fill: #e0691e; }
+.donut-value.is-green { fill: #169b62; }
 .causes-legend { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .causes-legend > div {
   display: grid;

@@ -134,40 +134,98 @@ dashCharts.causes = {
   draw({ constraint, curtailment, sweep, cause }) {
     const total = constraint + curtailment;
     const share = total > 0 ? constraint / total : 0;
-    const cx = 96, cy = 58, outer = 84, inner = 44, squash = 0.56, depth = 15;
+    const cx = 96, cy = 56, outer = 86, inner = 57, squash = 0.5, depth = 14, gap = total > 0 && share > 0 && share < 1 ? 4 : 0;
     const start = -Math.PI / 2;
     const split = start + 2 * Math.PI * share * sweep;
     const end = start + 2 * Math.PI * sweep;
-    const segments = total > 0 ? [['is-constraint', start, split], ['is-curtailment', split, end]] : [];
     const clip = (from, to, lo, hi) => [Math.max(from, lo), Math.min(to, hi)];
-    const wall = (radius, from, to) => {
-      const top = chartArc(cx, cy, radius, radius * squash, from, to);
-      return chartPath([...top, ...top.slice().reverse().map(([x, y]) => [x, y + depth])]);
-    };
     const layers = { inner: '', outer: '', top: '' };
-    for (const [cls, from, to] of segments) {
+    for (const [tone, from, to] of total > 0 ? [['orange', start, split], ['green', split, end]] : []) {
       if (to - from < 0.001) continue;
+      const mid = (from + to) / 2, ox = Math.cos(mid) * gap, oy = Math.sin(mid) * gap * squash;
+      const wall = (radius, a, b) => {
+        const edge = chartArc(cx + ox, cy + oy, radius, radius * squash, a, b);
+        return chartPath([...edge, ...edge.slice().reverse().map(([x, y]) => [x, y + depth])]);
+      };
       for (const [lo, hi] of [[-Math.PI / 2, 0], [Math.PI, 1.5 * Math.PI]]) {
         const [a, b] = clip(from, to, lo, hi);
-        if (b > a) layers.inner += `<path class="donut-inner ${cls}" d="${wall(inner, a, b)}"/>`;
+        if (b > a) layers.inner += `<path class="donut-inner is-${tone}" d="${wall(inner, a, b)}"/>`;
       }
       const [a, b] = clip(from, to, 0, Math.PI);
-      if (b > a) layers.outer += `<path class="donut-wall ${cls}" d="${wall(outer, a, b)}"/>`;
-      layers.top += `<path class="donut-top ${cls}" d="${chartBand(cx, cy, outer, inner, from, to, squash)}"/>`;
+      if (b > a) layers.outer += `<path fill="url(#donut-${tone}-wall)" d="${wall(outer, a, b)}"/>`;
+      layers.top += `<path class="donut-top" fill="url(#donut-${tone}-top)" d="${chartBand(cx + ox, cy + oy, outer, inner, from, to, squash)}"/>`;
     }
+    const lead = share >= 0.5 ? 'orange' : 'green';
     const percent = (value) => `${Math.round(value * 100)}%`;
     return `<svg class="causes-donut" viewBox="0 0 192 150" aria-hidden="true">
-        <ellipse class="donut-shadow" cx="${cx}" cy="${cy + depth + 20}" rx="${outer - 4}" ry="${outer * squash * 0.5}"/>
-        <ellipse class="donut-track" cx="${cx}" cy="${cy}" rx="${outer}" ry="${outer * squash}"/>
+        <defs>
+          <linearGradient id="donut-orange-top" x2="0" y2="1"><stop stop-color="#ffc08f"/><stop offset="1" stop-color="#ff8a3e"/></linearGradient>
+          <linearGradient id="donut-orange-wall" x2="0" y2="1"><stop stop-color="#f27c2e"/><stop offset="1" stop-color="#c4560f"/></linearGradient>
+          <linearGradient id="donut-green-top" x2="0" y2="1"><stop stop-color="#5fd89d"/><stop offset="1" stop-color="#1fae6c"/></linearGradient>
+          <linearGradient id="donut-green-wall" x2="0" y2="1"><stop stop-color="#169b62"/><stop offset="1" stop-color="#0c6b42"/></linearGradient>
+          <filter id="donut-blur" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+        </defs>
+        <ellipse class="donut-shadow" cx="${cx}" cy="${cy + depth + 16}" rx="${outer - 6}" ry="${outer * squash * 0.55}" filter="url(#donut-blur)"/>
+        <ellipse class="donut-hole" cx="${cx}" cy="${cy}" rx="${inner + 2}" ry="${(inner + 2) * squash}"/>
         ${layers.inner}${layers.outer}${layers.top}
-        <text class="donut-value" x="${cx}" y="${cy + 5}" text-anchor="middle">${total > 0 ? percent(share) : '—'}</text>
-        <text class="donut-caption" x="${cx}" y="${cy + 17}" text-anchor="middle">constraint</text>
+        <text class="donut-value is-${lead}" x="${cx}" y="${cy + 14}" text-anchor="middle">${total > 0 ? percent(Math.max(share, 1 - share)) : '—'}</text>
       </svg>
       <div class="causes-legend">
         <div class="is-constraint"><i></i><span>Grid constraint</span><b>${n(constraint)} MWh<small>${percent(share)}</small></b></div>
         <div class="is-curtailment"><i></i><span>Curtailment</span><b>${n(curtailment)} MWh<small>${percent(total > 0 ? 1 - share : 0)}</small></b></div>
         <p><strong>${n(total)} MWh</strong> at risk · ${escapeHtml(cause)}</p>
       </div>`;
+  },
+};
+
+const scenarioNow = () => scenarioOutcome(selectedPrediction());
+
+dashCharts.fleetDemand = {
+  values: () => ({ flexible: modelState.data.scenario.flexibleDemandMwh }),
+  start: (target) => ({ ...target, flexible: 0 }),
+  draw: ({ flexible }) => `<p class="fleet-figure"><strong>${n(flexible)}</strong><span>MWh</span></p><p class="fleet-caption">Flexible demand</p>`,
+};
+
+dashCharts.fleetPower = {
+  values() {
+    const capacity = modelState.data.flexibleCapacityMw;
+    return { power: Math.min(capacity, Math.max(0, scenarioNow().proposedPowerMw)), capacity };
+  },
+  start: (target) => ({ ...target, power: 0 }),
+  draw: ({ power, capacity }) => `<div class="fleet-meter-head"><span>Proposed power</span><span><b>${n(power)}</b> of ${n(capacity)} MW</span></div>
+    <div class="fleet-track" role="meter" aria-label="Proposed power" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${power}" aria-valuetext="${n(power)} of ${n(capacity)} MW" style="--fleet-fill:${fleetShare(power, capacity)}"><i></i><b></b></div>`,
+};
+
+dashCharts.fleetSplit = {
+  values() {
+    const o = scenarioNow();
+    return { absorbed: o.potentialRecoveryMwh, left: o.remainingFlexibleMwh, flexible: modelState.data.scenario.flexibleDemandMwh };
+  },
+  start: (target) => ({ ...target, absorbed: 0, left: 0 }),
+  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Absorbable', fleetShare(absorbed, flexible))
+    + fleetStat('orange', 'clock', left, 'Flexibility left', fleetShare(left, flexible)),
+};
+
+dashCharts.planHeadline = {
+  values: () => ({ energy: scenarioNow().potentialRecoveryMwh, time: modelTime(selectedPrediction().targetAt) }),
+  start: (target) => ({ ...target, energy: 0 }),
+  draw: ({ energy, time }) => `<h3 class="plan-headline">Use up to <em>${n(energy)} MWh</em> of flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
+};
+
+dashCharts.planBars = {
+  values() {
+    const p = selectedPrediction();
+    return { rise: 1, bars: [
+      { key: 'risk', label: 'At risk', value: p.atRiskMwh },
+      { key: 'flex', label: 'Flexible', value: modelState.data.scenario.flexibleDemandMwh },
+      { key: 'recovery', label: 'Absorbable', value: scenarioNow().potentialRecoveryMwh },
+    ] };
+  },
+  start: (target) => ({ ...target, rise: 0 }),
+  draw({ rise, bars }) {
+    const max = Math.max(...bars.map((bar) => bar.value));
+    return `<div class="plan-bars">${bars.map((bar) => `<div class="plan-bar is-${bar.key}" style="--plan-h:${max > 0 ? (bar.value / max) * rise : 0}"><span class="plan-bar-value"><strong>${n(bar.value)}</strong>MWh</span><i></i></div>`).join('')}</div>
+      <div class="plan-labels">${bars.map((bar) => `<span>${bar.label}</span>`).join('')}</div>`;
   },
 };
 
