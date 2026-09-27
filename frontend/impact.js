@@ -9,11 +9,17 @@
 //   horizonMinutes:30, intervals:[{targetAt, atRiskMwh, potentialRecoveryMwh, remainingWasteMwh,
 //   avoidedEmissionsTco2, evRangeKm}], totals:{atRiskMwh, potentialRecoveryMwh, avoidedEmissionsTco2, evRangeKm} }
 
-const impactDay={date:null,range:null,status:'idle',data:null,key:'',metric:'energy',request:0};
+const impactDay={date:null,range:null,status:'idle',data:null,key:'',metric:'energy',timeMetric:'recovery',request:0,prev:null};
 const IMPACT_METRICS={
   energy:{label:'Energy',field:'potentialRecoveryMwh',format:v=>`${n(v)} MWh`},
   emissions:{label:'Emissions',field:'avoidedEmissionsTco2',format:v=>impactCo2Text(v)},
   distance:{label:'Distance',field:'evRangeKm',format:v=>`${n(Math.round(v))} km`}
+};
+// Series for the "Impact over time" dropdown; each is plotted on its own scale.
+const IMPACT_SERIES={
+  recovery:{label:'Potential recovery',field:'potentialRecoveryMwh',unit:'MWh',tone:'green',format:v=>`${n(v)} MWh`},
+  range:{label:'EV range equivalent',field:'evRangeKm',unit:'km',tone:'blue',format:v=>`${n(Math.round(v))} km`},
+  risk:{label:'Energy at risk',field:'atRiskMwh',unit:'MWh',tone:'amber',format:v=>`${n(v)} MWh`}
 };
 
 function impactLabel(){return isDemoData()?'Simulated':'Derived estimate'}
@@ -42,9 +48,28 @@ async function loadImpactDay(){
     const body=await response.json();
     if(!response.ok||!Array.isArray(body.intervals))throw new Error(body.error?.message||'Day replay unavailable');
     impactDay.data=body;impactDay.range=body.range||impactDay.range;impactDay.date=body.date;impactDay.key=impactDayKey();impactDay.status='ready';
+    loadPreviousDay(request);
   }catch{if(request===impactDay.request){impactDay.status='error';impactDay.data=null}}
   finally{if(request===impactDay.request&&pageFromHash()==='impact')render()}
 }
+// Previous replay day's totals for the KPI "vs previous day" line. Fetched after the main day;
+// the backend prefetches the previous day first, so this is usually already cached.
+function previousDate(value){const d=new Date(`${value}T00:00:00Z`);d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10)}
+function shortDate(value){return impactDateLabel(value).replace(/ \d{4}$/,'')}
+async function loadPreviousDay(request){
+  const date=previousDate(impactDay.date),key=impactDayKey();
+  if(impactDay.range&&date<impactDay.range.min){impactDay.prev={key,date,status:'none'};return}
+  impactDay.prev={key,date,status:'loading'};
+  const query=new URLSearchParams({date,capacityMw:String(modelState.capacity),totalDemandKwh:String(modelState.totalDemandKwh),flexibleDemandKwh:String(modelState.flexibleDemandKwh)});
+  try{
+    const response=await fetch(`/api/v1/impact/day?${query}`),body=await response.json();
+    if(!response.ok||!body.totals)throw new Error();
+    if(request===impactDay.request)impactDay.prev={key,date,status:'ready',totals:body.totals};
+  }catch{if(request===impactDay.request)impactDay.prev={key,date,status:'error'}}
+  if(request===impactDay.request&&pageFromHash()==='impact')render();
+}
+function previousTotals(){const p=impactDay.prev;return p&&p.key===impactDay.key&&p.status==='ready'?p.totals:null}
+
 // Called while rendering: mark the day as loading immediately so this very render shows the
 // placeholders (first visit, or capacity/demand changed) rather than the two-target fallback.
 function ensureImpactDay(){
@@ -71,6 +96,28 @@ function niceMax(value){if(!(value>0))return 1;const p=10**Math.floor(Math.log10
 function yAxis(max,top,bottom,left,right,unit){
   return [0,.25,.5,.75,1].map(t=>{const y=bottom-(bottom-top)*t;return `<line class="impact-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="impact-tick" x="${left-8}" y="${y+3}" text-anchor="end">${n(max*t)}</text>`}).join('')+`<text class="impact-tick" x="${left-8}" y="${top-12}" text-anchor="end">${unit}</text>`;
 }
+// Smooth curve through points; control points are clamped between neighbours so the line
+// never overshoots (no invented dips below zero or peaks above the data).
+function smoothPath(points){
+  if(!points.length)return '';
+  let d=`M${points[0][0]} ${points[0][1]}`;
+  for(let i=0;i<points.length-1;i++){
+    const p0=points[i-1]||points[i],p1=points[i],p2=points[i+1],p3=points[i+2]||p2,lo=Math.min(p1[1],p2[1]),hi=Math.max(p1[1],p2[1]);
+    const c1=Math.min(hi,Math.max(lo,p1[1]+(p2[1]-p0[1])*.2)),c2=Math.min(hi,Math.max(lo,p2[1]-(p3[1]-p1[1])*.2)),dx=(p2[0]-p1[0])/3;
+    d+=` C${p1[0]+dx} ${c1} ${p2[0]-dx} ${c2} ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+// Glow filter and gradient fills shared by every chart on the page (referenced by id).
+function impactDefs(){
+  const grad=tone=>`<linearGradient id="impact-fill-${tone}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="stop-${tone}" stop-opacity=".55"/><stop offset="1" class="stop-${tone}" stop-opacity="0"/></linearGradient>`;
+  return `<svg class="impact-defs" aria-hidden="true" focusable="false"><defs><filter id="impact-glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>${['green','blue','amber'].map(grad).join('')}</defs></svg>`;
+}
+function sparkArea(values,tone){
+  const w=110,h=42,max=Math.max(...values,0)||1,pts=values.map((v,i)=>[2+(w-4)*(i/(values.length-1||1)),h-3-(v/max)*(h-8)]);
+  const line=smoothPath(pts);
+  return `<svg class="impact-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#impact-fill-${tone})"/><path class="line" d="${line}" filter="url(#impact-glow)"/></svg>`;
+}
 function tipAttrs(text){return `data-tip="${escapeHtml(text)}" tabindex="0" aria-label="${escapeHtml(text)}"`}
 
 // Tiny data-backed microvisuals for the KPI cards.
@@ -78,9 +125,9 @@ function microBars(values,active){
   const max=Math.max(...values,0)||1,w=96,h=40,gap=values.length>6?1.5:10,bw=(w-gap*(values.length-1))/values.length;
   return `<svg class="impact-micro" viewBox="0 0 ${w} ${h}" aria-hidden="true">${values.map((v,i)=>{const bh=Math.max(v/max*(h-4),v>0?2:0);return `<rect x="${i*(bw+gap)}" y="${h-bh}" width="${bw}" height="${bh}" rx="${Math.min(3,bw/2)}" class="${i===active?'on':''}"/>`}).join('')}</svg>`;
 }
-function kpiMicro(field,scale=1){
+function kpiMicro(field,scale=1,tone='green'){
   if(impactDayLoading())return {svg:'<span class="impact-micro impact-micro-skel" aria-hidden="true"></span>',caption:'Loading…'};
-  if(impactDayReady())return {svg:microBars(impactDay.data.intervals.map(i=>i[field]*scale),-1),caption:'48 half-hours'};
+  if(impactDayReady())return {svg:sparkArea(impactDay.data.intervals.map(i=>i[field]*scale),tone),caption:`${shortDate(impactDay.date)} · 48 half-hours`};
   const outcomes=modelState.data.scenario.outcomes;
   return {svg:microBars(outcomes.map(o=>o[field]*scale),outcomes.findIndex(o=>o.horizonMinutes===modelState.horizon)),caption:outcomes.map(o=>`+${o.horizonMinutes}`).join(' · ')};
 }
@@ -89,17 +136,36 @@ function kpiMicro(field,scale=1){
 function impactKpi(iconName,tone,label,value,unit,note,micro){
   return `<article class="impact-kpi is-${tone}">${tile(iconName,tone)}<div class="impact-kpi-copy"><span>${label}</span><strong>${value}<small>${unit}</small></strong><em>${note}</em></div><figure class="impact-kpi-micro">${micro.svg}<figcaption>${micro.caption}</figcaption></figure></article>`;
 }
+// Day-over-day change between two replay days' totals. Every recovery-derived KPI scales with
+// recovered energy, so they share the same change.
+function dayDelta(field){
+  const prev=previousTotals(),p=impactDay.prev;
+  if(!impactDayReady()||!p||p.key!==impactDay.key)return '';
+  const vs=shortDate(p.date);
+  if(p.status==='loading')return `<span class="impact-delta">vs ${vs} loading…</span>`;
+  if(!prev)return '';
+  const now=impactDay.data.totals[field],before=prev[field];
+  if(!before)return `<span class="impact-delta">${now?'Up from 0':'No change'}<small> vs ${vs}</small></span>`;
+  const change=(now-before)/before,dir=Math.abs(change)<.005?'flat':change>0?'up':'down';
+  const title=`Day total ${impactDateLabel(impactDay.date)} vs ${impactDateLabel(p.date)}: ${n(before)} → ${n(now)}`;
+  return `<span class="impact-delta is-${dir}" title="${escapeHtml(title)}">${{up:'↑',down:'↓',flat:'→'}[dir]} ${Math.round(Math.abs(change*100))}%<small> vs ${vs}</small></span>`;
+}
 function impactStats(o){
   const scope=`+${o.horizonMinutes} min · ${impactLabel().toLowerCase()}`,[co2,co2Unit]=impactCo2Parts(o.avoidedEmissionsTco2);
+  const note=(field,fallback)=>dayDelta(field)||fallback;
   return `<section class="impact-kpis" aria-label="Selected scenario impact">
-    ${impactKpi('bolt','green','Potential renewable recovery',n(o.potentialRecoveryMwh),'MWh',`${pct(o.recoveryRate)} of at-risk · ${scope}`,kpiMicro('potentialRecoveryMwh'))}
-    ${impactKpi('battery','blue','Potential EV charging',n(o.potentialRecoveryMwh*1000),'kWh',`${pct(o.cleanChargingShare)} of demand · ${scope}`,kpiMicro('potentialRecoveryMwh',1000))}
-    ${impactKpi('leaf','green','Est. emissions avoided',co2,co2Unit,scope,kpiMicro('avoidedEmissionsTco2'))}
-    ${impactKpi('car','blue','EV range equivalent',n(Math.round(o.evRangeKm)),'km',`Illustrative · ${scope}`,kpiMicro('evRangeKm'))}
+    ${impactKpi('bolt','green','Potential renewable recovery',n(o.potentialRecoveryMwh),'MWh',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of at-risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
+    ${impactKpi('battery','blue','Potential EV charging',n(o.potentialRecoveryMwh*1000),'kWh',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
+    ${impactKpi('leaf','green','Est. emissions avoided',co2,co2Unit,note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
+    ${impactKpi('car','blue','EV range equivalent',n(Math.round(o.evRangeKm)),'km',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
   </section>`;
 }
 
 // ---------- 2. Energy flow hero ----------
+// Soft wide band, glowing core and a bright pulse that travels along the path.
+function flowRibbon(tone,d){
+  return `<path class="flow-ribbon ${tone}" d="${d}"/><path class="flow-ribbon ${tone} core" d="${d}" filter="url(#impact-glow)"/><path class="flow-ribbon ${tone} pulse" d="${d}" pathLength="100" filter="url(#impact-glow)"/>`;
+}
 function flowScene(){
   const tree=(x,y,s=1)=>`<g class="flow-tree" transform="translate(${x} ${y}) scale(${s})"><rect x="-1.5" y="0" width="3" height="9"/><circle cy="-4" r="8"/></g>`;
   const turbine=(x,y,s=1)=>`<g class="flow-turbine" transform="translate(${x} ${y}) scale(${s})"><path d="M-2 0 L-1 -78 L1 -78 L2 0Z"/><g class="flow-blades" style="transform-origin:0 -78px"><path d="M0 -78 L-3 -120 L3 -120Z"/><path d="M0 -78 L-3 -120 L3 -120Z" transform="rotate(120 0 -78)"/><path d="M0 -78 L-3 -120 L3 -120Z" transform="rotate(240 0 -78)"/></g><circle cy="-78" r="3.5"/></g>`;
@@ -112,10 +178,8 @@ function flowScene(){
     <path class="flow-hill" d="M24 222 Q90 150 170 168 Q250 186 300 178 L360 190 L170 236Z"/>
     ${turbine(100,204,.8)}${turbine(160,194,.7)}${turbine(220,204,.58)}
     ${tree(290,192,.8)}${tree(320,200,.7)}${tree(400,184,.7)}${tree(600,180,.8)}${tree(630,188,.7)}${tree(960,212,.8)}${tree(520,256,.9)}${tree(60,226,.7)}
-    <path class="flow-ribbon green" d="M250 214 C330 232 380 180 452 200"/>
-    <path class="flow-ribbon green core" d="M250 214 C330 232 380 180 452 200"/>
-    <path class="flow-ribbon blue" d="M548 204 C630 232 680 182 772 212"/>
-    <path class="flow-ribbon blue core" d="M548 204 C630 232 680 182 772 212"/>
+    ${flowRibbon('green','M250 214 C330 232 380 180 452 200')}
+    ${flowRibbon('blue','M548 204 C630 232 680 182 772 212')}
     <g class="flow-battery" transform="translate(500 226)"><path class="side" d="M0 0 L46 -24 L46 -80 L0 -56Z"/><path class="face" d="M-48 -24 L0 0 L0 -56 L-48 -80Z"/><path class="top" d="M-48 -80 L0 -56 L46 -80 L-2 -104Z"/><path class="bolt" d="M-20 -64 L-29 -42 L-21 -42 L-26 -25 L-11 -49 L-19 -49 L-12 -64Z"/></g>
     <path class="flow-bay" d="M760 240 L870 206 L960 222 L850 258Z"/>
     ${charger(815,236)}${charger(855,222)}${charger(895,208)}
@@ -153,14 +217,35 @@ function stackedBars(rows,{width=420,height=250,label}){
   }).join('');
   return `<svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(label)}">${yAxis(max,top,bottom,left,right,'MWh')}${bars}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg>`;
 }
+// Area chart of one day-replay series on its own zero-based scale, with a peak callout and a
+// focusable hover target per half-hour.
+function areaChart(rows,series,{width=420,height=250}={}){
+  const left=46,right=width-10,top=34,bottom=height-30,values=rows.map(r=>r[series.field]),peak=Math.max(...values,0),max=niceMax(peak);
+  const x=i=>left+(right-left)*(i/(rows.length-1||1)),y=v=>bottom-(v/max)*(bottom-top),pts=values.map((v,i)=>[x(i),y(v)]);
+  const line=smoothPath(pts),slot=(right-left)/(rows.length-1||1);
+  const hits=rows.map((r,i)=>`<g class="impact-pt" ${tipAttrs(`${modelTime(r.targetAt)}: ${series.format(values[i])}`)}><rect class="hit" x="${x(i)-slot/2}" y="${top}" width="${slot}" height="${bottom-top}"/><line class="guide" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bottom}"/><circle cx="${x(i)}" cy="${y(values[i])}" r="4"/></g>`).join('');
+  const ticks=rows.map((r,i)=>i%8===0?`<text class="impact-tick" x="${x(i)}" y="${bottom+17}" text-anchor="middle">${modelTime(r.targetAt)}</text>`:'').join('');
+  const at=values.indexOf(peak),px=Math.min(Math.max(x(at),left+44),right-44);
+  const callout=peak>0?`<g class="impact-peak" aria-hidden="true"><circle class="dot is-${series.tone}" cx="${x(at)}" cy="${y(peak)}" r="4.5"/><rect x="${px-44}" y="${y(peak)-34}" width="88" height="26" rx="7"/><text x="${px}" y="${y(peak)-22}" text-anchor="middle">${escapeHtml(series.format(peak))}</text><text class="sub" x="${px}" y="${y(peak)-12}" text-anchor="middle">peak · ${modelTime(rows[at].targetAt)}</text></g>`:'';
+  return `<svg class="impact-chart impact-area is-${series.tone}" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(series.label)} per half-hour">${yAxis(max,top,bottom,left,right,series.unit)}<path class="area" d="${line} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-${series.tone})"/><path class="line" d="${line}" filter="url(#impact-glow)"/>${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/>${hits}${callout}</svg>`;
+}
+function seriesSelect(){
+  return `<label class="impact-select"><span class="visually-hidden">Series</span><select id="impact-time-metric">${Object.entries(IMPACT_SERIES).map(([k,m])=>`<option value="${k}" ${impactDay.timeMetric===k?'selected':''}>${m.label}</option>`).join('')}</select></label>`;
+}
 function impactOverTime(s){
   const day=impactDayReady(),legend=`<ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-amber"></i>Still at risk</li></ul>`;
   if(impactDayLoading())return `<section class="dash-card impact-time" aria-labelledby="impact-time-title" aria-busy="true">
     <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(impactDateLabel(impactDay.date))} replay · MWh per half-hour</p></div>${legend}</div>${impactSkeleton(48)}</section>`;
   let rows,sub,table;
   if(day){
-    rows=impactDay.data.intervals.map((r,i)=>({...r,label:modelTime(r.targetAt),tick:i%8===0?modelTime(r.targetAt):''}));
-    sub=`${escapeHtml(impactDay.date)} replay · MWh per half-hour`;
+    const series=IMPACT_SERIES[impactDay.timeMetric];
+    rows=impactDay.data.intervals;
+    table=`<table><caption>${escapeHtml(series.label)} per half-hour</caption><thead><tr><th>Half-hour</th><th>${escapeHtml(series.label)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(modelTime(r.targetAt))}</td><td>${escapeHtml(series.format(r[series.field]))}</td></tr>`).join('')}</tbody></table>`;
+    return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
+    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(shortDate(impactDay.date))} replay · ${series.unit} per half-hour</p></div>${seriesSelect()}</div>
+    <div class="impact-chart-wrap">${areaChart(rows,series)}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
+    <details class="impact-data-table"><summary>View data</summary>${table}</details>
+  </section>`;
   }else{
     rows=s.outcomes.map(o=>({...o,label:`+${o.horizonMinutes} min (${modelTime(o.targetAt)})`,tick:`${modelTime(o.targetAt)} · +${o.horizonMinutes}`,horizon:o.horizonMinutes,selected:o.horizonMinutes===modelState.horizon}));
     sub='Two forecast targets · MWh per half-hour · select a bar';
@@ -175,10 +260,17 @@ function impactOverTime(s){
 }
 
 // ---------- 4. Impact by forecast event ----------
+// Honest event label: which dispatch-down component the model predicts dominates.
+function eventDriver(horizon){
+  const p=modelState.data.predictions.find(x=>x.horizonMinutes===horizon);
+  if(!p||p.atRiskMwh===0)return `<span class="impact-driver is-none">No surplus</span>`;
+  const constraint=p.constraintMwh>=p.curtailmentMwh;
+  return `<span class="impact-driver ${constraint?'is-constraint':'is-curtailment'}" title="${escapeHtml(`Constraint ${n(p.constraintMwh)} MWh · curtailment ${n(p.curtailmentMwh)} MWh`)}">${icon(constraint?'tower':'turbine',13)}${constraint?'Constraint-led':'Curtailment-led'}</span>`;
+}
 function impactEvents(s){
   const best=s.recommendedHorizonMinutes;
   const rows=s.outcomes.map(o=>{const selected=o.horizonMinutes===modelState.horizon;return `<button type="button" class="impact-event ${selected?'is-selected':''}" data-horizon="${o.horizonMinutes}" aria-pressed="${selected}">
-    <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?' · <em>Recommended</em>':''}</small></span>
+    <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))} ${eventDriver(o.horizonMinutes)}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?' · <em>Recommended</em>':''}</small></span>
     <span><small>At risk</small>${n(o.atRiskMwh)} MWh</span><span class="is-green"><small>Recoverable</small>${n(o.potentialRecoveryMwh)} MWh</span><span class="is-blue"><small>EV charging</small>${n(o.potentialRecoveryMwh*1000)} kWh</span><span><small>CO₂ avoided</small>${impactCo2Text(o.avoidedEmissionsTco2)}</span></button>`}).join('');
   return `<section class="dash-card impact-events" aria-labelledby="impact-events-title">
     <div class="impact-card-head"><div><h2 id="impact-events-title">Impact by forecast event</h2><p>Each half-hour target evaluated with the same demand</p></div></div>
@@ -193,10 +285,10 @@ function cumulativeChart(metric){
   const points=rows.map(r=>({t:r.targetAt,v:(sum+=r[m.field])}));
   const width=420,height=190,left=46,right=width-12,top=26,bottom=height-28,max=niceMax(sum);
   const x=i=>left+(right-left)*(i/(points.length-1||1)),y=v=>bottom-(v/max)*(bottom-top);
-  const line=points.map((p,i)=>`${i?'L':'M'}${x(i)} ${y(p.v)}`).join(' ');
+  const line=smoothPath(points.map((p,i)=>[x(i),y(p.v)]));
   const dots=points.map((p,i)=>`<circle class="impact-cum-dot" cx="${x(i)}" cy="${y(p.v)}" r="5" ${tipAttrs(`${modelTime(p.t)}: ${m.format(p.v)} cumulative`)}/>`).join('');
   const ticks=points.map((p,i)=>i%8===0?`<text class="impact-tick" x="${x(i)}" y="${bottom+17}" text-anchor="middle">${modelTime(p.t)}</text>`:'').join('');
-  return `<div class="impact-chart-wrap"><svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="Cumulative ${m.label.toLowerCase()} over the replayed day">${yAxis(max,top,bottom,left,right,'')}<path class="impact-cum-area" d="${line} L${x(points.length-1)} ${bottom} L${left} ${bottom}Z"/><path class="impact-cum-line" d="${line}"/>${dots}${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg><div class="impact-tooltip" role="status" aria-live="polite"></div><span class="impact-cum-total">${m.format(sum)}<small>day total</small></span></div>`;
+  return `<div class="impact-chart-wrap"><svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="Cumulative ${m.label.toLowerCase()} over the replayed day">${yAxis(max,top,bottom,left,right,'')}<path class="impact-cum-area" d="${line} L${x(points.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-green)"/><path class="impact-cum-line" d="${line}" filter="url(#impact-glow)"/>${dots}${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg><div class="impact-tooltip" role="status" aria-live="polite"></div><span class="impact-cum-total">${m.format(sum)}<small>day total</small></span></div>`;
 }
 function allocationBars(o,s){
   const bar=(title,total,parts)=>`<div class="impact-alloc"><div class="impact-alloc-head"><span>${title}</span><b>${n(total)} MWh</b></div><div class="impact-alloc-bar">${parts.map(([cls,v])=>`<i class="${cls}" style="flex-grow:${total>0?v/total:0}"></i>`).join('')}</div><div class="impact-alloc-key">${parts.map(([cls,v,l])=>`<span><i class="${cls}"></i>${l} <b>${n(v)} MWh</b></span>`).join('')}</div></div>`;
@@ -238,7 +330,7 @@ function renderImpact(){
   ensureImpactDay();
   const top=studioHeader('Impact',subtitle)+impactToolbar();
   const p=selectedPrediction(),o=scenarioOutcome(p),s=modelState.data.scenario;
-  return `${top}<div class="impact-layout">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${impactMethodology(s)}${provenance()}`;
+  return `${impactDefs()}${top}<div class="impact-layout">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${impactMethodology(s)}${provenance()}`;
 }
 
 // ---------- interactions ----------
@@ -249,6 +341,7 @@ document.addEventListener('click',event=>{
   if(shift)shiftImpactDate(Number(shift.dataset.impactShift));
 });
 document.addEventListener('change',event=>{
+  if(event.target.id==='impact-time-metric'){impactDay.timeMetric=event.target.value;render();return}
   if(event.target.id!=='impact-date'||!event.target.value)return;
   impactDay.date=event.target.value;requestImpactDay();
 });

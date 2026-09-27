@@ -227,9 +227,11 @@ def _replay_day(day, capacity):
 
 
 def neighbour_days(day, first, last, span=None):
-    """Days within span (default PREFETCH_DAYS) of day, nearest first (+1, -1, +2, ...), clipped to the dataset."""
+    """Days within span (default PREFETCH_DAYS) of day, nearest first (-1, +1, -2, ...), clipped to the dataset.
+
+    The previous day goes first because the Impact page compares each day with it."""
     span = PREFETCH_DAYS if span is None else span
-    offsets = [sign * n for n in range(1, span + 1) for sign in (1, -1)]
+    offsets = [sign * n for n in range(1, span + 1) for sign in (-1, 1)]
     return [d for d in (day + timedelta(days=o) for o in offsets) if first <= d <= last]
 
 

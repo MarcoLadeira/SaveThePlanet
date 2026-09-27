@@ -65,7 +65,7 @@ Connection/timeout/non-2xx failures and malformed or inconsistent model response
 powers the Impact page's date picker, "Impact over time" and "Cumulative impact" charts. It calls
 GridToEv `POST /predict/window/from-dataset` once (24 h of +30-minute forecasts, ~15 s upstream,
 then cached per date and capacity). After serving a day, a background worker replays up to
-`PREFETCH_DAYS` (3) neighbouring days, nearest first and one upstream call at a time, so stepping
+`PREFETCH_DAYS` (3) neighbouring days, previous day first, then nearest first, one upstream call at a time, so stepping
 through dates is usually instant; a request for a day already being fetched waits for that call
 instead of starting another. `GET /dataset/info` supplies the selectable range
 (currently 2026-01-02 to 2026-01-31; the last day is partial). `date` defaults to the day of

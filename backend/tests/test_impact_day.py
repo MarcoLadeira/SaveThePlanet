@@ -107,17 +107,17 @@ class PrefetchTests(unittest.TestCase):
 
     def test_neighbours_nearest_first_and_clipped(self):
         d = lambda day: datetime(2026, 1, day).date()
-        self.assertEqual(server.neighbour_days(d(10), d(2), d(31), 3), [d(11), d(9), d(12), d(8), d(13), d(7)])
+        self.assertEqual(server.neighbour_days(d(10), d(2), d(31), 3), [d(9), d(11), d(8), d(12), d(7), d(13)])
         self.assertEqual(server.neighbour_days(d(2), d(2), d(31), 3), [d(3), d(4), d(5)])
 
     def test_new_day_replaces_plan_and_skips_cached_days(self):
         with patch('server.PREFETCH_DAYS', 2), patch('server._prefetch_worker', object()),                 patch('server.model_request', FakeModel([1] * 48)):
             server._day_cache[('2026-01-11', 100)] = {}
             server.schedule_prefetch(datetime(2026, 1, 10).date(), 100)
-            self.assertEqual(server._prefetch_plan, [('2026-01-09', 100), ('2026-01-12', 100), ('2026-01-08', 100)])
+            self.assertEqual(server._prefetch_plan, [('2026-01-09', 100), ('2026-01-08', 100), ('2026-01-12', 100)])
             server.schedule_prefetch(datetime(2026, 1, 20).date(), 100)
             # neighbours of the old day are dropped, not left queued ahead of the new ones
-            self.assertEqual(server._prefetch_plan, [('2026-01-21', 100), ('2026-01-19', 100), ('2026-01-22', 100), ('2026-01-18', 100)])
+            self.assertEqual(server._prefetch_plan, [('2026-01-19', 100), ('2026-01-21', 100), ('2026-01-18', 100), ('2026-01-22', 100)])
 
     def test_prefetch_waits_while_user_replay_in_flight(self):
         server._prefetch_plan[:] = [('2026-01-11', 100)]

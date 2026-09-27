@@ -184,3 +184,43 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 @keyframes flow-dash{to{stroke-dashoffset:-24}}
 @keyframes flow-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.flow-ribbon.core,.flow-blades,.impact-skel-bars i,.impact-micro-skel{animation:none}.impact-tooltip{transition:none}}
+
+/* ---------- glow: shared defs, sparklines, area charts ---------- */
+.impact-defs{position:absolute;width:0;height:0;overflow:hidden}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.stop-green{stop-color:var(--green)}.stop-blue{stop-color:var(--imp-blue)}.stop-amber{stop-color:var(--amber)}
+.impact-spark{width:96px;height:40px;overflow:visible}
+.impact-spark .line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.impact-spark.is-green .line{stroke:var(--green)}.impact-spark.is-blue .line{stroke:var(--imp-blue)}
+.impact-kpi-scope{font-size:9.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.impact-delta{font-size:11px;font-weight:800;color:var(--ink-2);white-space:nowrap}
+.impact-delta small{font-weight:600;color:var(--ink-3)}
+.impact-delta.is-up{color:var(--green-deep)}.impact-delta.is-down{color:#c2572b}
+
+.impact-area .line{fill:none;stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round}
+.impact-area.is-green .line{stroke:var(--green)}.impact-area.is-blue .line{stroke:var(--imp-blue)}.impact-area.is-amber .line{stroke:var(--amber)}
+.impact-pt .hit{fill:transparent}
+.impact-pt .guide{stroke:var(--ink-3);stroke-dasharray:3 3;opacity:0}
+.impact-pt circle{fill:var(--surface);stroke:var(--forest);stroke-width:2;opacity:0}
+.impact-pt:hover .guide,.impact-pt:focus .guide,.impact-pt:hover circle,.impact-pt:focus circle{opacity:1}
+.impact-pt:focus{outline:none}
+.impact-peak rect{fill:var(--forest)}
+.impact-peak text{fill:#fff;font-size:10.5px;font-weight:800}
+.impact-peak text.sub{fill:var(--forest-muted);font-size:8.5px;font-weight:600}
+.impact-peak .dot{stroke:var(--surface);stroke-width:2}
+.impact-peak .dot.is-green{fill:var(--green)}.impact-peak .dot.is-blue{fill:var(--imp-blue)}.impact-peak .dot.is-amber{fill:var(--amber)}
+.impact-select select{height:30px;padding:0 28px 0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.impact-select select:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+
+/* event driver chip (from the model's curtailment/constraint split) */
+.impact-driver{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:750;vertical-align:middle}
+.impact-driver.is-constraint{background:var(--imp-blue-soft);color:var(--imp-blue)}
+.impact-driver.is-curtailment{background:var(--green-soft);color:var(--green-deep)}
+.impact-driver.is-none{background:var(--surface-2);color:var(--ink-3)}
+
+/* glowing energy ribbons with a travelling light pulse */
+.flow-ribbon.pulse{stroke-width:5;opacity:.95;stroke-dasharray:6 94;animation:flow-pulse 2.6s linear infinite}
+.flow-ribbon.green.pulse{stroke:#d9ffe9}.flow-ribbon.blue.pulse{stroke:#e2eeff}
+.flow-ribbon.blue.pulse{animation-delay:1.3s}
+@keyframes flow-pulse{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@media(prefers-reduced-motion:reduce){.flow-ribbon.pulse{animation:none;opacity:0}}
