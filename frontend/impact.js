@@ -35,12 +35,13 @@ function impactSkeleton(bars=24){
 }
 
 // ---------- day replay loading ----------
-function impactDayKey(){return [impactDay.date,modelState.capacity,modelState.totalDemandKwh,modelState.flexibleDemandKwh].join('|')}
+// The replay day follows the live forecast (chosen by the backend), so only the scenario inputs
+// identify a request.
+function impactDayKey(){return [modelState.capacity,modelState.totalDemandKwh,modelState.flexibleDemandKwh].join('|')}
 async function loadImpactDay(){
   const request=++impactDay.request;
   impactDay.key=impactDayKey();impactDay.status='loading';
   const query=new URLSearchParams({capacityMw:String(modelState.capacity),totalDemandKwh:String(modelState.totalDemandKwh),flexibleDemandKwh:String(modelState.flexibleDemandKwh)});
-  if(impactDay.date)query.set('date',impactDay.date);
   try{
     const response=await fetch(`/api/v1/impact/day?${query}`);
     if(request!==impactDay.request)return;
@@ -75,20 +76,6 @@ function previousTotals(){const p=impactDay.prev;return p&&p.key===impactDay.key
 function ensureImpactDay(){
   if(impactDay.status==='loading'||impactDay.key===impactDayKey())return;
   impactDay.status='loading';impactDay.key=impactDayKey();setTimeout(loadImpactDay);
-}
-function shiftImpactDate(days){
-  if(!impactDay.date)return;
-  const d=new Date(`${impactDay.date}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+days);
-  const next=d.toISOString().slice(0,10);
-  if(impactDay.range&&(next<impactDay.range.min||next>impactDay.range.max))return;
-  impactDay.date=next;requestImpactDay();
-}
-// Show the loading state at once, but only ask the backend once clicking stops: each replay
-// ties up the single-worker model for ~15 s, so skipped-over days should never be requested.
-let impactDayTimer=null;
-function requestImpactDay(){
-  impactDay.request++;impactDay.status='loading';impactDay.key=impactDayKey();render();
-  clearTimeout(impactDayTimer);impactDayTimer=setTimeout(loadImpactDay,400);
 }
 
 // ---------- chart primitives ----------
@@ -178,7 +165,9 @@ function impactStats(o){
 }
 
 // ---------- 2. Energy flow hero ----------
-// The static artwork and animated overlay use the same coordinate system.
+// The static artwork and animated overlay use the same coordinate system (2060x763) and share
+// one box at the art's true ratio (impact.css), so the lights stay on the ribbons and the scene
+// is never stretched.
 // Keep API-driven figures in HTML, never baked into the image.
 let impactFlowPaused=false;
 // Loops pick up the phase already on screen (the old page is still in the DOM while rendering),
@@ -192,7 +181,7 @@ function flowScene(){
   const rotor=(x,y,scale,duration,delay)=>`<g transform="translate(${x} ${y}) scale(${scale})"><g class="flow-rotor motion-loop" style="animation-duration:${duration}s;animation-delay:${loopDelay('.flow-rotor',rotors++,delay).toFixed(3)}s">${[0,120,240].map(angle=>`<g transform="rotate(${angle})"><path d="M-4 3 C-9 -20 -6 -46 -2 -69 L0 -124 C5 -103 10 -60 9 -34 L4 3Z" fill="url(#rotor-metal)" stroke="#9daeb2" stroke-width=".7"/><path d="M0 -119 L1 -12" stroke="#f5f9f9" stroke-width="1" opacity=".8"/></g>`).join('')}<circle r="8" fill="url(#rotor-hub)" stroke="#9aabad"/></g></g>`;
 
   const pulse=(tone,d,delay)=>`<path class="flow-light motion-loop ${tone}" d="${d}" pathLength="100" style="animation-delay:${loopDelay('.flow-light',pulses++,delay).toFixed(3)}s"/>`;
-  return `<img class="flow-artwork" src="./assets/energy-flow-landscape.png?v=orange1" width="2060" height="763" alt="Wind turbines beside a lake, an energy cabinet and electric cars at charging stations, linked by illustrative green and orange energy ribbons." decoding="async">
+  return `<picture><source srcset="./assets/energy-flow-landscape.avif?v=hd1" type="image/avif"><img class="flow-artwork" src="./assets/energy-flow-landscape.webp?v=hd1" width="2061" height="763" alt="Wind turbines beside a lake, an energy cabinet and electric cars at charging stations, linked by illustrative green and orange energy ribbons." decoding="async"></picture>
     <svg class="flow-motion" viewBox="0 0 2060 763" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="rotor-metal"><stop stop-color="#899ca3"/><stop offset=".45" stop-color="#eff4f4"/><stop offset="1" stop-color="#b2c0c3"/></linearGradient>
@@ -276,7 +265,7 @@ function impactOverTime(s){
   return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
     <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${sub}</p></div>${legend}</div>
     <div class="impact-chart-wrap${drawIn('time','targets')}">${stackedBars(rows,{label:'Potential recovery and remaining risk per half-hour'})}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
-    ${day?'':`<p class="impact-pending">${impactDay.status==='error'?`Day replay unavailable for ${escapeHtml(impactDateLabel(impactDay.date))} — showing the two forecast targets. Pick another day to retry.`:'48-interval day replay appears here once <code>/api/v1/impact/day</code> is connected.'}</p>`}
+    ${day?'':`<p class="impact-pending">${impactDay.status==='error'?`Day replay unavailable for ${escapeHtml(impactDateLabel(impactDay.date))} — showing the two forecast targets. It will retry on the next refresh.`:'48-interval day replay appears here once <code>/api/v1/impact/day</code> is connected.'}</p>`}
     <details class="impact-data-table"><summary>View data</summary>${table}</details>
   </section>`;
 }
@@ -295,9 +284,8 @@ function impactEvents(s){
     <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))} ${eventDriver(o.horizonMinutes)}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?' · <em>Recommended</em>':''}</small></span>
     <span><small>At risk</small>${n(o.atRiskMwh)} MWh</span><span class="is-green"><small>Recoverable</small>${n(o.potentialRecoveryMwh)} MWh</span><span class="is-blue"><small>EV charging</small>${n(o.potentialRecoveryMwh*1000)} kWh</span><span><small>CO₂ avoided</small>${impactCo2Text(o.avoidedEmissionsTco2)}</span></button>`}).join('');
   return `<section class="dash-card impact-events" aria-labelledby="impact-events-title">
-    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact by forecast event</h2><p>Each half-hour target evaluated with the same demand</p></div></div>
+    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact by forecast event</h2><p>Both targets use the <b>same</b> flexible demand — alternatives, never summed</p></div></div>
     <div class="impact-event-list">${rows}</div>
-    <p class="impact-note">Both targets use the <b>same</b> flexible demand — alternatives, never summed.</p>
   </section>`;
 }
 
@@ -328,19 +316,6 @@ function impactCumulative(o,s){
   </section>`;
 }
 
-// ---------- header controls ----------
-function impactToolbar(){
-  // Once the dataset range is known the controls stay usable, even while a day is loading.
-  const r=impactDay.range,d=impactDay.date,usable=Boolean(r&&d);
-  const period={ready:'Day',loading:'Loading…',error:'Unavailable'}[impactDay.status]||'Day replay pending';
-  const dateNav=`<div class="impact-date ${usable?'':'is-off'} ${impactDayLoading()?'is-loading':''}" role="group" aria-label="Replay day">
-    <button type="button" data-impact-shift="-1" aria-label="Previous day" ${usable&&d>r.min?'':'disabled'}>‹</button>
-    <label>${icon('calendar',17)}<input id="impact-date" type="date" aria-label="Replay date" value="${d||''}" min="${r?.min||''}" max="${r?.max||''}" ${usable?'':'disabled'}></label>
-    <button type="button" data-impact-shift="1" aria-label="Next day" ${usable&&d<r.max?'':'disabled'}>›</button>
-    <span class="impact-period">${period}</span></div>`;
-  return `<div class="impact-toolbar">${dateNav}${studioControls()}</div>`;
-}
-
 function renderImpact(){
   const subtitle='Turning renewable energy at risk into potential EV-charging benefits.';
   if(modelState.loading||modelState.error)return studioShell('Impact',subtitle,()=>'');
@@ -348,7 +323,7 @@ function renderImpact(){
   // Cards rise in only when the page (or its first data) arrives; the old page is still in the DOM here.
   const intro=!liveRender&&!document.querySelector('#app .impact-layout');
   if(intro)for(const name in impactDrawn)delete impactDrawn[name];
-  const top=studioHeader('Impact',subtitle)+impactToolbar();
+  const top=studioHeader('Impact',subtitle);
   const p=selectedPrediction(),o=scenarioOutcome(p),s=modelState.data.scenario;
   return `${impactDefs()}${top}<div class="impact-layout${intro?' is-intro':''}">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${provenance()}`;
 }
@@ -359,13 +334,9 @@ document.addEventListener('click',event=>{
   if(motion){impactFlowPaused=!impactFlowPaused;const card=motion.closest('.impact-flow');card.classList.toggle('is-motion-paused',impactFlowPaused);motion.setAttribute('aria-pressed',String(impactFlowPaused));motion.textContent=impactFlowPaused?'Play animation':'Pause animation';return}
   const metric=event.target.closest('[data-impact-metric]');
   if(metric){impactDay.metric=metric.dataset.impactMetric;render();return}
-  const shift=event.target.closest('[data-impact-shift]');
-  if(shift)shiftImpactDate(Number(shift.dataset.impactShift));
 });
 document.addEventListener('change',event=>{
   if(event.target.id==='impact-time-metric'){impactDay.timeMetric=event.target.value;render();return}
-  if(event.target.id!=='impact-date'||!event.target.value)return;
-  impactDay.date=event.target.value;requestImpactDay();
 });
 document.addEventListener('keydown',event=>{
   const bar=event.target.closest?.('[data-horizon][role="button"]');
