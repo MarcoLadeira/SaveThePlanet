@@ -5,8 +5,21 @@ function dashIsoBar(cx,base,width,height,part=''){
   return `<polygon class="${part} l" points="${cx-width},${top} ${cx},${top+d} ${cx},${base+d} ${cx-width},${base}"/><polygon class="${part} r" points="${cx},${top+d} ${cx+width},${top} ${cx+width},${base} ${cx},${base+d}"/><polygon class="${part} t" points="${cx},${top-d} ${cx+width},${top} ${cx},${top+d} ${cx-width},${top}"/>`;
 }
 
-function dashboardCharger(){
-  return `<svg class="dash-charger dash-ev-scene" viewBox="0 0 300 170" aria-hidden="true" shape-rendering="geometricPrecision"><defs><linearGradient id="ev-deck" x2="0" y2="1"><stop stop-color="#a9e8d4"/><stop offset="1" stop-color="#51bb93"/></linearGradient><linearGradient id="ev-body" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dae7ec"/></linearGradient></defs><ellipse cx="154" cy="152" rx="126" ry="14" fill="#d8ede7"/><path d="m20 117 111-39 150 39-110 43Z" fill="url(#ev-deck)"/><path d="m20 117 151 43v8L20 126Z" fill="#3ca987"/><path d="m171 160 110-43v9l-110 42Z" fill="#21896d"/><ellipse cx="145" cy="123" rx="83" ry="14" fill="#469b88" opacity=".3"/><path d="m55 111 19-27c5-7 18-13 31-15l49-7c11-2 21 0 28 5l27 18 21 7c8 3 12 9 10 16l-5 12-58 11-111-3-11-8Z" fill="url(#ev-body)" stroke="#c6d9e2" stroke-width="2"/><path d="m91 81 16-9 45-6c10-1 17 0 24 6l21 15-49 2-57 2Z" fill="#183e50"/><path d="m152 66 3 22 42-1-21-15c-7-6-14-7-24-6Z" fill="#315a69"/><path d="m91 91 56-2-3 25-71-4Z" fill="#edf5f6"/><path d="m147 89 50-2 25 8-7 21-70-2Z" fill="#f7fbfb"/><path d="m70 113 74 3 72-2 15 6-51 13-105-6Z" fill="#d9e8ed"/><path d="m60 108 12 3-2 8-15-4Z" fill="#2e79aa"/><path d="m213 98 17-2 5 6-15 4Z" fill="#f47768"/><path d="m71 126 107 6 57-14" fill="none" stroke="#a8c4cc" stroke-width="2"/><ellipse cx="92" cy="127" rx="18" ry="12" fill="#183941"/><ellipse cx="92" cy="127" rx="10" ry="9" fill="#c7d8de"/><ellipse cx="92" cy="127" rx="5" ry="5" fill="#829da8"/><ellipse cx="198" cy="128" rx="17" ry="13" fill="#183941"/><ellipse cx="198" cy="128" rx="10" ry="9" fill="#c7d8de"/><ellipse cx="198" cy="128" rx="5" ry="5" fill="#829da8"/><path d="M241 108c18 0 22 10 13 20" fill="none" stroke="#2da978" stroke-width="3"/><rect x="251" y="51" width="27" height="67" rx="4" fill="#eef8f6" stroke="#baded3"/><path d="M251 57h27v53h-27z" fill="#dff2ee"/><rect x="257" y="65" width="15" height="20" rx="2" fill="#155748"/><path d="m267 66-7 11h5l-2 8 9-13h-5l2-6Z" fill="#a5f4cb"/><path d="M264 118v15" stroke="#2f9c78" stroke-width="5"/><ellipse cx="265" cy="133" rx="15" ry="4" fill="#42a986"/></svg>`;
+function fleetShare(value,total){return total>0?Math.min(1,Math.max(0,value/total)):0}
+
+function fleetStat(tone,glyph,value,label,share){
+  const percent=Math.round(share*100);
+  return `<div class="fleet-stat is-${tone}"><span class="fleet-stat-icon">${icon(glyph,18)}</span><div class="fleet-stat-copy"><strong>${n(value)} MWh</strong><small>${label}</small><span class="fleet-stat-bar" role="img" aria-label="${percent}% of flexible demand" style="--fleet-fill:${share}"><i></i></span></div></div>`;
+}
+
+function dashboardFleet(o){
+  const flex=modelState.data.scenario.flexibleDemandMwh,capacity=modelState.data.flexibleCapacityMw;
+  const power=Math.min(capacity,Math.max(0,o.proposedPowerMw));
+  return `<section class="dash-card dash-fleet">${cardHead('car','sky','Flexible charging','Scenario input, not vehicle telemetry')}
+    <div class="fleet-body"><div class="fleet-demand"><p class="fleet-figure"><strong>${n(flex)}</strong><span>MWh</span></p><p class="fleet-caption">Flexible demand</p></div><span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
+    <div class="fleet-meter"><div class="fleet-meter-head"><span id="fleet-power-label">Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(capacity)} MW</span></div><div class="fleet-track" role="meter" aria-labelledby="fleet-power-label" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${power}" aria-valuetext="${n(o.proposedPowerMw)} of ${n(capacity)} MW" style="--fleet-fill:${fleetShare(power,capacity)}"><i></i><b></b></div></div>
+    <div class="fleet-stats">${fleetStat('green','charge',o.potentialRecoveryMwh,'Absorbable',fleetShare(o.potentialRecoveryMwh,flex))}${fleetStat('blue','clock',o.remainingFlexibleMwh,'Flexibility left',fleetShare(o.remainingFlexibleMwh,flex))}</div>
+  </section>`;
 }
 
 function dashboardRiskSurface(width = 320, height = 110){
@@ -77,11 +90,11 @@ function dashboardPillars(p,o){
 
 function renderDashboard(){
   return studioShell('Dashboard','Renewable dispatch-down and flexible charging opportunity.',()=>{
-    const p=selectedPrediction(),o=scenarioOutcome(p),flex=modelState.data.scenario.flexibleDemandMwh;
+    const p=selectedPrediction(),o=scenarioOutcome(p);
     return `<div class="dash-grid restored-dashboard dashboard-redesign">
       <section class="dash-card dash-hero">${cardHead('turbine','green','Renewable energy at risk','Selected half-hour model forecast',`<span class="dash-chip is-amber">${n(p.probability*100)}% likely</span>`)}<div class="dash-hero-body"><div class="dash-hero-figure"><strong>${n(p.atRiskMwh)}</strong><span>MWh</span></div><div class="dash-hero-terrain">${dashboardRiskSurface()}</div><div class="dash-hero-legend"><span><i class="is-amber"></i>At risk</span><span><i class="is-green"></i>Absorbable</span></div></div><div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Risk level</span><strong>${escapeHtml(p.risk)}</strong></div></div></section>
       ${dashboardRecoveryCard(p,o)}
-      <section class="dash-card dash-fleet">${cardHead('car','blue','Flexible charging','Scenario input, not vehicle telemetry')}<div class="dash-fleet-body"><div class="dash-fleet-intro"><div class="dash-figure"><strong>${n(flex)}</strong><span>MWh</span></div><p>flexible demand</p></div>${dashboardCharger()}</div><div class="dash-meter"><div class="dash-meter-head"><span>Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(modelState.capacity)} MW</span></div><div class="dash-bar"><i style="--fill:${Math.min(1,o.proposedPowerMw/modelState.capacity)}"></i></div></div><div class="dash-fleet-stats"><div><span class="dash-mini is-green">${icon('check',18)}</span><strong>${n(o.potentialRecoveryMwh)} MWh</strong><small>absorbable</small></div><div><span class="dash-mini is-blue">${icon('clock',18)}</span><strong>${n(o.remainingFlexibleMwh)} MWh</strong><small>flexibility left</small></div></div></section>
+      ${dashboardFleet(o)}
       ${outlookCard(p)}
       <section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation',`<span class="dash-chip is-ready"><i></i>Projected</span>`)}<h3>Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at ${escapeHtml(modelTime(p.targetAt))}.</h3>${dashboardPillars(p,o)}<p class="restored-plan-note">Demand and capacity limit the estimate. Vehicle decisions are not supplied.</p><button class="dash-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',18)}</button></section>
     </div>${provenance()}`;
