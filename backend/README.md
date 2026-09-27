@@ -232,4 +232,8 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   `observed` still lists all 48 half-hours.
 - The P10-P90 band stays ~5 MWh wide even when the prediction is 0 because the model widens
   every interval by `prediction_interval_adjustment_mwh` (5.44 MWh).
+- Hosted-route smoke test: `GRID_TO_EV_SMOKE=1 python -m unittest backend/tests/test_hosted_smoke.py -v`
+  calls every upstream route above on the real service (about a minute). CI runs it in
+  `.github/workflows/tests.yml` when the `GRID_TO_EV_API_KEY` repository secret is set; the unit
+  tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.

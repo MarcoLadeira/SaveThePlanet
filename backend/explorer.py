@@ -48,6 +48,7 @@ def call(path, body=None):
             return json.load(response)
     except HTTPError as error:
         raw = error.read()
+        error.close()
         # Re-raise with a re-readable body so server.diagnose can still report the upstream detail.
         replay = HTTPError(error.url, error.code, error.reason, error.headers, io.BytesIO(raw))
         replay.model_detail = _model_detail(raw)
