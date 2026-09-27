@@ -1,11 +1,11 @@
 function n(value){return modelNumber(value)}
 function pct(value){return value===null?'—':`${n(value*100)}%`}
-function studioHeader(title,subtitle){const art={Forecast:'forecast',Charging:'charging',Impact:'impact',Settings:'settings'}[title]||'overview';return `<header class="dash-header studio-header"><div class="dashboard-header-art is-${art}" aria-hidden="true"></div><div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div></header>`}
+function studioHeader(title,subtitle,actions=''){const art={Forecast:'forecast',Charging:'charging',Impact:'impact',Settings:'settings'}[title]||'overview';return `<header class="dash-header studio-header"><div class="dashboard-header-art is-${art}" aria-hidden="true"></div><div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div>${actions}</header>`}
 // The shared forecast is a GridToEv V1 historical dataset prediction (latest target in the
 // dataset), never a live forecast, so every page that shows it says so in its header.
 function dataBadge(){const d=modelState.data;if(!d)return '';return isDemoData()?'<em class="data-badge is-demo">Simulated demo data</em>':`<em class="data-badge">Historical dataset prediction · target ${escapeHtml(modelTime(d.predictions[0].targetAt,true))} · not a live forecast</em>`}
 function studioShell(title,subtitle,content){
-  const top=studioHeader(title,`${subtitle} ${dataBadge()}`);
+  const top=studioHeader(title,`${subtitle} ${dataBadge()}`,title==='Dashboard'?synthButton():'');
   if(modelState.loading){
     if(title==='Dashboard' && modelState.data)return top+content();
     return top+'<section class="dash-card studio-message" role="status"><span class="studio-spinner"></span><h2>Loading model predictions</h2><p>Connecting to GridToEv and calculating charging scenarios.</p></section>';

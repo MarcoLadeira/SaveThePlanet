@@ -237,3 +237,31 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   `.github/workflows/tests.yml` when the `GRID_TO_EV_API_KEY` repository secret is set; the unit
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
+
+## Dashboard V1 target and synthetic scenarios
+
+**Historical dataset prediction.** The shared forecast (Dashboard, Charging, Impact, Volt)
+asks `POST /predict/from-dataset` for the latest target half-hour in the V1 dataset,
+31 Jan 2026 23:00 UTC: the +30 min forecast is issued at 22:30 and the +60 min forecast
+at 22:00, so both predict the same half-hour. Override the target with
+`GRID_TO_EV_TARGET_TIMESTAMP`. The pages label it as a historical dataset prediction,
+not a live forecast.
+
+**Synthetic V1 scenario** (Dashboard header button). `POST /api/v1/synthetic-v1`
+`{"horizon": 30|60, "scenario": "ordinary"|"high-curtailment", "capacityMw": 100}`:
+
+- Starts from the complete example request in the model's `GET /openapi.json`
+  (`paths["/predict/v1/from-raw"].post.requestBody.content["application/json"].example`,
+  cached for an hour), so no dataset access is needed.
+- Varies numeric inputs to 90–110% of the example (example zeros stay zero) and keeps
+  the five history signals within January 2026 demo bounds: Ireland wind 190–3,220 MW,
+  demand 3,650–5,465 MW, price €85–203/MWh, SNSP 0.31–0.70, oversupply 0 MW. The bounds
+  win where they conflict with 90–110%. They are demo bounds, not verified ranges for today.
+- Observed past dispatch-down is 0, or 10–230 MWh for the labelled high-curtailment scenario.
+- 48 consecutive history rows end 30 minutes before a current UTC :00/:30 issue time.
+  Availability ≥ generation, all-island ≥ Ireland, ratios in 0–1, only API-signed
+  fields (price, interconnector flows) may be negative, and each :30 price copies the
+  preceding :00. Availability timestamps are ≤ issue time and are synthetic metadata.
+- `synthetic.check_request` verifies all of this before sending; a failing request is
+  never sent. The result is labelled "Synthetic scenario — not a forecast of today's
+  actual grid conditions." and is never cached, stored, charted or passed to Volt.
