@@ -75,7 +75,6 @@
   background: linear-gradient(180deg, var(--bar-top), var(--bar-mid) 52%, var(--bar-bottom));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 0 18px var(--bar-glow), 0 6px 26px -4px var(--bar-glow);
   transform-origin: bottom;
-  animation: plan-rise .8s cubic-bezier(.2, .8, .2, 1) var(--plan-delay, 0s) both;
 }
 .plan-bar-value {
   position: absolute;
@@ -90,7 +89,6 @@
   font-size: 10.5px;
   font-weight: 600;
   white-space: nowrap;
-  animation: plan-fade .5s ease calc(var(--plan-delay, 0s) + .35s) both;
 }
 .plan-bar-value strong {
   color: #fff;
@@ -148,5 +146,3 @@
   outline-offset: 3px;
 }
 
-@keyframes plan-rise { from { transform: scaleY(0); } }
-@keyframes plan-fade { from { opacity: 0; transform: translateY(4px); } }

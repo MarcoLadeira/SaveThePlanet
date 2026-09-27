@@ -12,13 +12,11 @@ function fleetStat(tone,glyph,value,label,share){
   return `<div class="fleet-stat is-${tone}"><span class="fleet-stat-icon">${icon(glyph,18)}</span><div class="fleet-stat-copy"><strong>${n(value)} MWh</strong><small>${label}</small><span class="fleet-stat-bar" role="img" aria-label="${percent}% of flexible demand" style="--fleet-fill:${share}"><i></i></span></div></div>`;
 }
 
-function dashboardFleet(o){
-  const flex=modelState.data.scenario.flexibleDemandMwh,capacity=modelState.data.flexibleCapacityMw;
-  const power=Math.min(capacity,Math.max(0,o.proposedPowerMw));
+function dashboardFleet(){
   return `<section class="dash-card dash-fleet">${cardHead('green','Flexible charging','Scenario input, not vehicle telemetry')}
-    <div class="fleet-body"><div class="fleet-demand"><p class="fleet-figure"><strong>${n(flex)}</strong><span>MWh</span></p><p class="fleet-caption">Flexible demand</p></div><span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
-    <div class="fleet-meter"><div class="fleet-meter-head"><span id="fleet-power-label">Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(capacity)} MW</span></div><div class="fleet-track" role="meter" aria-labelledby="fleet-power-label" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${power}" aria-valuetext="${n(o.proposedPowerMw)} of ${n(capacity)} MW" style="--fleet-fill:${fleetShare(power,capacity)}"><i></i><b></b></div></div>
-    <div class="fleet-stats">${fleetStat('green','charge',o.potentialRecoveryMwh,'Absorbable',fleetShare(o.potentialRecoveryMwh,flex))}${fleetStat('orange','clock',o.remainingFlexibleMwh,'Flexibility left',fleetShare(o.remainingFlexibleMwh,flex))}</div>
+    <div class="fleet-body">${chartSlot('fleetDemand','Flexible demand','fleet-demand','group')}<span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
+    ${chartSlot('fleetPower','Proposed power','fleet-meter','group')}
+    ${chartSlot('fleetSplit','How flexible demand splits','fleet-stats','group')}
   </section>`;
 }
 
@@ -29,11 +27,10 @@ function dashboardRecoveryChannel(p,o){
 }
 
 function dashboardPlan(p,o){
-  const bars=[['risk','At risk',p.atRiskMwh],['flex','Flexible',modelState.data.scenario.flexibleDemandMwh],['recovery','Absorbable',o.potentialRecoveryMwh]];
-  const max=Math.max(...bars.map(([,,value])=>value));
+  const label=`At risk ${n(p.atRiskMwh)} MWh, flexible ${n(modelState.data.scenario.flexibleDemandMwh)} MWh, absorbable ${n(o.potentialRecoveryMwh)} MWh`;
   return `<section class="dash-card dash-plan">${cardHead('tricolour','Your next move','Scenario recommendation')}
-    <h3 class="plan-headline">Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at <em>${escapeHtml(modelTime(p.targetAt))}</em>.</h3>
-    <div class="plan-chart" role="img" aria-label="${bars.map(([,label,value])=>`${label} ${n(value)} MWh`).join(', ')}"><div class="plan-bars">${bars.map(([key,,value],i)=>`<div class="plan-bar is-${key}" style="--plan-h:${max>0?value/max:0};--plan-delay:${i*.08}s"><span class="plan-bar-value"><strong>${n(value)}</strong>MWh</span><i></i></div>`).join('')}</div><div class="plan-labels">${bars.map(([,label])=>`<span>${label}</span>`).join('')}</div></div>
+    ${chartSlot('planHeadline','Recommendation','plan-headline-slot','group')}
+    ${chartSlot('planBars',label,'plan-chart')}
     <button class="plan-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',20)}</button>
   </section>`;
 }
@@ -60,7 +57,7 @@ function renderDashboard(){
     return `<div class="dash-grid restored-dashboard dashboard-redesign">
       ${dashboardHero(p)}
       ${dashboardCauses(p)}
-      ${dashboardFleet(o)}
+      ${dashboardFleet()}
       ${dashboardConfidence(p)}
       ${dashboardPlan(p,o)}
     </div>${provenance()}`;

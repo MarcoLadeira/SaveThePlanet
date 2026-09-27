@@ -106,7 +106,6 @@
   margin-top: 8px;
   border-radius: 99px;
   background: var(--fleet-track);
-  animation: fleet-fill .9s cubic-bezier(.2, .8, .2, 1) .25s both;
 }
 .fleet-track i {
   position: absolute;
@@ -195,7 +194,6 @@
   overflow: hidden;
   border-radius: 99px;
   background: var(--stat-track);
-  animation: fleet-fill .9s cubic-bezier(.2, .8, .2, 1) .3s both;
 }
 .fleet-stat-bar i {
   display: block;
@@ -253,5 +251,4 @@
   --stat-fill: #ff883e;
 }
 
-@keyframes fleet-fill { from { --fleet-fill: 0; } }
 @keyframes fleet-scene-in { from { opacity: 0; transform: translate(10px, 6px); } }
