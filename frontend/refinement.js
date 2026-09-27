@@ -84,4 +84,3 @@ function renderSettings(){
   </div>`;
 }
 
-document.addEventListener('click',event=>{const horizon=event.target.closest('[data-horizon]');if(horizon){modelState.horizon=Number(horizon.dataset.horizon);render()}});

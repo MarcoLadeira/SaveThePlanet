@@ -39,7 +39,7 @@ function dashboardPlan(p,o){
 }
 
 function dashboardHero(p){
-  return `<section class="dash-card dash-hero">${cardHead('orange','Renewable energy at risk','<i class="live-dot"></i>Live · selected half-hour forecast')}
+  return `<section class="dash-card dash-hero">${cardHead('orange','Renewable energy at risk','Selected half-hour model forecast')}
     <div class="hero-body"><div class="hero-figure"><strong>${n(p.atRiskMwh)}<small>MWh</small></strong><p>At risk of being wasted<br>+${p.horizonMinutes} min · ${escapeHtml(targetWindow(p))}</p></div>${chartSlot('likelihood',`${Math.round(p.probability*100)}% likelihood of dispatch-down, ${p.risk} risk`,'hero-gauge')}</div>
     <div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Likely range</span><strong>${n(p.lowerMwh)}–${n(p.upperMwh)} MWh</strong></div></div>
   </section>`;

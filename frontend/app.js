@@ -65,7 +65,7 @@ function render(){
 }
 document.addEventListener('click',event=>{
   const horizon=event.target.closest('[data-horizon]');
-  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);render();return}
+  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);renderLive();return}
   const page=event.target.closest('[data-page]');
   if(page){navigate(page.dataset.page);return}
   if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}
