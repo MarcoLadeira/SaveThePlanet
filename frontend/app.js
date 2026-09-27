@@ -50,9 +50,7 @@ function fitDesktop(){
   }
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
-  const banner=main.querySelector('.fallback-banner');
-  const inset=innerWidth<=600?12:24;
-  document.documentElement.style.setProperty('--volt-top',`${Math.max(inset,banner?banner.getBoundingClientRect().bottom+12:0)}px`);
+  document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
   fitDashboardCards();
 }
 function render(){

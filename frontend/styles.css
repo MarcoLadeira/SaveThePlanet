@@ -1566,31 +1566,3 @@ svg text {
 .scenario-energy-bar span {
     background: #078c58;
 }
-.fallback-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    background: #fff4d6;
-    border: 1px solid #e4bd59;
-    border-radius: 9px;
-    padding: 13px 18px;
-    margin-bottom: 16px;
-    color: #654900;
-}
-.fallback-banner strong {
-    font-size: 18px;
-}
-.fallback-banner p {
-    font-size: 14px;
-    line-height: 1.4;
-    margin: 4px 0 0;
-}
-.fallback-banner .secondary-button {
-    flex-shrink: 0;
-    height: 40px;
-    background: #fffaf0;
-    color: #654900;
-    border-color: #d8b257;
-    padding: 0 16px;
-}
