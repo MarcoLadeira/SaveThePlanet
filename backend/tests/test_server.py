@@ -8,7 +8,7 @@ import threading
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
@@ -21,7 +21,7 @@ _hermetic = []
 
 def start_hermetic_targets():
     """Replace the random-target shortlist with one fixed target so tests never call the model."""
-    _hermetic[:] = [patch('targets.candidates', return_value=[(FIXED_TARGET, 50.0)]),
+    _hermetic[:] = [patch('targets.dataset_targets', return_value=[FIXED_TARGET]),
                     patch('targets.is_dataset_target', side_effect=lambda target: target == FIXED_TARGET)]
     for patcher in _hermetic:
         patcher.start()
@@ -167,13 +167,105 @@ class LastGoodForecastTests(unittest.TestCase):
         server.forecast_cache.clear()
 
     @patch('server.fetch_forecast')
-    def test_brief_outage_keeps_the_last_real_forecast(self, fetch):
+    def test_brief_outage_keeps_the_pinned_targets_last_real_forecast(self, fetch):
         fetch.return_value = normalize(sample(), 100)
-        live = server.cached_forecast(100, refresh=True)
+        live = server.cached_forecast(100, FIXED_TARGET, refresh=True)
         fetch.side_effect = TimeoutError()
-        self.assertEqual(server.cached_forecast(100, refresh=True)['predictions'], live['predictions'])
+        kept = server.cached_forecast(100, FIXED_TARGET, refresh=True)
+        self.assertEqual(kept['predictions'], live['predictions'])
+        self.assertEqual(kept['stale']['reason'], 'MODEL_UNAVAILABLE')  # shown as last real, not as fresh
         with patch('server.time.monotonic', return_value=server.time.monotonic() + server.STALE_FORECAST_SECONDS + 1):
-            self.assertTrue(server.cached_forecast(100, refresh=True)['fallback']['active'])
+            self.assertTrue(server.cached_forecast(100, FIXED_TARGET, refresh=True)['fallback']['active'])
+
+
+def forecast_for(target, mwh=42):
+    """A normalized real forecast for any target half-hour (both horizons)."""
+    moment = server.timestamp(target)
+    rows = []
+    for horizon in (30, 60):
+        issued = (moment - server.timedelta(minutes=horizon)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        rows.append(dict(sample()['predictions'][0], issue_timestamp_utc=issued, target_timestamp_utc=target,
+                         forecast_horizon_minutes=horizon, predicted_dispatch_down_mwh=mwh, predicted_curtailment_mwh=12,
+                         predicted_constraint_mwh=mwh - 12, recoverable_surplus_mwh=min(mwh, 50)))
+    return normalize({'predictions': rows}, 100)
+
+
+class TargetPinningTests(unittest.TestCase):
+    """A -> B -> outage -> recovery: every consumer stays on the pinned target (review P0.4)."""
+    A, B = '2026-01-11T21:30:00Z', '2026-01-26T07:30:00Z'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ThreadingHTTPServer(('127.0.0.1', 0), partial(Handler, directory='frontend'))
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.url = f'http://127.0.0.1:{cls.server.server_port}'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join()
+
+    def setUp(self):
+        server.forecast_cache.clear()
+        for patcher in (patch('targets.dataset_targets', return_value=[self.A, self.B]),
+                        patch('targets.is_dataset_target', side_effect=lambda t: t in (self.A, self.B)),
+                        patch('server.fetch_forecast', side_effect=self.fake_model)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.model_up = True
+
+    def fake_model(self, capacity, target):
+        if not self.model_up:
+            raise TimeoutError()
+        return forecast_for(target)
+
+    def get(self, path):
+        try:
+            with urlopen(self.url + path) as response:
+                return json.load(response)
+        except HTTPError as error:
+            return json.load(error)
+
+    def chat(self, target):
+        body = json.dumps({'messages': [{'role': 'user', 'text': 'How much energy is at risk?'}], 'target': target}).encode()
+        request = Request(self.url + '/api/v1/chat', data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        with patch.dict('os.environ', {'GEMINI_API_KEY': ''}), urlopen(request) as response:
+            return json.load(response)['reply']['provenance']
+
+    def test_a_then_b_then_outage_then_recovery(self):
+        a = self.get(f'/api/v1/scenario?target={self.A}')
+        self.assertEqual((a['pinnedTarget'], a['stale']), (self.A, None))
+        b = self.get(f'/api/v1/scenario?target={self.B}')
+        self.assertEqual(b['pinnedTarget'], self.B)
+
+        self.model_up = False
+        # Dashboard, Charging and Impact cards (all /api/v1/scenario) stay on B, marked stale.
+        during = self.get(f'/api/v1/scenario?target={self.B}')
+        self.assertEqual((during['pinnedTarget'], during['predictions'][0]['targetAt'][:16]), (self.B, self.B[:16]))
+        self.assertIsNotNone(during['stale'])
+        self.assertNotEqual(during['pinnedTarget'], self.A)
+        # Volt answers about the same pinned half-hour and says the result is the last real one.
+        volt = self.chat(self.B)
+        self.assertEqual(volt['targetAt'][:16], self.B[:16])
+        self.assertTrue(volt['stale'])
+        # A new (untargeted) request during the outage never borrows A or B: it is an offline example.
+        fresh = self.get('/api/v1/scenario')
+        self.assertEqual(fresh['dataMode'], 'simulated')
+        self.assertIsNone(fresh['fallback']['requestedTarget'])
+        self.assertNotIn(fresh['predictions'][0]['targetAt'][:16], (self.A[:16], self.B[:16]))
+
+        self.model_up = True
+        after = self.get(f'/api/v1/scenario?target={self.B}')
+        self.assertEqual((after['pinnedTarget'], after['stale'], after['dataMode']), (self.B, None, 'historical-prediction'))
+
+    def test_pinned_target_without_a_real_forecast_gets_a_labelled_offline_example(self):
+        self.model_up = False
+        body = self.get(f'/api/v1/scenario?target={self.A}')
+        self.assertEqual(body['dataMode'], 'simulated')
+        self.assertEqual((body['pinnedTarget'], body['fallback']['requestedTarget']), (self.A, self.A))
+        self.assertEqual(body['dataLabel'], 'Offline example (simulated)')
 
 if __name__ == '__main__':
     unittest.main()

@@ -37,7 +37,8 @@ function impactSkeleton(bars=24){
 // ---------- day replay loading ----------
 // The replay day follows the dashboard's current forecast target (a random high-MWh dataset
 // half-hour chosen by the backend), so a new target also loads a new day.
-function impactTargetDay(){const t=modelState.data?.targetAt;return t?new Date(t).toISOString().slice(0,10):null}
+// The pinned target, not whatever data is on screen: an offline example has its own unrelated time.
+function impactTargetDay(){const t=modelState.target;return t?t.slice(0,10):null}
 function impactDayKey(){return [impactTargetDay(),modelState.capacity,modelState.totalDemandKwh,modelState.flexibleDemandKwh].join('|')}
 async function loadImpactDay(){
   const request=++impactDay.request;

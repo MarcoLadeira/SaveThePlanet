@@ -96,7 +96,7 @@ def normalize(payload, capacity):
 # The dashboard shows one target half-hour from GridToEv's V1 historical dataset. Each
 # horizon is requested from its own issue time so both predict the same target (e.g. for
 # 23:00: +30 min issued 22:30, +60 min issued 22:00). Pages get a random target the model
-# predicts to have extra dispatch-down (see targets.py); TARGET_TIMESTAMP, the dataset's
+# predicts to have extra dispatch-down, chosen from predictions only (see targets.py); TARGET_TIMESTAMP, the dataset's
 # final half-hour, is only the fixed target for the health probe. These are historical
 # dataset predictions, not live forecasts.
 TARGET_TIMESTAMP = os.environ.get('GRID_TO_EV_TARGET_TIMESTAMP', '2026-01-31T23:00:00Z')
@@ -393,54 +393,64 @@ def record_model_status(started, version=None, error=None):
     return diagnosis
 
 
-def available_forecast(capacity, target=None):
+def available_forecast(capacity, target=None, mode='predicted'):
     """Always try the model, then use validated demo data for upstream failures.
 
-    Without a target, a random dataset target predicted to have extra dispatch-down is chosen.
+    Without a target, one is sampled (see targets.py). Demo data never pretends to be the
+    requested target: it keeps its own example time and records the target it stands in for.
     """
     started = time.monotonic()
     try:
-        forecast = fetch_forecast(capacity, target) if target else targets.pick(capacity, fetch_forecast)
+        if target:
+            forecast = fetch_forecast(capacity, target)
+            forecast['selection'] = targets.selection_for(target)
+        else:
+            forecast = targets.pick(capacity, fetch_forecast, mode)
     except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
         reason = record_model_status(started, error=error)['fallbackReason']
     else:
         record_model_status(started, forecast['modelVersion'])
+        forecast.update(pinnedTarget=forecast['targetAt'].replace('+00:00', 'Z'), stale=None)
         return forecast
     forecast = normalize(demo_payload(capacity, datetime.now(timezone.utc)), capacity)
-    forecast.update(source='local-demo-fixture', dataMode='simulated',
-                    fallback={'active': True, 'reason': reason})
+    forecast.update(source='local-demo-fixture', dataMode='simulated', dataLabel='Offline example (simulated)',
+                    fallback={'active': True, 'reason': reason, 'requestedTarget': target},
+                    pinnedTarget=target, stale=None)
     return forecast
 
 FORECAST_CACHE_SECONDS = 300
 STALE_FORECAST_SECONDS = 1800
 KEEP_WARM_SECONDS = 480
 forecast_cache_lock = threading.Lock()
-# Real (never demo) forecasts: (capacity, target) -> (time, forecast), plus capacity -> the latest one.
+# Real (never demo) forecasts only, keyed by (capacity, target half-hour).
 forecast_cache = {}
 
 
-def cached_forecast(capacity, target=None, refresh=False):
-    """Forecast shared by the pages and Volt, so both quote the same validated figures.
+def cached_forecast(capacity, target=None, refresh=False, mode='predicted'):
+    """Forecast shared by the pages and Volt, so they all quote the same validated figures.
 
-    The pages send back the target they were given, so a random target stays fixed across
-    live refreshes and Volt answers about the same half-hour. No target picks a new one.
+    The pages pin the target they were given and send it back, so live refreshes, Charging,
+    Impact and Volt stay on one half-hour. During a model outage a pinned target gets its own
+    last real forecast (marked stale) for up to STALE_FORECAST_SECONDS, never another
+    target's. Otherwise demo data is returned, labelled as an unrelated offline example.
     """
     now = time.monotonic()
     with forecast_cache_lock:
         hit = forecast_cache.get((capacity, target)) if target else None
         if hit and not refresh and now - hit[0] < FORECAST_CACHE_SECONDS:
             return json.loads(json.dumps(hit[1]))
-    forecast = available_forecast(capacity, target)
+    forecast = available_forecast(capacity, target, mode)
     with forecast_cache_lock:
         if forecast['fallback']['active']:
-            # Ride out a brief model outage on the last real forecast (for this target, or any
-            # target when a random one was requested) instead of switching to demo data.
-            previous = forecast_cache.get((capacity, target) if target else capacity)
+            previous = forecast_cache.get((capacity, target)) if target else None
             if previous and now - previous[0] < STALE_FORECAST_SECONDS:
-                return json.loads(json.dumps(previous[1]))
+                kept = json.loads(json.dumps(previous[1]))
+                kept['stale'] = {'since': kept['generatedAt'], 'reason': forecast['fallback']['reason']}
+                # Keep its original time (so it still expires) but mark it stale for every reader, e.g. Volt.
+                forecast_cache[(capacity, target)] = (previous[0], kept)
+                return json.loads(json.dumps(kept))
         else:
-            key = forecast['targetAt'].replace('+00:00', 'Z')
-            forecast_cache[(capacity, key)] = forecast_cache[capacity] = (now, forecast)
+            forecast_cache[(capacity, forecast['pinnedTarget'])] = (now, forecast)
     return json.loads(json.dumps(forecast))
 
 
@@ -466,7 +476,7 @@ def keep_model_warm():
     random-target forecast and its day replay, then ping the model so it never sleeps mid-demo."""
     try:
         model_request('/health', timeout=60)
-        targets.candidates()  # ~7 s; the dashboard's first random pick then needs no wait
+        targets.dataset_targets()  # the population the dashboard's target is sampled from
         forecast = cached_forecast(100.0)
         fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0)
     except Exception:  # the pages fall back to labelled demo data and retry on their own
@@ -641,11 +651,14 @@ class Handler(SimpleHTTPRequestHandler):
                 flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
                 validate_demand(total, flexible)
                 target = dashboard_target(query.get('target', [None])[0])
+                mode = query.get('selection', ['predicted'])[0]
+                if mode not in targets.MODES:
+                    raise ValueError('Unknown selection mode')
             except (ValueError, TypeError):
                 self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, demand 0-1000000000 kWh with flexible demand no greater than total demand, and an optional V1 dataset target half-hour.'}})
                 return
             try:
-                forecast = cached_forecast(capacity, target, refresh=True)
+                forecast = cached_forecast(capacity, target, refresh=True, mode=mode)
                 if route.path == '/api/v1/scenario':
                     forecast['scenario'] = build_scenario(forecast, total, flexible)
                 self.send_json(200, forecast)

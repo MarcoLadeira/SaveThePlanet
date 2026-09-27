@@ -63,6 +63,8 @@ Reply with JSON only, matching the schema:
 Facts rules:
 - The +30 and +60 minute values are two forecasts of the SAME target half-hour (FACTS.targetAt), issued 30 and 60 minutes before it. They are alternative estimates, not a sequence: nothing "increases over the hour". Never add them together.
 - FACTS.live is false: the data is a historical dataset prediction (or a simulated example), not a live forecast. Never say "next 30 minutes", "right now" or "currently"; say "the +30 min forecast".
+- The half-hour was selected, not typical. If asked how it was chosen or whether it is representative, answer from FACTS.selectionNote; never call it typical or representative. If FACTS.dataMode is "simulated", say it is an offline example, not the pinned half-hour.
+- Potential recovery is an upper bound: it assumes flexible load is connected where and when the dispatch-down happens. Never promise that EVs could absorb it; mention that location, local grid constraints, fleet connection, charging power and response time limit it.
 - Only name a main predicted component if FACTS gives mainComponent, and call it the "main predicted component". Never say it drives, causes or is due to anything: components are predictions, not proven causes.
 - Recovery and impact are projections ("could absorb"). Never say energy was saved, EVs were charged or emissions were prevented.
 - For off_topic, politely say you only help with this planner.
@@ -161,9 +163,15 @@ def build_facts(forecast, scenario, horizon):
             recoveryRatePct=pct(o.get('recoveryRate')), cleanChargingSharePct=pct(o.get('cleanChargingShare')),
         ))
     simulated = forecast['dataMode'] == 'simulated'
+    stale = bool(forecast.get('stale'))
+    selection = forecast.get('selection') or {}
     return dict(
         region=forecast['region'], live=False, dataMode=forecast['dataMode'],
-        sourceLabel='Example forecast' if simulated else 'Historical dataset prediction',
+        sourceLabel=('Offline example (not the pinned half-hour)' if simulated
+                     else 'Historical dataset prediction (last real result; model unreachable)' if stale
+                     else 'Historical dataset prediction'),
+        stale=stale, pinnedTarget=forecast.get('pinnedTarget'),
+        selectionNote=None if simulated else selection.get('note'),
         modelVersion=forecast['modelVersion'], targetAt=forecast['predictions'][0]['targetAt'],
         intervalMinutes=forecast['intervalMinutes'], selectedHorizonMinutes=horizon,
         flexibleCapacityMw=forecast['flexibleCapacityMw'], totalDemandMwh=r1(scenario['totalDemandMwh']),
@@ -174,7 +182,8 @@ def build_facts(forecast, scenario, horizon):
 
 def provenance(facts):
     return dict(mode='simulated' if facts['dataMode'] == 'simulated' else 'historical', label=facts['sourceLabel'],
-                region=facts['region'], targetAt=facts['targetAt'], modelVersion=facts['modelVersion'])
+                region=facts['region'], targetAt=facts['targetAt'], modelVersion=facts['modelVersion'],
+                stale=facts['stale'], selectionNote=facts['selectionNote'])
 
 
 def row(value, unit, label, target=None):

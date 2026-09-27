@@ -68,7 +68,8 @@ class SemanticsTests(unittest.TestCase):
         self.assertEqual((reply['navigate'], reply['source']), ('forecast', 'ai'))
 
     def test_provenance_marks_simulated_and_historical(self):
-        self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'}, simulated=True)['provenance']['label'], 'Example forecast')
+        self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'}, simulated=True)['provenance']['label'],
+                         'Offline example (not the pinned half-hour)')
         historical = ask({'intent': 'at_risk', 'text': 'ok.'})['provenance']
         self.assertEqual((historical['mode'], historical['label']), ('historical', 'Historical dataset prediction'))
 
