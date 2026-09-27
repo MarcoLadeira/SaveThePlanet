@@ -468,22 +468,43 @@ def _daily_actual(row):
             'event': row.get('actual_curtailment_event')}
 
 
+def _consecutive_runs(days, limit=7):
+    """Split sorted ISO dates into runs of consecutive days (at most `limit` long)."""
+    runs = []
+    for day in sorted(days):
+        if runs and len(runs[-1]) < limit and date.fromisoformat(day) - date.fromisoformat(runs[-1][-1]) == timedelta(days=1):
+            runs[-1].append(day)
+        else:
+            runs.append([day])
+    return runs
+
+
 def _daily_actuals(days):
-    """{day: actual} for consecutive days. Uncached days come from one window call
-    (/actuals/daily-curtailment/window) instead of one request per day."""
+    """{day: actual}. Uncached days are fetched per run of consecutive days: one
+    /actuals/daily-curtailment/window call per run (or the single-day route for a run of one).
+
+    Only dates the API actually answered are cached. A date that was not answered is
+    reported as missing for this response but never cached, so it is queried again later.
+    """
     with _cache_lock:
-        missing = [d for d in days if ('v2-actual', d) not in _cache]
-    if len(missing) == 1:
-        rows = [call(f'/actuals/daily-curtailment?target_date_utc={missing[0]}')]
-    elif missing:
-        rows = call('/actuals/daily-curtailment/window', {'start_date_utc': missing[0], 'days': len(missing)}).get('actuals', [])
-    else:
-        rows = []
-    for row in rows:
-        day = row.get('target_date_utc') or missing[0]
-        cached(('v2-actual', day), None, lambda row=row: _daily_actual(row))
-    return {d: cached(('v2-actual', d), None, lambda: {'status': 'missing', 'curtailmentMwh': None, 'event': None})
-            for d in days}
+        uncached = [d for d in days if ('v2-actual', d) not in _cache]
+
+    def fetch(run):
+        if len(run) == 1:
+            row = call(f'/actuals/daily-curtailment?target_date_utc={run[0]}')
+            return {row.get('target_date_utc') or run[0]: row}
+        body = call('/actuals/daily-curtailment/window', {'start_date_utc': run[0], 'days': len(run)})
+        return {row.get('target_date_utc'): row for row in body.get('actuals', [])}
+    runs = _consecutive_runs(uncached)
+    answered = {}
+    for found in (parallel(*[lambda r=r: fetch(r) for r in runs]) if runs else []):
+        answered.update(found)
+    for day in uncached:
+        if day in answered:
+            cached(('v2-actual', day), None, lambda row=answered[day]: _daily_actual(row))
+    unanswered = {'status': 'missing', 'curtailmentMwh': None, 'event': None}
+    with _cache_lock:
+        return {d: _cache[('v2-actual', d)][1] if ('v2-actual', d) in _cache else dict(unanswered) for d in days}
 
 
 def _daily_prediction(day):

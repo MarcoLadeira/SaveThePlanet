@@ -264,6 +264,59 @@ class ModelCallTests(unittest.TestCase):
         days = [d['date'] for d in explorer.daily_week('2026-08-30')['days']]
         self.assertEqual(days, ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'])
 
+    def _actuals_api(self, calls, skip=()):
+        """A fake actuals API that records every call; dates in `skip` are omitted from windows."""
+        def fake(path, body=None):
+            calls.append((path, body))
+            if path.startswith('/actuals/daily-curtailment?'):
+                day = path.rsplit('=', 1)[1]
+                return {'status': 'available', 'target_date_utc': day, 'actual_curtailment_mwh': float(day[-2:]),
+                        'actual_curtailment_event': True}
+            start = explorer.date.fromisoformat(body['start_date_utc'])
+            days = [(start + explorer.timedelta(days=i)).isoformat() for i in range(body['days'])]
+            return {'actuals': [{'status': 'available', 'target_date_utc': d, 'actual_curtailment_mwh': float(d[-2:]),
+                                 'actual_curtailment_event': True} for d in days if d not in skip]}
+        return fake
+
+    def test_interleaved_cache_fetches_each_uncached_run(self):
+        # Review repro: cache Wednesday, then request Tuesday-Thursday.
+        calls = []
+        with patch('explorer.call', side_effect=self._actuals_api(calls)):
+            explorer._daily_actuals(['2025-06-11'])
+            calls.clear()
+            result = explorer._daily_actuals(['2025-06-10', '2025-06-11', '2025-06-12'])
+        self.assertEqual({d: a['curtailmentMwh'] for d, a in result.items()},
+                         {'2025-06-10': 10.0, '2025-06-11': 11.0, '2025-06-12': 12.0})
+        self.assertEqual(sorted(path for path, _ in calls),
+                         ['/actuals/daily-curtailment?target_date_utc=2025-06-10',
+                          '/actuals/daily-curtailment?target_date_utc=2025-06-12'])
+
+    def test_single_day_then_week_and_week_then_single_day(self):
+        week = [f'2025-06-{d:02d}' for d in range(10, 17)]
+        for order in (('single', 'week'), ('week', 'single')):
+            with self.subTest(order=order):
+                explorer._cache.clear()
+                calls = []
+                with patch('explorer.call', side_effect=self._actuals_api(calls)):
+                    for step in order:
+                        result = explorer._daily_actuals(['2025-06-13'] if step == 'single' else week)
+                with patch('explorer.call', side_effect=AssertionError('everything should be cached')):
+                    final = explorer._daily_actuals(week)
+                self.assertEqual([final[d]['curtailmentMwh'] for d in week], [float(d[-2:]) for d in week])
+                # single -> week: the day, then the runs either side of it (10-12, 14-16); week -> single: one window.
+                self.assertEqual(sum(1 for path, _ in calls if path.startswith('/actuals/daily-curtailment')), 3 if order == ('single', 'week') else 1)
+
+    def test_unanswered_dates_are_reported_missing_but_not_cached(self):
+        calls = []
+        days = ['2025-06-10', '2025-06-11', '2025-06-12']
+        with patch('explorer.call', side_effect=self._actuals_api(calls, skip={'2025-06-12'})):
+            first = explorer._daily_actuals(days)
+        self.assertEqual(first['2025-06-12']['status'], 'missing')
+        with patch('explorer.call', side_effect=self._actuals_api(calls)):
+            second = explorer._daily_actuals(days)
+        self.assertEqual(second['2025-06-12']['curtailmentMwh'], 12.0)  # asked again, not stuck as missing
+        self.assertEqual(calls[-1][0], '/actuals/daily-curtailment?target_date_utc=2025-06-12')
+
     @patch('explorer.daily_info', return_value=V2_INFO)
     def test_daily_rejects_dates_outside_dataset(self, _info):
         for day in ('2024-03-31', '2026-08-31'):
