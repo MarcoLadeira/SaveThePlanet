@@ -35,10 +35,10 @@ cannot provide the product API: the product screens will show an error there.
 ## Model outage demo
 
 If GridToEv is offline or returns unusable data, the backend supplies a fixed local
-example. All pages show an amber **Demo fallback — simulated data** banner;
-charging inputs and calculations still work. The label cannot be disabled through
-Settings. The banner states why the model is unavailable, from `/api/v1/health`.
-Click **Retry model** after restarting GridToEv to return to model data.
+example. The page footer labels results as a simulated fallback;
+charging inputs and calculations still work. Settings → Model connection explains
+why the model is unavailable, from `/api/v1/health`.
+Click **Reload forecast** there after restarting GridToEv to return to model data.
 The SaveThePlanet backend must remain running. No external assets are needed.
 
 ## Settings

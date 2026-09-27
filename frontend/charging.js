@@ -46,12 +46,12 @@ function chargingMethod() {
 function renderCharging() {
     return studioShell('Charging', 'Turn predicted renewable surplus into an EV charging action.', () => {
         const p = selectedPrediction(), o = scenarioOutcome(p), ev = modelState.data.scenario.evAssumptions;
-        return `${chargingAction()}${statStrip([
+        return `${studioControls()}${chargingAction()}${statStrip([
             metric('Potential absorption', n(o.potentialRecoveryMwh), 'MWh', `Selected target +${p.horizonMinutes} min`, 'green'),
             metric('EV charges', `≈ ${evCount(o.evChargesEquivalent)}`, '', `At ${n(ev.kwhPerCharge)} kWh each`),
             metric('Chargers needed', n(o.chargersNeeded), '', `At ${n(ev.chargerKw)} kW for ${n(modelState.data.intervalMinutes)} minutes`),
             metric('Proposed power', n(o.proposedPowerMw), 'MW', o.powerLimitRespected ? `Within ${n(modelState.data.flexibleCapacityMw)} MW limit` : 'Above capacity limit', o.powerLimitRespected ? '' : 'amber'),
-        ])}<div class="studio-page-grid"><section class="dash-card studio-chart-card">${cardHead('battery', 'blue', 'Charging opportunity', 'Separate +30 and +60 minute alternatives')}${comparisonChart('charging')}</section><section class="dash-card studio-side-card">${cardHead('settings', 'green', 'Charging assumptions', 'Shared by Charging and Impact')}${chargingForm()}${chargingMethod()}</section></div>${provenance()}`;
+        ])}<div class="studio-page-grid"><section class="dash-card studio-chart-card">${cardHead('orange', 'Charging opportunity', 'Separate +30 and +60 minute alternatives')}${comparisonChart('charging')}</section><section class="dash-card studio-side-card">${cardHead('green', 'Charging assumptions', 'Shared by Charging and Impact')}${chargingForm()}${chargingMethod()}</section></div>${provenance()}`;
     });
 }
 function chargingFieldError(total, flexible, kwh, kw) {

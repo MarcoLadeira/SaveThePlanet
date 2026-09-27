@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import server
 from server import Handler, normalize
 
 
@@ -95,12 +96,26 @@ class HttpTests(unittest.TestCase):
     def test_upstream_failures(self, fetch):
         for error, code in [(TimeoutError(), 'MODEL_UNAVAILABLE'), (ValueError(), 'INVALID_MODEL_RESPONSE'),
                             (KeyError(), 'INVALID_MODEL_RESPONSE')]:
+            server.forecast_cache.clear()
             fetch.side_effect = error
             status, body = self.get('/api/v1/forecast')
             self.assertEqual(status, 200)
             self.assertEqual(body['fallback']['reason'], code)
             self.assertEqual(body['dataMode'], 'simulated')
 
+
+class LastGoodForecastTests(unittest.TestCase):
+    def setUp(self):
+        server.forecast_cache.clear()
+
+    @patch('server.fetch_forecast')
+    def test_brief_outage_keeps_the_last_real_forecast(self, fetch):
+        fetch.return_value = normalize(sample(), 100)
+        live = server.cached_forecast(100, refresh=True)
+        fetch.side_effect = TimeoutError()
+        self.assertEqual(server.cached_forecast(100, refresh=True)['predictions'], live['predictions'])
+        with patch('server.time.monotonic', return_value=server.time.monotonic() + server.STALE_FORECAST_SECONDS + 1):
+            self.assertTrue(server.cached_forecast(100, refresh=True)['fallback']['active'])
 
 if __name__ == '__main__':
     unittest.main()

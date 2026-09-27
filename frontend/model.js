@@ -181,12 +181,26 @@ function modelView(page) {
         `<div class="${forecast ? "forecast-grid model-forecast-grid" : "overview-grid model-overview-grid"}">${chartCard}${side}</div>`
     );
 }
-async function loadModelForecast() {
-    const request = ++modelRequest;
-    modelState.loading = true;
-    modelState.error = "";
-    modelState.data = null;
+let liveTimer = 0;
+let liveRender = false;
+function renderLive() {
+    const active = document.activeElement;
+    if (active?.closest("#app") && active.matches("input, select, textarea"))
+        return;
+    // The Forecast page shows its own model replays, not this shared forecast.
+    if (pageFromHash() === "forecast") return;
+    liveRender = true;
     render();
+    liveRender = false;
+}
+async function loadModelForecast(live = false) {
+    const request = ++modelRequest;
+    clearTimeout(liveTimer);
+    if (!live) {
+        modelState.loading = true;
+        modelState.error = "";
+        render();
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45000);
     try {
@@ -214,9 +228,12 @@ async function loadModelForecast() {
             body.scenario.outcomes.length !== 2
         )
             throw new Error("Backend returned an invalid forecast.");
-        if (request === modelRequest) modelState.data = body;
+        if (request === modelRequest) {
+            modelState.data = body;
+            modelState.error = "";
+        }
     } catch (error) {
-        if (request === modelRequest)
+        if (request === modelRequest && !(live && modelState.data))
             modelState.error =
                 error.name === "AbortError"
                     ? "The forecast request timed out. Please retry."
@@ -225,8 +242,15 @@ async function loadModelForecast() {
         clearTimeout(timeout);
         if (request === modelRequest) {
             modelState.loading = false;
-            render();
-            loadModelHealth(false);
+            if (live) renderLive();
+            else {
+                render();
+                loadModelHealth(false);
+            }
+            liveTimer = setTimeout(
+                () => loadModelForecast(true),
+                isDemoData() ? 15000 : 60000,
+            );
         }
     }
 }
@@ -275,14 +299,4 @@ function isDemoData() {
 }
 function dataSourceLabel() {
     return isDemoData() ? "Simulated demo data" : "Historical prediction";
-}
-function fallbackBanner() {
-    if (!isDemoData()) return "";
-    const diagnosis = modelState.health?.model?.error;
-    const reason = diagnosis
-        ? escapeHtml(diagnosis.message)
-        : modelState.data.fallback?.reason === "INVALID_MODEL_RESPONSE"
-          ? "The model returned unusable data."
-          : "The model is unavailable.";
-    return `<aside class="fallback-banner" role="status"><div><strong>Demo fallback — simulated data</strong><p>${reason} All results use a fixed example, with your charging assumptions. No live model predictions are being shown.</p></div><button class="secondary-button" id="model-retry">Retry model</button></aside>`;
 }

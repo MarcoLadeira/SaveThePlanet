@@ -129,9 +129,20 @@ html,body,#app{width:100%;height:100%;margin:0;overflow:hidden}
 .studio-settings-actions{display:flex;gap:9px;margin-top:auto}
 .studio-settings-actions .studio-button{margin:0;flex:1}
 .studio-ghost{border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--ink-2);padding:8px 14px;font-size:12px;font-weight:700}
-.fallback-banner{flex:0 0 auto;margin:0;padding:8px 12px;border-radius:12px}
-.fallback-banner strong{font-size:12px}.fallback-banner p{font-size:10px}.fallback-banner .secondary-button{height:29px;font-size:10px}
 .dashboard-main[data-theme="dark"] .studio-metric.amber{color:var(--ink)}
 .dashboard-main[data-cause="false"] .studio-component{display:none}
 .dashboard-main[data-explanations="false"] .studio-note{display:none}
 @media(prefers-reduced-motion:reduce){.studio-spinner{animation:none}.studio-switch i,.studio-button{transition:none}}
+/* Live refreshes redraw the page without replaying entrance animations; looping motion keeps running. */
+.app-shell.is-live :not(.motion-loop),.app-shell.is-live ::before,.app-shell.is-live ::after{animation:none!important}
+.dash-accent{--accent:#169b62;--accent-glow:rgba(22,155,98,.4);flex:0 0 4px;align-self:stretch;width:4px;min-height:30px;border-radius:99px;background:var(--accent);box-shadow:0 0 12px -1px var(--accent-glow)}
+.dash-accent.is-orange{--accent:#ff883e;--accent-glow:rgba(255,136,62,.45)}
+.dash-accent.is-tricolour{background:linear-gradient(180deg,#169b62 0 33.3%,#fff 33.3% 66.6%,#ff883e 66.6%);box-shadow:0 0 12px -1px rgba(255,255,255,.35)}
+.app-shell .dash-sidebar .nav-item.active:before{display:none}
+.dash-sidebar .nav-pill{position:absolute;top:0;right:0;left:0;height:57.7px;border-radius:14.5px;background:linear-gradient(90deg,#0a6749 0%,#0d7251 43%,#187758 76%,#278160 100%);box-shadow:0 8px 18px -8px rgba(0,18,13,.55);pointer-events:none;transition:transform .5s cubic-bezier(.22,.8,.24,1),height .5s cubic-bezier(.22,.8,.24,1),opacity .3s ease}
+.dash-sidebar .nav .nav-item{z-index:1}
+.dash-sidebar .nav .nav-item.active{background:transparent;box-shadow:none}
+.dashboard-main.is-entering>*{animation:page-in .5s cubic-bezier(.2,.8,.2,1) both}
+.dashboard-main.is-entering>:nth-child(2){animation-delay:.06s}.dashboard-main.is-entering>:nth-child(3){animation-delay:.12s}.dashboard-main.is-entering>:nth-child(n+4){animation-delay:.18s}
+@keyframes page-in{from{opacity:0;transform:translateY(12px)}}
+@media(prefers-reduced-motion:reduce){.dash-sidebar .nav-pill{transition:none}}
