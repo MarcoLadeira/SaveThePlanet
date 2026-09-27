@@ -5,15 +5,46 @@ function dashIsoBar(cx,base,width,height,part=''){
   return `<polygon class="${part} l" points="${cx-width},${top} ${cx},${top+d} ${cx},${base+d} ${cx-width},${base}"/><polygon class="${part} r" points="${cx},${top+d} ${cx+width},${top} ${cx+width},${base} ${cx},${base+d}"/><polygon class="${part} t" points="${cx},${top-d} ${cx+width},${top} ${cx},${top+d} ${cx-width},${top}"/>`;
 }
 
-function dashboardCharger(){
-  return `<svg class="dash-charger dash-ev-scene" viewBox="0 0 300 170" aria-hidden="true" shape-rendering="geometricPrecision"><defs><linearGradient id="ev-deck" x2="0" y2="1"><stop stop-color="#a9e8d4"/><stop offset="1" stop-color="#51bb93"/></linearGradient><linearGradient id="ev-body" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#dae7ec"/></linearGradient></defs><ellipse cx="154" cy="152" rx="126" ry="14" fill="#d8ede7"/><path d="m20 117 111-39 150 39-110 43Z" fill="url(#ev-deck)"/><path d="m20 117 151 43v8L20 126Z" fill="#3ca987"/><path d="m171 160 110-43v9l-110 42Z" fill="#21896d"/><ellipse cx="145" cy="123" rx="83" ry="14" fill="#469b88" opacity=".3"/><path d="m55 111 19-27c5-7 18-13 31-15l49-7c11-2 21 0 28 5l27 18 21 7c8 3 12 9 10 16l-5 12-58 11-111-3-11-8Z" fill="url(#ev-body)" stroke="#c6d9e2" stroke-width="2"/><path d="m91 81 16-9 45-6c10-1 17 0 24 6l21 15-49 2-57 2Z" fill="#183e50"/><path d="m152 66 3 22 42-1-21-15c-7-6-14-7-24-6Z" fill="#315a69"/><path d="m91 91 56-2-3 25-71-4Z" fill="#edf5f6"/><path d="m147 89 50-2 25 8-7 21-70-2Z" fill="#f7fbfb"/><path d="m70 113 74 3 72-2 15 6-51 13-105-6Z" fill="#d9e8ed"/><path d="m60 108 12 3-2 8-15-4Z" fill="#2e79aa"/><path d="m213 98 17-2 5 6-15 4Z" fill="#f47768"/><path d="m71 126 107 6 57-14" fill="none" stroke="#a8c4cc" stroke-width="2"/><ellipse cx="92" cy="127" rx="18" ry="12" fill="#183941"/><ellipse cx="92" cy="127" rx="10" ry="9" fill="#c7d8de"/><ellipse cx="92" cy="127" rx="5" ry="5" fill="#829da8"/><ellipse cx="198" cy="128" rx="17" ry="13" fill="#183941"/><ellipse cx="198" cy="128" rx="10" ry="9" fill="#c7d8de"/><ellipse cx="198" cy="128" rx="5" ry="5" fill="#829da8"/><path d="M241 108c18 0 22 10 13 20" fill="none" stroke="#2da978" stroke-width="3"/><rect x="251" y="51" width="27" height="67" rx="4" fill="#eef8f6" stroke="#baded3"/><path d="M251 57h27v53h-27z" fill="#dff2ee"/><rect x="257" y="65" width="15" height="20" rx="2" fill="#155748"/><path d="m267 66-7 11h5l-2 8 9-13h-5l2-6Z" fill="#a5f4cb"/><path d="M264 118v15" stroke="#2f9c78" stroke-width="5"/><ellipse cx="265" cy="133" rx="15" ry="4" fill="#42a986"/></svg>`;
+function fleetShare(value,total){return total>0?Math.min(1,Math.max(0,value/total)):0}
+
+function fleetStat(tone,glyph,value,label,share){
+  const percent=Math.round(share*100);
+  return `<div class="fleet-stat is-${tone}"><span class="fleet-stat-icon">${icon(glyph,18)}</span><div class="fleet-stat-copy"><strong>${n(value)} MWh</strong><small>${label}</small><span class="fleet-stat-bar" role="img" aria-label="${percent}% of flexible demand" style="--fleet-fill:${share}"><i></i></span></div></div>`;
 }
 
-function dashboardRiskSurface(){
-  const rows=modelState.data.predictions,max=Math.max(1,...rows.map(p=>p.upperMwh))*1.15;
-  const y=v=>135-v/max*74,ax=112,bx=388,ay=y(rows[0].atRiskMwh),by=y(rows[1].atRiskMwh),gy0=y(scenarioRecovery(rows[0])),gy1=y(scenarioRecovery(rows[1]));
-  const selected=modelState.horizon===30?{x:ax,y:ay,p:rows[0]}:{x:bx,y:by,p:rows[1]};
-  return `<svg viewBox="0 0 500 164" preserveAspectRatio="none" role="img" aria-label="At risk: ${n(rows[0].atRiskMwh)} MWh at 30 minutes and ${n(rows[1].atRiskMwh)} MWh at 60 minutes. Potential absorption: ${n(scenarioRecovery(rows[0]))} and ${n(scenarioRecovery(rows[1]))} MWh"><defs><linearGradient id="hero-risk-fill" x2="0" y2="1"><stop stop-color="#ffbf5d" stop-opacity=".7"/><stop offset="1" stop-color="#ffbf5d" stop-opacity=".04"/></linearGradient><linearGradient id="hero-save-fill" x2="0" y2="1"><stop stop-color="#39d7a6" stop-opacity=".55"/><stop offset="1" stop-color="#39d7a6" stop-opacity=".03"/></linearGradient></defs><path d="M36 137H470M36 93H470" stroke="#2f6957" stroke-width="1"/><path d="M${ax} ${ay} C 206 ${ay-5},294 ${by-5},${bx} ${by} L${bx} 137H${ax}Z" fill="url(#hero-risk-fill)"/><path d="M${ax} ${gy0} C 207 ${gy0+4},294 ${gy1+4},${bx} ${gy1} L${bx} 137H${ax}Z" fill="url(#hero-save-fill)"/><path d="M${ax} ${ay} C 206 ${ay-5},294 ${by-5},${bx} ${by}" stroke="#ffbe4d" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M${ax} ${gy0} C 207 ${gy0+4},294 ${gy1+4},${bx} ${gy1}" stroke="#33d59f" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M${selected.x} 44V137" stroke="#b8e7cf" stroke-width="1" stroke-dasharray="4 5"/>${rows.map((p,i)=>`<circle cx="${i?bx:ax}" cy="${i?by:ay}" r="5.5" fill="#fff" stroke="#f9b43e" stroke-width="3"/><circle cx="${i?bx:ax}" cy="${i?gy1:gy0}" r="5.5" fill="#fff" stroke="#2ac997" stroke-width="3"/>`).join('')}<text x="${ax}" y="157" text-anchor="middle" fill="#d9efe5" font-size="12">+30 min</text><text x="${bx}" y="157" text-anchor="middle" fill="#d9efe5" font-size="12">+60 min</text><g transform="translate(${selected.x>250?selected.x-104:selected.x+12},${Math.max(30,selected.y-47)})"><rect width="91" height="35" rx="9" fill="#174d3d" stroke="#659988"/><text x="10" y="14" fill="#ffd27f" font-size="10">At risk</text><text x="10" y="29" fill="#fff" font-size="13" font-weight="700">${n(selected.p.atRiskMwh)} MWh</text></g></svg>`;
+function dashboardFleet(o){
+  const flex=modelState.data.scenario.flexibleDemandMwh,capacity=modelState.data.flexibleCapacityMw;
+  const power=Math.min(capacity,Math.max(0,o.proposedPowerMw));
+  return `<section class="dash-card dash-fleet">${cardHead('car','sky','Flexible charging','Scenario input, not vehicle telemetry')}
+    <div class="fleet-body"><div class="fleet-demand"><p class="fleet-figure"><strong>${n(flex)}</strong><span>MWh</span></p><p class="fleet-caption">Flexible demand</p></div><span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
+    <div class="fleet-meter"><div class="fleet-meter-head"><span id="fleet-power-label">Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(capacity)} MW</span></div><div class="fleet-track" role="meter" aria-labelledby="fleet-power-label" aria-valuemin="0" aria-valuemax="${capacity}" aria-valuenow="${power}" aria-valuetext="${n(o.proposedPowerMw)} of ${n(capacity)} MW" style="--fleet-fill:${fleetShare(power,capacity)}"><i></i><b></b></div></div>
+    <div class="fleet-stats">${fleetStat('green','charge',o.potentialRecoveryMwh,'Absorbable',fleetShare(o.potentialRecoveryMwh,flex))}${fleetStat('blue','clock',o.remainingFlexibleMwh,'Flexibility left',fleetShare(o.remainingFlexibleMwh,flex))}</div>
+  </section>`;
+}
+
+function dashboardRiskSurface(width = 320, height = 110){
+  let rows,max;
+  try { rows=outlookRows(modelState.data);max=outlookScale(rows).max; }
+  catch { return '<p role="status">Chart unavailable</p>'; }
+  const top=10,base=height-20,ax=24,bx=width-24;
+  const y=value=>base-value/max*(base-top);
+  const risk=rows.map(row=>y(row.atRiskMwh)),recovery=rows.map(row=>y(row.potentialRecoveryMwh));
+  const line=values=>outlookTopPath(ax,bx,...values),area=values=>`${line(values)} L${bx} ${base} H${ax}Z`;
+  const selected=rows.findIndex(row=>row.horizonMinutes===modelState.horizon),selectedX=selected?bx:ax;
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${rows.map(row=>`+${row.horizonMinutes} minutes: at risk ${n(row.atRiskMwh)} MWh, absorbable ${n(row.potentialRecoveryMwh)} MWh`).join('. ')}">
+    <defs><linearGradient id="hero-risk-fill" x2="0" y2="1"><stop stop-color="#ffbf5d" stop-opacity=".7"/><stop offset="1" stop-color="#ffbf5d" stop-opacity=".04"/></linearGradient><linearGradient id="hero-save-fill" x2="0" y2="1"><stop stop-color="#39d7a6" stop-opacity=".55"/><stop offset="1" stop-color="#39d7a6" stop-opacity=".03"/></linearGradient></defs>
+    ${[top,(top+base)/2,base].map(gy=>`<path d="M${ax} ${gy}H${bx}" stroke="#2f6957" stroke-width="1"/>`).join('')}
+    <path d="${area(risk)}" fill="url(#hero-risk-fill)"/><path d="${area(recovery)}" fill="url(#hero-save-fill)"/>
+    <path d="${line(risk)}" stroke="#ffbe4d" stroke-width="2" fill="none"/><path d="${line(recovery)}" stroke="#33d59f" stroke-width="2" fill="none"/>
+    <path d="M${selectedX} ${top}V${base}" stroke="#b8e7cf" stroke-dasharray="3 4"/>
+    ${rows.map((row,i)=>`<circle cx="${i?bx:ax}" cy="${risk[i]}" r="${i===selected?5:4}" fill="#fff" stroke="#f9b43e" stroke-width="2"/><circle cx="${i?bx:ax}" cy="${recovery[i]}" r="${i===selected?4:3}" fill="#fff" stroke="#2ac997" stroke-width="2"/><text x="${i?bx:ax}" y="${height-3}" text-anchor="middle" fill="#d9efe5" font-size="10">+${row.horizonMinutes} min</text>`).join('')}
+  </svg>`;
+}
+
+function fitDashboardCards(){
+  const terrain=document.querySelector('.dashboard-redesign .dash-hero-terrain');
+  if(!terrain || !modelState.data)return;
+  terrain.innerHTML=dashboardRiskSurface(Math.max(60,terrain.clientWidth),Math.max(40,terrain.clientHeight));
 }
 
 function dashboardRecoveryChannel(p,o){
@@ -23,24 +54,32 @@ function dashboardRecoveryChannel(p,o){
 }
 
 function dashboardRecoveryOrbit(p,o){
-  const ratio=p.atRiskMwh?o.potentialRecoveryMwh/p.atRiskMwh:0;
-  const rate=Math.min(1,Math.max(0,ratio));
-  return `<div class="dash-recovery-channel dash-orbit" role="img" aria-label="${n(o.potentialRecoveryMwh)} MWh recoverable of ${n(p.atRiskMwh)} MWh at risk"><svg viewBox="0 0 190 190" aria-hidden="true"><circle cx="95" cy="95" r="70" fill="none" stroke="#e4eef1" stroke-width="22"/><circle class="dash-orbit-progress" cx="95" cy="95" r="70" fill="none" stroke="#16ad76" stroke-width="22" stroke-linecap="round" stroke-dasharray="${(rate*440).toFixed(2)} 440" transform="rotate(-90 95 95)"/></svg><div class="dash-channel-label"><strong>${pct(o.recoveryRate)}</strong><span>can be absorbed</span></div></div>`;
+  const rate=p.atRiskMwh?Math.min(1,Math.max(0,o.potentialRecoveryMwh/p.atRiskMwh)):0;
+  return `<div class="recovery-ring" role="img" aria-label="${pct(rate)} of predicted at-risk energy can be absorbed">
+    <svg viewBox="0 0 220 220" aria-hidden="true"><defs>
+      <linearGradient id="recovery-ring-green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#15d69c"/><stop offset=".45" stop-color="#00c68b"/><stop offset="1" stop-color="#00bb83"/></linearGradient>
+      <radialGradient id="recovery-ring-center"><stop offset=".6" stop-color="#fff"/><stop offset="1" stop-color="#f5fffa"/></radialGradient>
+    </defs><circle cx="110" cy="110" r="104" fill="url(#recovery-ring-center)" stroke="#edfff6" stroke-width="7"/>
+    <circle cx="110" cy="110" r="89" fill="none" stroke="#e4f4ec" stroke-width="26"/>
+    <circle class="recovery-ring-progress" cx="110" cy="110" r="89" fill="none" stroke="url(#recovery-ring-green)" stroke-width="26" stroke-linecap="round" pathLength="100" stroke-dasharray="${rate*100} 100" stroke-opacity="${rate?1:0}" transform="rotate(-90 110 110)"/>
+    </svg><div class="recovery-ring-label"><strong>${pct(rate)}</strong><span>can be absorbed</span></div>
+  </div>`;
 }
 
-function dashboardOutlookChart(){
-  const rows=modelState.data.predictions;
-  const first=rows.map(p=>dashboardMode==='energy'?p.atRiskMwh:scenarioRecovery(p));
-  const second=rows.map(p=>dashboardMode==='energy'?scenarioRecovery(p):scenarioOutcome(p).remainingWasteMwh);
-  const max=Math.ceil(Math.max(1,...rows.map(p=>p.upperMwh),...first,...second)*1.12/10)*10;
-  const tickStep=Math.max(10,Math.ceil(max/50)*10);
-  const x=[236,664],base=226,y=v=>base-v/max*170;
-  const curve=values=>`M${x[0]} ${y(values[0])} C${x[0]+135} ${y(values[0])},${x[1]-135} ${y(values[1])},${x[1]} ${y(values[1])}`;
-  const selected=modelState.horizon===30?0:1;
-  const band=dashboardMode==='energy'&&settings.uncertainty?`<path d="M${x[0]} ${y(rows[0].upperMwh)} C${x[0]+135} ${y(rows[0].upperMwh)},${x[1]-135} ${y(rows[1].upperMwh)},${x[1]} ${y(rows[1].upperMwh)} L${x[1]} ${y(rows[1].lowerMwh)} C${x[1]-135} ${y(rows[1].lowerMwh)},${x[0]+135} ${y(rows[0].lowerMwh)},${x[0]} ${y(rows[0].lowerMwh)}Z" fill="#ffdfab" opacity=".5"/>`:'';
-  const series=(values,color,gradient)=>`<path d="${curve(values)} L${x[1]} ${base}H${x[0]}Z" fill="url(#${gradient})"/><path d="${curve(values)}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"/>${values.map((v,i)=>`<circle cx="${x[i]}" cy="${y(v)}" r="6" fill="#fff" stroke="${color}" stroke-width="3"/>`).join('')}`;
-  const chosen=first[selected];
-  return `<svg viewBox="0 0 900 278" preserveAspectRatio="none" role="img" aria-label="${dashboardMode==='energy'?'Energy at risk and potential absorption':'Potential absorption and remaining risk'}: two separate model targets at ${escapeHtml(modelTime(rows[0].targetAt))} and ${escapeHtml(modelTime(rows[1].targetAt))}"><defs><linearGradient id="outlook-amber" x2="0" y2="1"><stop stop-color="#ffc360" stop-opacity=".44"/><stop offset="1" stop-color="#ffc360" stop-opacity=".02"/></linearGradient><linearGradient id="outlook-green" x2="0" y2="1"><stop stop-color="#26c68b" stop-opacity=".38"/><stop offset="1" stop-color="#26c68b" stop-opacity=".02"/></linearGradient><linearGradient id="outlook-grey" x2="0" y2="1"><stop stop-color="#98b3ad" stop-opacity=".28"/><stop offset="1" stop-color="#98b3ad" stop-opacity=".02"/></linearGradient></defs>${Array.from({length:Math.floor(max/tickStep)+1},(_,i)=>i*tickStep).map(v=>`<path d="M50 ${y(v)}H866" stroke="#dfeaf0" stroke-width="1"/><text x="40" y="${y(v)+4}" text-anchor="end" fill="#627883" font-size="12">${v}</text>`).join('')}<path d="M50 ${base}H866" stroke="#b8cdd3"/><path d="M${x[selected]} 52V${base}" stroke="#51a88c" stroke-width="1.5" stroke-dasharray="5 4"/>${band}${series(first,dashboardMode==='energy'?'#f4a119':'#0aa26b',dashboardMode==='energy'?'outlook-amber':'outlook-green')}${series(second,dashboardMode==='energy'?'#109d6c':'#8ea9a2',dashboardMode==='energy'?'outlook-green':'outlook-grey')}<g transform="translate(${x[selected]-55},${Math.max(4,y(chosen)-48)})"><rect width="110" height="39" rx="11" fill="${dashboardMode==='energy'?'#f4a119':'#0aa26b'}"/><text x="55" y="18" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">${n(chosen)} MWh</text><text x="55" y="32" text-anchor="middle" fill="#fff" font-size="10">${dashboardMode==='energy'?'at risk':'potential'}</text></g><text x="${x[0]}" y="264" text-anchor="middle" fill="#435d65" font-size="14">+30 min · ${escapeHtml(modelTime(rows[0].targetAt))}</text><text x="${x[1]}" y="264" text-anchor="middle" fill="#435d65" font-size="14">+60 min · ${escapeHtml(modelTime(rows[1].targetAt))}</text></svg>`;
+function dashboardRecoveryCard(p,o){
+  const rate=p.atRiskMwh?Math.min(1,Math.max(0,o.potentialRecoveryMwh/p.atRiskMwh)):0;
+  const caption=p.atRiskMwh===0?'No predicted at-risk energy for this window.'
+    :o.remainingWasteMwh===0?'All predicted at-risk energy can be recovered.'
+    :`${pct(rate)} of at-risk energy could be recovered.`;
+  return `<section class="dash-card dash-recovery recovery-reference" aria-label="Recovery potential"><div class="recovery-content">
+    <header class="recovery-header"><span class="recovery-icon">${icon('leaf',24)}</span><div><h2>Recovery potential</h2><p>Clean energy flexible load could retain</p></div></header>
+    <div class="recovery-main"><div class="recovery-copy">
+      <div class="recovery-amount"><strong>${n(o.potentialRecoveryMwh)}</strong><span>MWh</span></div>
+      <p class="recovery-caption">${caption}</p>
+      <ul class="recovery-breakdown"><li class="is-absorbable"><i></i><span>Absorbable</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li class="is-remaining"><i></i><span>Still at risk</span><b>${n(o.remainingWasteMwh)} MWh</b></li></ul>
+    </div>${dashboardRecoveryOrbit(p,o)}</div>
+    <footer class="recovery-bottom"><div class="recovery-progress" role="img" aria-label="${pct(rate)} potentially recoverable"><i style="width:${rate*100}%"></i></div><div class="recovery-totals"><span><b>${n(o.potentialRecoveryMwh)} MWh</b> potential</span><span><b>${n(o.remainingWasteMwh)} MWh</b> remaining</span></div></footer>
+  </div></section>`;
 }
 
 function dashboardPillars(p,o){
@@ -51,16 +90,13 @@ function dashboardPillars(p,o){
 
 function renderDashboard(){
   return studioShell('Dashboard','Renewable dispatch-down and flexible charging opportunity.',()=>{
-    const p=selectedPrediction(),o=scenarioOutcome(p),flex=modelState.data.scenario.flexibleDemandMwh;
-    const tabs=['energy','recovery'].map(mode=>`<button type="button" data-dashboard-mode="${mode}" aria-pressed="${dashboardMode===mode}" class="${dashboardMode===mode?'active':''}">${mode==='energy'?'Energy risk':'Recovery view'}</button>`).join('');
+    const p=selectedPrediction(),o=scenarioOutcome(p);
     return `<div class="dash-grid restored-dashboard dashboard-redesign">
       <section class="dash-card dash-hero">${cardHead('turbine','green','Renewable energy at risk','Selected half-hour model forecast',`<span class="dash-chip is-amber">${n(p.probability*100)}% likely</span>`)}<div class="dash-hero-body"><div class="dash-hero-figure"><strong>${n(p.atRiskMwh)}</strong><span>MWh</span></div><div class="dash-hero-terrain">${dashboardRiskSurface()}</div><div class="dash-hero-legend"><span><i class="is-amber"></i>At risk</span><span><i class="is-green"></i>Absorbable</span></div></div><div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Risk level</span><strong>${escapeHtml(p.risk)}</strong></div></div></section>
-      <section class="dash-card dash-recovery">${cardHead('leaf','green','Recovery potential','Clean energy flexible load could retain')}<div class="dash-recovery-body restored-recovery"><div class="dash-recovery-copy"><div class="dash-figure"><strong>${n(o.potentialRecoveryMwh)}</strong><span>MWh</span></div><p>of ${n(p.atRiskMwh)} MWh predicted at risk</p><ul class="dash-key"><li><i class="is-green"></i><span>Potential absorption</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-amber"></i><span>Still at risk</span><b>${n(o.remainingWasteMwh)} MWh</b></li></ul></div>${dashboardRecoveryOrbit(p,o)}</div><div class="dash-recovery-scale"><i style="width:${Math.min(100,Math.max(0,o.recoveryRate*100))}%"></i></div><div class="dash-recovery-foot"><span><b>${n(o.potentialRecoveryMwh)}</b> MWh potential</span><span><b>${n(o.remainingWasteMwh)}</b> MWh remaining</span></div></section>
-      <section class="dash-card dash-fleet">${cardHead('car','blue','Flexible charging','Scenario input, not vehicle telemetry')}<div class="dash-fleet-intro"><div class="dash-figure"><strong>${n(flex)}</strong><span>MWh</span></div><p>flexible demand</p></div>${dashboardCharger()}<div class="dash-meter"><div class="dash-meter-head"><span>Proposed power</span><span><b>${n(o.proposedPowerMw)}</b> of ${n(modelState.capacity)} MW</span></div><div class="dash-bar"><i style="--fill:${Math.min(1,o.proposedPowerMw/modelState.capacity)}"></i></div></div><div class="dash-fleet-stats"><div><span class="dash-mini is-green">${icon('check',18)}</span><strong>${n(o.potentialRecoveryMwh)} MWh</strong><small>absorbable</small></div><div><span class="dash-mini is-blue">${icon('clock',18)}</span><strong>${n(o.remainingFlexibleMwh)} MWh</strong><small>flexibility left</small></div></div></section>
-      <section class="dash-card dash-outlook">${cardHead('pulse','neutral','Energy outlook','Two actual model targets; each covers a separate half-hour',`<div class="dash-tabs">${tabs}</div>`)}<div class="dash-chart-legend"><small>MWh per half-hour</small><span><i class="is-risk"></i>${dashboardMode==='energy'?'At risk':'Potential absorption'}</span><span><i class="is-charge"></i>${dashboardMode==='energy'?'Potential absorption':'Remaining at risk'}</span></div><div class="dash-chart-host restored-chart">${dashboardOutlookChart()}</div><div class="dash-insight">${tile('tower','amber-soft')}<div><strong>${settings.cause?modelCause(p):'Model context hidden'}</strong><span>Prediction issued ${escapeHtml(modelTime(p.issuedAt,true))} · Europe/Dublin · Two independent half-hours</span></div><button type="button" data-page="forecast">Explore forecast ${icon('arrow',16)}</button></div></section>
+      ${dashboardRecoveryCard(p,o)}
+      ${dashboardFleet(o)}
+      ${outlookCard(p)}
       <section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation',`<span class="dash-chip is-ready"><i></i>Projected</span>`)}<h3>Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at ${escapeHtml(modelTime(p.targetAt))}.</h3>${dashboardPillars(p,o)}<p class="restored-plan-note">Demand and capacity limit the estimate. Vehicle decisions are not supplied.</p><button class="dash-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',18)}</button></section>
     </div>${provenance()}`;
   });
 }
-
-document.addEventListener('click',event=>{const mode=event.target.closest('[data-dashboard-mode]');if(!mode||dashboardMode===mode.dataset.dashboardMode)return;dashboardMode=mode.dataset.dashboardMode;const card=mode.closest('.dash-outlook'),host=card?.querySelector('.dash-chart-host'),legend=card?.querySelectorAll('.dash-chart-legend span');if(!host||!legend||legend.length<2){render();return}card.querySelectorAll('[data-dashboard-mode]').forEach(button=>{button.classList.toggle('active',button.dataset.dashboardMode===dashboardMode);button.setAttribute('aria-pressed',String(button.dataset.dashboardMode===dashboardMode))});legend[0].lastChild.textContent=dashboardMode==='energy'?'At risk':'Potential absorption';legend[1].lastChild.textContent=dashboardMode==='energy'?'Potential absorption':'Remaining at risk';host.innerHTML=dashboardOutlookChart();if(!matchMedia('(prefers-reduced-motion: reduce)').matches)host.animate([{opacity:.55,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration:280,easing:'ease-out'});});

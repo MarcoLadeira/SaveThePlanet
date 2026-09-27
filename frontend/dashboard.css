@@ -113,38 +113,6 @@
 .dash-donut-side.is-rest{fill:#e0952f}
 .dash-donut-bottom.is-rest{fill:#b9751a}
 
-/* ---------- EV fleet ---------- */
-.dash-fleet{justify-content:space-between}
-.dash-fleet .dash-figure{margin-top:12px}
-.dash-meter-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
-.dash-meter-head b{font-weight:750;color:var(--ink)}
-.dash-meter-head b.is-blue{color:var(--blue-ink)}
-.dash-bar{position:relative;height:20px;border-radius:10px;background:var(--surface-2);box-shadow:inset 0 2px 0 var(--edge)}
-.dash-bar>i{position:absolute;left:3px;top:3px;height:12px;width:calc((100% - 6px)*var(--fill));border-radius:7px;background:var(--blue);box-shadow:0 2px 0 var(--blue-deep);animation:dash-grow-x 1s cubic-bezier(.2,.8,.2,1) .2s both}
-.dash-fleet-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.dash-fleet-stats>div{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:center;padding:10px 12px;border-radius:16px;background:var(--surface-2)}
-.dash-mini{grid-row:1/3;display:grid;place-items:center;width:34px;height:34px;border-radius:11px}
-.dash-mini.is-green{background:var(--green-soft);color:var(--green)}
-.dash-mini.is-blue{background:var(--blue-soft);color:var(--blue-ink)}
-.dash-mini svg{stroke-width:2}
-.dash-fleet-stats strong{font-size:18px;line-height:1.15;font-weight:800;letter-spacing:-.02em}
-.dash-fleet-stats small{font-size:11.5px;line-height:1.25;color:var(--ink-3)}
-
-.dash-charger{position:absolute;top:50px;right:18px;width:112px;overflow:visible}
-.dash-charger .slab.t{fill:#e1ebf8}.dash-charger .slab.l{fill:#c6d8ef}.dash-charger .slab.r{fill:#aac3e5}
-.dash-charger .post.t{fill:#fff}.dash-charger .post.l{fill:#f2f6fb}.dash-charger .post.r{fill:#cfdcee}
-.dash-charger .screen{fill:var(--blue)}
-.dash-charger .cable{fill:none;stroke:#1f3b5c;stroke-width:3.5;stroke-linecap:round}
-.dash-charger .plug.t{fill:var(--blue-top)}.dash-charger .plug.l{fill:var(--blue)}.dash-charger .plug.r{fill:var(--blue-deep)}
-.dash-charger .badge{fill:var(--green)}
-.dash-charger .bolt{fill:#fff}
-.dashboard-main[data-theme="dark"] .dash-charger .slab.t{fill:#1f3350}
-.dashboard-main[data-theme="dark"] .dash-charger .slab.l{fill:#18283f}
-.dashboard-main[data-theme="dark"] .dash-charger .slab.r{fill:#132133}
-.dashboard-main[data-theme="dark"] .dash-charger .post.l{fill:#cbd8e6}
-.dashboard-main[data-theme="dark"] .dash-charger .post.r{fill:#9eb1c6}
-.dashboard-main[data-theme="dark"] .dash-charger .cable{stroke:#9eb1c6}
-
 /* ---------- Energy outlook ---------- */
 .dash-tabs{display:flex;gap:4px;padding:4px;border-radius:14px;background:var(--surface-2);box-shadow:inset 0 2px 0 var(--edge)}
 .dash-tabs button{border:0;border-radius:10px;padding:8px 14px;background:transparent;color:var(--ink-3);font-size:13px;font-weight:650;transition:color .15s ease,background-color .15s ease}
@@ -273,7 +241,6 @@
 .dash-impact p b{color:var(--ink);font-weight:750}
 
 /* ---------- Motion ---------- */
-@keyframes dash-grow-x{from{width:0}}
 @keyframes dash-rise{from{height:0}}
 @media(prefers-reduced-motion:reduce){.dashboard-main *,.dashboard-main *::before{animation:none!important;transition:none!important}}
 
@@ -285,8 +252,6 @@
   .dash-recovery{grid-column:2;grid-row:1}
   .dash-outlook{grid-column:1;grid-row:2}
   .dash-plan{grid-column:2;grid-row:2}
-  .dash-fleet{grid-column:1/3;grid-row:3;display:grid;grid-template-columns:auto auto minmax(0,1fr) minmax(0,320px);align-items:center;gap:26px}
-  .dash-fleet .dash-figure{margin-top:0}
-  .dash-charger{display:none}
+  .dash-fleet{grid-column:1/3;grid-row:3}
   .dash-outlook .dash-card-head{flex-wrap:wrap}
 }
