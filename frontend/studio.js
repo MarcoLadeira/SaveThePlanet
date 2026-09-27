@@ -1,7 +1,7 @@
 function tile(glyph,tone='green'){return `<span class="dash-tile is-${tone}">${icon(glyph,20)}</span>`}
 function n(value){return modelNumber(value)}
 function pct(value){return value===null?'—':`${n(value*100)}%`}
-function studioHeader(title,subtitle){const dashboard=title==='Dashboard';return `<header class="dash-header studio-header">${dashboard?'<div class="dashboard-header-art" aria-hidden="true"></div>':''}<div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div></header>`}
+function studioHeader(title,subtitle){const art={Forecast:'forecast',Charging:'charging',Impact:'impact',Settings:'settings'}[title]||'overview';return `<header class="dash-header studio-header"><div class="dashboard-header-art is-${art}" aria-hidden="true"></div><div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div></header>`}
 function studioShell(title,subtitle,content){
   const top=studioHeader(title,subtitle);
   if(modelState.loading){
