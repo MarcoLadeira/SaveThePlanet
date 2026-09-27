@@ -71,11 +71,11 @@
 .fleet-scene {
   position: absolute;
   z-index: 0;
-  top: 50%;
+  --fleet-scene-h: clamp(92px, min(128cqh - 120px, 70.5cqw - 109px), 360px);
   right: -18px;
-  height: clamp(92px, min(48cqh, 35.8cqw), 320px);
+  bottom: calc(var(--fleet-scene-h) * -.1 - 8px);
+  height: var(--fleet-scene-h);
   aspect-ratio: 799 / 516;
-  transform: translateY(-50%);
   pointer-events: none;
   user-select: none;
 }
@@ -220,7 +220,7 @@
   }
   .fleet-scene {
     position: relative;
-    top: auto;
+    bottom: auto;
     right: auto;
     align-self: flex-end;
     width: min(calc(100% + 18px), (100cqh - 260px) * 1.55);

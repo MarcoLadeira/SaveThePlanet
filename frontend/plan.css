@@ -1,0 +1,162 @@
+/* Your next move: the recommendation plus at-risk, flexible and absorbable energy. */
+.dashboard-main[data-current-page="overview"] .dashboard-redesign > .dash-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 18px 20px;
+  background: linear-gradient(160deg, #0a4a3b 0%, #063f33 52%, #03372c 100%);
+  box-shadow: inset 0 0 0 1px rgba(120, 214, 180, .14), 0 2px 0 #0a352e, 0 10px 26px rgba(8, 58, 46, .13);
+}
+.dashboard-main[data-current-page="overview"] .dashboard-redesign > .dash-plan:hover {
+  box-shadow: inset 0 0 0 1px rgba(120, 214, 180, .18), 0 3px 0 #0a352e, 0 15px 32px rgba(8, 58, 46, .18);
+}
+.dashboard-redesign .dash-plan > .dash-card-head { flex: 0 0 auto; gap: 12px; }
+.dashboard-redesign .dash-plan .dash-tile.is-lime {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #d3fdec, #adf1d2);
+  color: #06392b;
+}
+.dashboard-redesign .dash-plan .dash-tile svg { width: 22px; height: 22px; }
+/* Segoe UI jumps from Bold (700) to Black (900); the mock uses Bold throughout. */
+.dashboard-redesign .dash-plan .dash-head-copy h2 {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+}
+.dashboard-redesign .dash-plan .dash-head-copy p {
+  margin-top: 2px;
+  color: #9fcfc7;
+  font-size: 11.5px;
+}
+
+.dash-plan .plan-headline {
+  margin-top: 16px;
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.dash-plan .plan-headline em {
+  color: #98f7cd;
+  font-style: normal;
+}
+
+.plan-chart {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  margin-top: 10px;
+}
+.plan-bars {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 60px;
+  max-height: 150px;
+}
+.plan-bars::after {
+  content: "";
+  position: absolute;
+  inset: auto -2px 0;
+  height: 2px;
+  border-radius: 2px;
+  background: #2b6b5c;
+}
+.plan-bar {
+  --plan-bar-h: max(3px, var(--plan-h) * (100% - 30px));
+  position: relative;
+  min-width: 0;
+}
+.plan-bar i {
+  position: absolute;
+  bottom: 0;
+  left: 21%;
+  right: 21%;
+  height: var(--plan-bar-h);
+  border-radius: 7px 7px 2px 2px;
+  background: linear-gradient(180deg, var(--bar-top), var(--bar-mid) 52%, var(--bar-bottom));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 0 18px var(--bar-glow), 0 6px 26px -4px var(--bar-glow);
+  transform-origin: bottom;
+  animation: plan-rise .8s cubic-bezier(.2, .8, .2, 1) var(--plan-delay, 0s) both;
+}
+.plan-bar-value {
+  position: absolute;
+  right: -6px;
+  bottom: calc(var(--plan-bar-h) + 7px);
+  left: -6px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  color: #a8d5d8;
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  animation: plan-fade .5s ease calc(var(--plan-delay, 0s) + .35s) both;
+}
+.plan-bar-value strong {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.plan-bar.is-risk { --bar-top: #ffd872; --bar-mid: #ffc04c; --bar-bottom: #e3a437; --bar-glow: rgba(255, 190, 70, .45); }
+.plan-bar.is-flex { --bar-top: #78cffd; --bar-mid: #40a1fc; --bar-bottom: #217bdd; --bar-glow: rgba(64, 160, 252, .5); }
+.plan-bar.is-recovery { --bar-top: #9af6c0; --bar-mid: #6cdfa1; --bar-bottom: #38ba7f; --bar-glow: rgba(90, 222, 150, .42); }
+.plan-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 8px;
+  color: #e8f6f0;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.plan-cta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 0 16px 0 18px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #c3fbe6, #b2f7da);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 6px 16px -8px rgba(120, 240, 190, .5);
+  color: #05281c;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  text-align: left;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.plan-cta svg {
+  flex: 0 0 auto;
+  stroke-width: 2.2;
+  transition: transform .2s ease;
+}
+.plan-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 10px 20px -8px rgba(120, 240, 190, .6);
+}
+.plan-cta:hover svg { transform: translateX(3px); }
+.plan-cta:focus-visible {
+  outline: 2px solid #a8f4c9;
+  outline-offset: 3px;
+}
+
+@keyframes plan-rise { from { transform: scaleY(0); } }
+@keyframes plan-fade { from { opacity: 0; transform: translateY(4px); } }

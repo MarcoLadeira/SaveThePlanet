@@ -6,6 +6,7 @@
 const fx = {
   model: 'daily',
   picker: null, // {month:'YYYY-MM'} while the date picker is open
+  caveatsOpen: { daily: true, short: false }, // survives re-renders
   daily: { info: null, infoLoading: false, infoError: '', date: null, result: null, loading: false, error: '', week: null, weekLoading: false },
   short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', day: null, dayLoading: false, horizon: 30, targets: null, byDate: null, issueSet: null },
 };
@@ -268,7 +269,7 @@ function fxDailyInfo() {
       ${fxInfoTile('What it looks at', `<p>${model.features.length} features from day-ahead weather forecasts: wind speed (mean, max, P75), solar radiation and temperature in four regions, plus season and weekend.</p><div class="fx-chips">${regions.map((r) => `<span>${r}</span>`).join('')}</div>`)}
       ${fxInfoTile(`Accuracy on ${n(t.rows)} held-out days`, `<div class="fx-scores">${fxScore('Event ROC AUC', t.rocAuc?.toFixed(2), '0.5 = coin flip')}${fxScore('Avg. precision', t.eventAveragePrecision?.toFixed(2), `base rate ${fxPercent(t.eventRate)}`)}${fxScore('Daily MAE', `${n(Math.round(t.dailyMaeMwh))} MWh`, gain !== null ? `${fxPercent(gain)} better than guessing zero` : '')}</div>`)}
       ${fxInfoTile('Training timeline', `${fxTimeline(dataset.partitions, (d) => fxDateLabel(d, 'short'))}<p class="fx-fine">Fitted through ${fxDateLabel(model.trainedThrough || dataset.fittedThrough, 'short')}. Pick a <b class="fx-t-test">test</b> day for an honest check against reality.</p>`, 'is-wide')}
-      ${fxCaveats(model.caveats, true)}
+      ${fxCaveats(model.caveats, 'daily')}
     </div></section>`;
 }
 
@@ -281,13 +282,13 @@ function fxShortInfo() {
       ${fxInfoTile('How the number is made', `<p>${n(model.featureCount)} live grid signals (ENTSO-E generation, load and price; EirGrid wind, solar, SNSP and interconnectors, plus lags and rolling stats) feed ${model.estimators.length} gradient-boosted models.</p>${mlOff ? '<p class="fx-fine">The MWh estimate currently comes from a tuned <b>trend baseline</b> (ML blend weight 0); the ML models supply the probability, split and range.</p>' : ''}`)}
       ${fxInfoTile(`Accuracy on ${n(t.rows)} held-out half-hours`, `<div class="fx-scores">${fxScore('MAE', `${t.maeMwh?.toFixed(1)} MWh`, `vs ${t.latestObservationMaeMwh?.toFixed(1)} repeating last value`)}${fxScore('Event F1', t.eventF1?.toFixed(2), `threshold ${model.classificationThreshold}`)}${fxScore('P10–P90 coverage', fxPercent(t.intervalCoverage), 'target 80%')}</div>`)}
       ${fxInfoTile('Training timeline', `${fxTimeline(model.partitions, (d) => `${fxDateLabel(d.slice(0, 10), 'short').replace(/ \d{4}$/, '')} ${fxClock(d)}`)}<p class="fx-fine">Dataset covers ${fxDateLabel(dataset.from.slice(0, 10), 'short')} – ${fxDateLabel(dataset.to.slice(0, 10), 'short')} (January 2026). It is a replay of history, not a live feed.</p>`, 'is-wide')}
-      ${fxCaveats(model.caveats, false)}
+      ${fxCaveats(model.caveats, 'short')}
     </div></section>`;
 }
 
-function fxCaveats(caveats, open) {
+function fxCaveats(caveats, kind) {
   if (!caveats?.length) return '';
-  return `<details class="fx-info-tile is-wide fx-caveats" ${open ? 'open' : ''}><summary><h3>Caveats from the model's own report <span>${caveats.length}</span></h3></summary><ul>${caveats.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></details>`;
+  return `<details class="fx-info-tile is-wide fx-caveats" data-fx-caveats="${kind}" ${fx.caveatsOpen[kind] ? 'open' : ''}><summary><h3>Caveats from the model's own report <span>${caveats.length}</span></h3></summary><ul>${caveats.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul></details>`;
 }
 
 // Every Forecast result is a replay of the real model on archived inputs, never a live forecast
@@ -453,6 +454,11 @@ document.addEventListener('click', (event) => {
   }
   if (fx.picker && !t.closest('.fx-picker-anchor')) { fx.picker = null; render(); }
 });
+// <details> toggle does not bubble, so listen in the capture phase.
+document.addEventListener('toggle', (event) => {
+  const kind = event.target.dataset?.fxCaveats;
+  if (kind) fx.caveatsOpen[kind] = event.target.open;
+}, true);
 document.addEventListener('keydown', (event) => {
   if (pageFromHash() !== 'forecast') return;
   if (event.key === 'Escape' && fx.picker) { fx.picker = null; render(); document.querySelector('[data-fx-picker]')?.focus(); return; }
