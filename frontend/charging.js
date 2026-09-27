@@ -10,7 +10,14 @@
 const cgDay = { status: 'idle', data: null, key: '', request: 0 };
 const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '' };
 let cgAssumptionsOpen = false;
+let cgWeekMode = 'this';
 
+// Monday of the week containing day, shifted by offset days (e.g. -7 for last week).
+function cgWeekStart(day, offset = 0) {
+    const d = new Date(`${day}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + offset);
+    return d.toISOString().slice(0, 10);
+}
 function cgKey() {
     return [modelState.capacity, modelState.totalDemandKwh, modelState.flexibleDemandKwh].join('|');
 }
@@ -20,7 +27,8 @@ function cgRerender() {
 function cgEnsureData() {
     if (!modelState.data) return;
     if (cgDay.key !== cgKey() && cgDay.status !== 'loading') cgLoadDay();
-    if (cgDay.status === 'ready' && cgWeek.date !== cgDay.data.date && cgWeek.status !== 'loading') cgLoadWeek(cgDay.data.date);
+    const monday = cgDay.status === 'ready' ? cgWeekStart(cgDay.data.date, cgWeekMode === 'last' ? -7 : 0) : '';
+    if (monday && cgWeek.date !== monday && cgWeek.status !== 'loading') cgLoadWeek(monday);
 }
 async function cgLoadDay() {
     const request = ++cgDay.request;
@@ -84,12 +92,21 @@ function cgFigure(name, value, format) {
 }
 cgFigure('cgTotal', () => modelState.data.scenario.totalDemandMwh, (v) => [n(v), 'MWh']);
 cgFigure('cgFlexible', () => modelState.data.scenario.flexibleDemandMwh, (v) => [n(v), 'MWh']);
-cgFigure('cgRisk', () => selectedPrediction().atRiskMwh, (v) => [n(v), 'MWh']);
-cgFigure('cgAbsorb', () => scenarioOutcome().potentialRecoveryMwh, (v) => [n(v), 'MWh']);
+cgFigure('cgProposed', () => scenarioOutcome().potentialRecoveryMwh, (v) => [n(v), 'MWh']);
+cgFigure('cgAvailable', () => selectedPrediction().atRiskMwh, (v) => [n(v), 'MWh']);
 
-function cgSpark(name, field, tone) {
+// Per half-hour of the replay day: charging covered by renewable energy at risk and the rest from the grid.
+function cgDaySeries() {
+    const list = cgDayIntervals(), total = (cgDay.data?.totalDemandKwh || 0) / 1000;
+    return {
+        renewable: list.map((i) => i.atRiskMwh),
+        charging: list.map((i) => i.potentialRecoveryMwh),
+        grid: list.map((i) => Math.max(0, total - i.potentialRecoveryMwh)),
+    };
+}
+function cgSpark(name, series, tone) {
     dashCharts[name] = {
-        values: () => ({ v: cgDayIntervals().map((i) => i[field]) }),
+        values: () => ({ v: cgDaySeries()[series] }),
         start: (t) => ({ v: t.v.map(() => 0) }),
         draw({ v }) {
             if (!v.length) return '<span class="cg-spark-empty"></span>';
@@ -100,14 +117,10 @@ function cgSpark(name, field, tone) {
         },
     };
 }
-cgSpark('cgRiskSpark', 'atRiskMwh', 'green');
-cgSpark('cgAbsorbSpark', 'potentialRecoveryMwh', 'blue');
-
-// A share bar for the demand cards: they are inputs, so they get no fake trend line.
-function cgShareBar(part, whole, label) {
-    const share = whole > 0 ? Math.min(1, part / whole) : 0;
-    return `<div class="cg-share" role="img" aria-label="${escapeHtml(label)}"><i style="width:${(share * 100).toFixed(1)}%"></i></div>`;
-}
+cgSpark('cgTotalSpark', 'grid', 'green');
+cgSpark('cgFlexibleSpark', 'charging', 'green');
+cgSpark('cgProposedSpark', 'charging', 'orange');
+cgSpark('cgAvailableSpark', 'renewable', 'purple');
 
 const CG_PLOT = { w: 660, h: 160, left: 44, right: 10, top: 18, bottom: 24 };
 function cgSelectedIndex(intervals) {
@@ -116,24 +129,24 @@ function cgSelectedIndex(intervals) {
 }
 dashCharts.cgSchedule = {
     values() {
-        const list = cgDayIntervals();
-        return { risk: list.map((i) => i.atRiskMwh), rec: list.map((i) => i.potentialRecoveryMwh), sel: cgSelectedIndex(list), status: cgDay.status };
+        const toMw = 60 / (cgDay.data?.intervalMinutes || 30), d = cgDaySeries();
+        return { renewable: d.renewable.map((v) => v * toMw), charging: d.charging.map((v) => v * toMw), grid: d.grid.map((v) => v * toMw), sel: cgSelectedIndex(cgDayIntervals()), status: cgDay.status };
     },
-    start: (t) => ({ ...t, risk: t.risk.map(() => 0), rec: t.rec.map(() => 0) }),
-    draw({ risk, rec, sel, status }) {
+    start: (t) => ({ ...t, renewable: t.renewable.map(() => 0), charging: t.charging.map(() => 0), grid: t.grid.map(() => 0) }),
+    draw({ renewable, charging, grid, sel, status }) {
         const { w, h, left, right, top, bottom } = CG_PLOT;
-        if (!risk.length) return cgChartState(status, 'Loading the replay day…', 'The replay day could not be loaded. Other figures on this page are unaffected.');
-        const max = chartNiceMax(Math.max(...risk, ...rec, 0.001));
-        const x = (i) => left + (w - left - right) * (i / (risk.length - 1 || 1));
+        if (!renewable.length) return cgChartState(status, 'Loading the replay day…', 'The replay day could not be loaded. Other figures on this page are unaffected.');
+        const max = chartNiceMax(Math.max(...renewable, ...charging, ...grid, 0.001));
+        const x = (i) => left + (w - left - right) * (i / (renewable.length - 1 || 1));
         const y = (v) => top + (h - top - bottom) * (1 - v / max);
         const pts = (vals) => vals.map((v, i) => [x(i), y(v)]);
         const area = (vals) => `${cgSmooth(pts(vals))}L${x(vals.length - 1)} ${h - bottom}L${x(0)} ${h - bottom}Z`;
-        const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
+        const series = (name, vals) => `<path class="cg-area is-${name}" d="${area(vals)}"/><path class="cg-line is-${name}" d="${cgSmooth(pts(vals))}"/>`;
+        const grid2 = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
         const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(cgDay.data.intervals[i].targetAt))}</text>`).join('');
-        const marker = sel >= 0 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(rec[sel])}" r="5"/>` : '';
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>
-            <path class="cg-area is-risk" d="${area(risk)}"/><path class="cg-line is-risk" d="${cgSmooth(pts(risk))}"/>
-            <path class="cg-area is-rec" d="${area(rec)}"/><path class="cg-line is-rec" d="${cgSmooth(pts(rec))}"/>
+        const marker = sel >= 0 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel])}" r="5"/>` : '';
+        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW</text>
+            ${series('grid', grid)}${series('renewable', renewable)}${series('charging', charging)}
             ${marker}<g class="cg-hours">${hours}</g><line class="cg-hover" x1="0" x2="0" y1="${top}" y2="${h - bottom}"/></svg>`;
     },
 };
@@ -156,23 +169,30 @@ dashCharts.cgDonut = {
     },
 };
 
+// Axis top and step so the scale reads 0, 100, 200, 300, 400 (or the same pattern at other sizes).
+function cgAxis(max) {
+    const step = chartNiceMax(Math.max(max, 1) / 4), top = Math.max(step, Math.ceil(max / step) * step);
+    return { top, ticks: Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step) };
+}
 dashCharts.cgWeek = {
     values() {
-        const days = cgWeek.status === 'ready' ? cgWeek.data.days : [];
+        const days = cgWeek.status === 'ready' ? [...cgWeek.data.days].sort((a, b) => a.date.localeCompare(b.date)) : [];
         return { v: days.map((d) => d.predictedMwh), days: days.map((d) => d.date), sel: cgDay.data?.date || '', status: cgWeek.status, message: cgWeek.message };
     },
     start: (t) => ({ ...t, v: t.v.map(() => 0) }),
     draw({ v, days, sel, status, message }) {
         if (!v.length) return cgChartState(status, 'Loading the daily model…', `Weekly figures unavailable: ${escapeHtml(message || 'the daily model did not respond.')}`);
-        const w = 540, h = 150, left = 50, bottom = 24, top = 16, max = chartNiceMax(Math.max(...v, 1));
-        const slot = (w - left - 8) / v.length, bw = Math.min(46, slot * 0.58);
+        const w = 540, h = 150, left = 50, bottom = 24, top = 16, { top: max, ticks } = cgAxis(Math.max(...v));
+        const slot = (w - left - 8) / 7, bw = Math.min(46, slot * 0.58);
         const y = (val) => top + (h - top - bottom) * (1 - val / max);
-        const grid = [0, 0.5, 1].map((f) => `<line x1="${left}" x2="${w - 8}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
+        const grid = ticks.map((t) => `<line x1="${left}" x2="${w - 8}" y1="${y(t)}" y2="${y(t)}"/><text x="${left - 8}" y="${y(t) + 4}" text-anchor="end">${n(t)}</text>`).join('');
         const bars = v.map((val, i) => {
-            const bx = left + slot * i + (slot - bw) / 2, top2 = y(val), label = cgDayLabel(days[i]).split(/[ ,]/)[0];
-            return `<rect class="cg-bar${days[i] === sel ? ' is-sel' : ''}" x="${bx.toFixed(1)}" y="${top2.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h - bottom - top2).toFixed(1)}" rx="7"/><text class="cg-bar-label" x="${(bx + bw / 2).toFixed(1)}" y="${h - 9}" text-anchor="middle">${escapeHtml(label)}</text>`;
+            const slotIndex = (new Date(`${days[i]}T00:00:00Z`).getUTCDay() + 6) % 7;
+            const bx = left + slot * slotIndex + (slot - bw) / 2, top2 = y(val);
+            return `<rect class="cg-bar${days[i] === sel ? ' is-sel' : ''}" x="${bx.toFixed(1)}" y="${top2.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h - bottom - top2).toFixed(1)}" rx="7"/>`;
         }).join('');
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>${bars}</svg>`;
+        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => `<text class="cg-bar-label" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle">${d}</text>`).join('');
+        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>${bars}${labels}</svg>`;
     },
 };
 
@@ -202,39 +222,39 @@ dashCharts.cgScatter = {
 };
 
 // ---------- page ----------
-function cgKpi(tone, label, figure, note, visual, aria) {
-    const f = dashCharts[figure], [num, unit] = [n(f.values().v), 'MWh'];
-    return `<article class="dash-card cg-kpi is-${tone}"><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${aria}: ${num} ${unit}`)}"><strong>0<small>MWh</small></strong></div><em>${note}</em></div><div class="cg-kpi-visual">${visual}</div></article>`;
+function cgKpi(tone, label, figure, note, spark, sparkLabel) {
+    const value = dashCharts[figure].values().v;
+    return `<article class="dash-card cg-kpi is-${tone}"><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${label}: ${n(value)} MWh`)}"><strong>0<small>MWh</small></strong></div><em>${note}</em></div><div class="cg-kpi-visual">${chartSlot(spark, sparkLabel)}</div></article>`;
 }
 function cgKpis() {
-    const s = modelState.data.scenario, o = scenarioOutcome(), p = selectedPrediction(), day = cgDay.data;
-    const dayNote = (field) => (day ? `Replay day total ${n(day.totals[field])} MWh` : 'Day profile loading…');
+    const s = modelState.data.scenario, p = selectedPrediction();
     return `<section class="cg-kpis" aria-label="${escapeHtml(`Selected ${modelTime(p.targetAt)} forecast half-hour`)}">
-        ${cgKpi('green', 'Total demand', 'cgTotal', 'Your assumption for the half-hour', cgShareBar(s.flexibleDemandMwh, s.totalDemandMwh, 'Flexible share of total demand'), 'Total demand')}
-        ${cgKpi('green', 'Flexible demand', 'cgFlexible', `${pct(s.totalDemandMwh ? s.flexibleDemandMwh / s.totalDemandMwh : null)} can shift to renewable periods`, cgShareBar(s.flexibleDemandMwh, s.totalDemandMwh, 'Flexible share of total demand'), 'Flexible demand')}
-        ${cgKpi('orange', 'Energy at risk', 'cgRisk', `Model prediction · ${dayNote('atRiskMwh')}`, chartSlot('cgRiskSpark', 'Replay day profile of energy at risk'), 'Renewable energy at risk')}
-        ${cgKpi('blue', 'Potential absorption', 'cgAbsorb', `Upper-bound estimate · ${dayNote('potentialRecoveryMwh')}`, chartSlot('cgAbsorbSpark', 'Replay day profile of potential absorption'), 'Potential absorption')}
+        ${cgKpi('green', 'Total demand', 'cgTotal', 'Your assumption · line: grid-powered part', 'cgTotalSpark', 'Charging from the grid in each half-hour of the replay day')}
+        ${cgKpi('green', 'Flexible demand', 'cgFlexible', `${pct(s.totalDemandMwh ? s.flexibleDemandMwh / s.totalDemandMwh : null)} can shift · line: renewable part`, 'cgFlexibleSpark', 'Charging covered by renewable energy at risk in each half-hour')}
+        ${cgKpi('orange', 'Proposed charging', 'cgProposed', 'Into the renewable surplus · upper bound', 'cgProposedSpark', 'Proposed charging in each half-hour of the replay day')}
+        ${cgKpi('purple', 'Potential absorption', 'cgAvailable', 'Renewable surplus · model prediction', 'cgAvailableSpark', 'Renewable energy at risk in each half-hour of the replay day')}
     </section>`;
 }
 function cgScheduleCard() {
     const day = cgDay.data;
-    const sub = day ? `Replay day ${escapeHtml(cgDayLabel(day.date))} · +${day.horizonMinutes} min forecasts · per half-hour` : 'Historical replay day · per half-hour';
+    const sub = day ? `When charging uses renewable energy · replay day ${escapeHtml(cgDayLabel(day.date))} · average MW per half-hour` : 'When charging uses renewable energy · average MW per half-hour';
     const note = day && cgSelectedIndex(day.intervals) < 0 ? '<p class="cg-note">The selected forecast half-hour is not on this replay day, so no marker is shown.</p>' : '';
-    return `<section class="dash-card cg-card cg-schedule">${cardHead('green', 'Charging opportunity through the day', sub)}<ul class="cg-legend"><li><i class="is-risk"></i>Renewable energy at risk</li><li><i class="is-rec"></i>Potential EV absorption</li><li><i class="is-sel"></i>Selected half-hour</li></ul>
-        <div class="cg-plot" data-cg-plot>${chartSlot('cgSchedule', 'Renewable energy at risk and potential EV absorption for each half-hour of the replay day', 'cg-chart')}<div class="cg-tooltip" role="status" hidden></div></div>${note}</section>`;
+    return `<section class="dash-card cg-card cg-schedule">${cardHead('green', 'Charging schedule', sub)}<ul class="cg-legend"><li><i class="is-renewable"></i>Renewable supply at risk</li><li><i class="is-charging"></i>Charging demand on renewable</li><li><i class="is-grid"></i>Charging demand on grid</li><li><i class="is-sel"></i>Selected half-hour</li></ul>
+        <div class="cg-plot" data-cg-plot>${chartSlot('cgSchedule', 'Renewable supply at risk and charging demand split between renewable and grid for each half-hour of the replay day', 'cg-chart')}<div class="cg-tooltip" role="status" hidden></div></div>${note}</section>`;
 }
 function cgMixCard() {
     const s = modelState.data.scenario, o = scenarioOutcome(), ev = s.evAssumptions;
     const grid = Math.max(0, s.totalDemandMwh - o.potentialRecoveryMwh);
     return `<section class="dash-card cg-card cg-mix">${cardHead('green', 'Charging mix', `${cgTarget()} · upper-bound estimate`)}
-        <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null)} of total demand could use renewable energy at risk`, 'cg-donut')}
-            <ul class="cg-mix-legend"><li><i class="is-risk"></i><span>From renewable energy at risk</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-grid"></i><span>Other supply</span><b>${n(grid)} MWh</b></li></ul></div>
-        <div class="cg-ev"><p><b>≈ ${n(o.evChargesEquivalent)}</b> × ${n(ev.kwhPerCharge)} kWh charge equivalents · <small>energy comparison, not vehicles</small></p>
-            <p><b>≥ ${n(o.minConcurrentPorts)}</b> × ${n(ev.chargerKw)} kW ports running together · <small>≤ ${n(o.portKwhLimit)} kWh each in 30 min, if enough EVs are plugged in</small></p></div></section>`;
+        <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null)} of charging could use renewable energy`, 'cg-donut')}
+            <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>Renewable energy</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-grid"></i><span>Grid energy</span><b>${n(grid)} MWh</b></li></ul></div>
+        <div class="cg-ev"><strong>In EV terms</strong><p><b>≈ ${n(Math.round(o.evChargesEquivalent * 10) / 10)}</b> × ${n(ev.kwhPerCharge)} kWh charges' worth of energy <small>(a comparison, not a count of cars)</small></p>
+            <p><b>≥ ${n(o.minConcurrentPorts)}</b> × ${n(ev.chargerKw)} kW chargers running at once <small>(≤ ${n(o.portKwhLimit)} kWh each in 30 min, if enough EVs are plugged in)</small></p></div></section>`;
 }
 function cgWeekCard() {
-    const sub = cgWeek.status === 'ready' ? `Daily model · predicted curtailment per day · upper bound for EV charging` : 'Daily model · predicted curtailment per day · upper bound for EV charging';
-    return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', sub)}${chartSlot('cgWeek', 'Predicted curtailment for each day of the week', 'cg-chart')}</section>`;
+    const range = cgWeek.status === 'ready' ? (() => { const d = [...cgWeek.data.days].sort((a, b) => a.date.localeCompare(b.date)); return ` · ${escapeHtml(cgDayLabel(d[0].date).replace(/^\w+, /, ''))} – ${escapeHtml(cgDayLabel(d.at(-1).date).replace(/^\w+, /, ''))}`; })() : '';
+    const select = `<label class="cg-select"><span class="sr-only">Week</span><select id="cg-week-select"><option value="this"${cgWeekMode === 'this' ? ' selected' : ''}>This week</option><option value="last"${cgWeekMode === 'last' ? ' selected' : ''}>Last week</option></select></label>`;
+    return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', `Daily model · predicted curtailment${range}`, select)}${chartSlot('cgWeek', 'Predicted curtailment for each day of the week, Monday to Sunday', 'cg-chart')}</section>`;
 }
 function cgScatterCard() {
     const best = cgBestWindows(cgDayIntervals());
@@ -265,8 +285,8 @@ function renderCharging() {
     return studioShell('Charging', 'Historical dataset prediction · illustrative EV charging opportunity, not live control.', () => {
         cgEnsureData();
         const d = modelState.data;
-        const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Potential absorption = min(energy at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
-        return `<div class="cg-toolbar">${studioControls()}${cgAssumptions()}</div>${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgScatterCard()}</div>${foot}`;
+        const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Proposed charging = min(renewable surplus at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
+        return `<div class="cg-toolbar"><p class="cg-selected">${icon('calendar', 18)} Selected: <b>${cgTarget()}</b> · ${escapeHtml(modelTime(selectedPrediction().targetAt, true))} · +${modelState.horizon} min forecast</p>${cgAssumptions()}</div>${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgScatterCard()}</div>${foot}`;
     });
 }
 
@@ -288,7 +308,8 @@ document.addEventListener('pointermove', (event) => {
     svg.querySelector('.cg-hover')?.setAttribute('x2', sx);
     plot.classList.add('is-hovering');
     tip.hidden = false;
-    tip.innerHTML = `<b>${escapeHtml(modelTime(row.targetAt))} half-hour</b><span><i class="is-risk"></i>${n(row.atRiskMwh)} MWh at risk</span><span><i class="is-rec"></i>${n(row.potentialRecoveryMwh)} MWh could be absorbed</span>${row.probability != null ? `<span>${pct(row.probability)} event probability</span>` : ''}`;
+    const toMw = 60 / (cgDay.data.intervalMinutes || 30), total = (cgDay.data.totalDemandKwh || 0) / 1000;
+    tip.innerHTML = `<b>${escapeHtml(modelTime(row.targetAt))} half-hour</b><span><i class="is-renewable"></i>${n(row.atRiskMwh * toMw)} MW renewable supply at risk</span><span><i class="is-charging"></i>${n(row.potentialRecoveryMwh * toMw)} MW charging on renewable</span><span><i class="is-grid"></i>${n(Math.max(0, total - row.potentialRecoveryMwh) * toMw)} MW charging on grid</span>${row.probability != null ? `<span>${pct(row.probability)} event probability</span>` : ''}`;
     const pos = (sx / w) * 100;
     tip.style.left = `${Math.min(80, Math.max(4, pos))}%`;
 });
@@ -332,3 +353,9 @@ window.addEventListener('submit', (event) => {
     Object.assign(modelState, { totalDemandKwh: total, flexibleDemandKwh: flexible, kwhPerCharge: kwh, chargerKw: kw });
     loadModelForecast();
 }, true);
+
+document.addEventListener('change', (event) => {
+    if (event.target.id !== 'cg-week-select') return;
+    cgWeekMode = event.target.value === 'last' ? 'last' : 'this';
+    render();
+});
