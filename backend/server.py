@@ -537,15 +537,19 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(options, dict):
                 raise ValueError('Expected an object')
             horizon, scenario = options.get('horizon', 30), options.get('scenario', 'ordinary')
+            issue_mode = options.get('issueTime', 'example')
             capacity = float(options.get('capacityMw', 100))
             number(capacity, 'capacity', minimum=0.001, maximum=10000)
-            if horizon not in (30, 60) or isinstance(horizon, bool) or scenario not in synthetic.SCENARIOS:
+            if (horizon not in (30, 60) or isinstance(horizon, bool) or scenario not in synthetic.SCENARIOS
+                    or issue_mode not in synthetic.ISSUE_MODES):
                 raise ValueError('Invalid options')
         except (ValueError, TypeError):
-            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use horizon 30 or 60, scenario "ordinary" or "high-curtailment", and capacity 0.001-10000 MW.'}})
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use horizon 30 or 60, scenario "ordinary" or "high-curtailment", issueTime "example" or "current", and capacity 0.001-10000 MW.'}})
             return
         try:
-            self.send_json(200, synthetic.run(horizon, scenario, capacity))
+            self.send_json(200, synthetic.run(horizon, scenario, capacity, issue_mode))
+        except synthetic.SchemaDrift as error:
+            self.send_json(502, {'error': {'code': 'EXAMPLE_SCHEMA_DRIFT', 'message': str(error)}})
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
             diagnosis = diagnose(error)
             self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})

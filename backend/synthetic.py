@@ -30,6 +30,18 @@ LABEL = 'Synthetic scenario — not a forecast of today’s actual grid conditio
 EXAMPLE_PATH = ('paths', '/predict/v1/from-raw', 'post', 'requestBody', 'content', 'application/json', 'example')
 EXAMPLE_CACHE_SECONDS = 3600
 SCENARIOS = ('ordinary', 'high-curtailment')
+ISSUE_MODES = ('example', 'current')
+PURPOSE = ('Synthetic API demonstration / stress test: structurally valid inputs derived from the API\u2019s '
+           'January 2026 example, not realistic current telemetry.')
+PLAUSIBILITY_LIMIT = ('check_request() verifies structural invariants only (48-row timing, bounds, availability '
+                      '\u2265 generation, all-island \u2265 Ireland, ratios, signs, :30 prices). It does not establish '
+                      'seasonal or physical feasibility, and the high-curtailment dispatch-down is invented, not '
+                      'derived from the other inputs.')
+SCHEMA_PATHS = {'current_observation': 'V1RawCurrentObservation', 'history': 'V1RawHistoryObservation'}
+
+
+class SchemaDrift(ValueError):
+    """The API's example no longer matches its own schema or the fields this generator relies on."""
 
 # Approximate bounds of the five repeated history signals in the model's January 2026 dataset.
 HISTORY_BOUNDS = {
@@ -57,16 +69,51 @@ PENETRATION = [  # ratio field, numerator, denominator
 ]
 
 
+def check_schema(spec, example):
+    """Problems if the example drifted from the API's published schema or from the fields used here."""
+    problems = []
+    schemas = spec.get('components', {}).get('schemas', {})
+    for part, name in SCHEMA_PATHS.items():
+        declared = set(schemas.get(name, {}).get('properties', {}))
+        rows = example.get(part) if part == 'current_observation' else (example.get(part) or [{}])[0]
+        present = set(rows or {})
+        if not declared:
+            problems.append(f'schema {name} is missing')
+            continue
+        if present - declared:
+            problems.append(f'{part} has fields not in {name}: {sorted(present - declared)}')
+        required = set(schemas.get(name, {}).get('required', declared))
+        if required - present:
+            problems.append(f'{part} lacks required fields: {sorted(required - present)}')
+    used = set(HISTORY_BOUNDS) | {k for pair in IRELAND_TO_ALL_ISLAND + AVAILABILITY_PAIRS for k in pair} | \
+        {k for triple in PENETRATION for k in triple} | {'observed_dispatch_down_mwh', 'available_at_utc'}
+    missing = used - set(example.get('current_observation') or {})
+    if missing:
+        problems.append(f'generator fields missing from the example: {sorted(missing)}')
+    return problems
+
+
 def example_request():
-    """The complete example request from the model's OpenAPI document (cached; returns a copy)."""
+    """The complete example request from the model's OpenAPI document, checked against the
+    document's own schema (cached; returns a copy). Raises SchemaDrift if they disagree."""
     def build():
-        node = explorer.call('/openapi.json')
+        spec = explorer.call('/openapi.json')
+        node = spec
         for key in EXAMPLE_PATH:
             node = node[key]
         if not isinstance(node, dict) or len(node.get('history', [])) != 48:
-            raise ValueError('OpenAPI example for /predict/v1/from-raw is missing or incomplete')
-        return node
-    return copy.deepcopy(explorer.cached('v1-raw-example', EXAMPLE_CACHE_SECONDS, build))
+            raise SchemaDrift('OpenAPI example for /predict/v1/from-raw is missing or incomplete')
+        problems = check_schema(spec, node)
+        if problems:
+            raise SchemaDrift('The API example no longer matches its schema: ' + '; '.join(problems[:3]))
+        return {'example': node, 'apiVersion': spec.get('info', {}).get('version')}
+    found = explorer.cached('v1-raw-example', EXAMPLE_CACHE_SECONDS, build)
+    return copy.deepcopy(found['example'])
+
+
+def example_api_version():
+    hit = explorer._cache.get('v1-raw-example')
+    return hit[1].get('apiVersion') if hit else None
 
 
 def half_hour_floor(moment):
@@ -100,13 +147,21 @@ def _dispatch_down_walk(rng, count):
     return series
 
 
-def build_request(example, horizon, scenario='ordinary', now=None, rng=None, capacity=None):
-    """A varied, coherent /predict/v1/from-raw body. Raises ValueError for bad options."""
+def build_request(example, horizon, scenario='ordinary', now=None, rng=None, capacity=None, issue_mode='current'):
+    """A varied, coherent /predict/v1/from-raw body. Raises ValueError for bad options.
+
+    issue_mode "example" keeps the example's own, disclosed issue time (31 Jan 2026 22:30 UTC),
+    matching the January values; "current" uses the current UTC half-hour.
+    """
     if horizon not in (30, 60):
         raise ValueError('Horizon must be 30 or 60 minutes')
     if scenario not in SCENARIOS:
         raise ValueError('Unknown scenario')
+    if issue_mode not in ISSUE_MODES:
+        raise ValueError('Unknown issue-time mode')
     rng = rng or random.Random(os.urandom(16))
+    if issue_mode == 'example':
+        now = datetime.fromisoformat(example['issue_timestamp_utc'].replace('Z', '+00:00'))
     issue = half_hour_floor(now or datetime.now(timezone.utc))
     body = copy.deepcopy(example)
     high = scenario == 'high-curtailment'
@@ -213,22 +268,25 @@ def summary(body):
     }
 
 
-def run(horizon, scenario='ordinary', capacity=None):
+def run(horizon, scenario='ordinary', capacity=None, issue_mode='example'):
     """Generate a scenario, call the model and return a clearly labelled synthetic result."""
-    body = build_request(example_request(), horizon, scenario, capacity=capacity)
+    body = build_request(example_request(), horizon, scenario, capacity=capacity, issue_mode=issue_mode)
     problems = check_request(body, scenario)
     if problems:  # never send a request that breaks the stated rules
         raise ValueError('Synthetic request failed its own checks: ' + '; '.join(problems[:3]))
     response = explorer.call('/predict/v1/from-raw', body)
     prediction = explorer._v1_point(response)
     return {
-        'synthetic': True, 'label': LABEL, 'scenario': scenario,
+        'synthetic': True, 'label': LABEL, 'purpose': PURPOSE, 'plausibilityLimit': PLAUSIBILITY_LIMIT,
+        'scenario': scenario, 'issueMode': issue_mode, 'apiVersion': example_api_version(),
         'scenarioLabel': 'High-curtailment scenario (synthetic)' if scenario == 'high-curtailment' else 'Ordinary scenario (synthetic)',
         'modelVersion': response.get('model_version'),
         'inputProvenance': response.get('input_provenance'), 'inputNotice': response.get('input_notice'),
         'prediction': prediction, 'inputs': summary(body), 'request': body,
         'notes': [
             'Inputs are the API’s own example request varied to 90–110% (example zeros stay zero).',
+            ('Issue time is the example’s own date, 31 Jan 2026 22:30 UTC, so the January values fit it.' if issue_mode == 'example'
+             else 'Issue time is the current UTC half-hour, but the values are January 2026 values, not today’s grid.'),
             'History bounds come from the model’s January 2026 dataset: demo bounds, not verified ranges for today.',
             'Availability timestamps are synthetic metadata, not proof of publication.',
         ],

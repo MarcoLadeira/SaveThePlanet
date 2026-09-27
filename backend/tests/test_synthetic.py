@@ -18,6 +18,13 @@ from server import Handler
 
 # The example request published at /openapi.json for /predict/v1/from-raw (January 2026 dataset).
 EXAMPLE = json.loads((Path(__file__).parent / 'fixtures' / 'v1_raw_example.json').read_text(encoding='utf-8'))
+# The API's own schema components for the raw-input request (from /openapi.json).
+SCHEMAS = json.loads((Path(__file__).parent / 'fixtures' / 'v1_raw_schemas.json').read_text(encoding='utf-8'))
+
+
+def spec_with(example, schemas=SCHEMAS):
+    return {'info': {'version': '1.1.0'}, 'components': {'schemas': schemas},
+            'paths': {'/predict/v1/from-raw': {'post': {'requestBody': {'content': {'application/json': {'example': example}}}}}}}
 AT_00 = datetime(2026, 9, 27, 18, 5, tzinfo=timezone.utc)
 AT_30 = datetime(2026, 9, 27, 17, 44, tzinfo=timezone.utc)
 
@@ -100,12 +107,34 @@ class GeneratorTests(unittest.TestCase):
 
     def test_example_is_read_from_the_openapi_document(self):
         explorer._cache.clear()
-        spec = {'paths': {'/predict/v1/from-raw': {'post': {'requestBody': {'content': {'application/json': {'example': EXAMPLE}}}}}}}
-        with patch('explorer.call', return_value=spec) as call:
+        with patch('explorer.call', return_value=spec_with(EXAMPLE)) as call:
             self.assertEqual(synthetic.example_request()['issue_timestamp_utc'], EXAMPLE['issue_timestamp_utc'])
             synthetic.example_request()
         call.assert_called_once_with('/openapi.json')  # cached after the first fetch
+        self.assertEqual(synthetic.example_api_version(), '1.1.0')
         explorer._cache.clear()
+
+    def test_schema_drift_is_detected_before_anything_is_sent(self):
+        import copy
+        extra = copy.deepcopy(EXAMPLE)
+        extra['current_observation']['new_source_mw'] = 1.0
+        missing = copy.deepcopy(EXAMPLE)
+        del missing['current_observation']['eirgrid_ie_wind_availability_mw']
+        for example, fragment in ((extra, 'fields not in V1RawCurrentObservation'), (missing, 'lacks required fields')):
+            with self.subTest(fragment=fragment):
+                explorer._cache.clear()
+                with patch('explorer.call', return_value=spec_with(example)), self.assertRaises(synthetic.SchemaDrift) as caught:
+                    synthetic.example_request()
+                self.assertIn(fragment, str(caught.exception))
+        explorer._cache.clear()
+
+    def test_example_issue_time_mode_keeps_the_disclosed_january_date(self):
+        body = synthetic.build_request(EXAMPLE, 30, 'ordinary', rng=random.Random(1), issue_mode='example')
+        self.assertEqual(body['issue_timestamp_utc'], '2026-01-31T22:30:00Z')
+        self.assertEqual(body['history'][0]['timestamp_utc'], '2026-01-30T22:30:00Z')
+        self.assertEqual(synthetic.check_request(body), [])
+        with self.assertRaises(ValueError):
+            synthetic.build_request(EXAMPLE, 30, 'ordinary', issue_mode='tomorrow')
 
 
 def model_response(body):
@@ -151,6 +180,9 @@ class SyntheticHttpTests(unittest.TestCase):
         self.assertEqual(result['label'], 'Synthetic scenario — not a forecast of today’s actual grid conditions.')
         self.assertTrue(result['synthetic'])
         self.assertEqual(result['scenarioLabel'], 'High-curtailment scenario (synthetic)')
+        self.assertIn('stress test', result['purpose'])
+        self.assertIn('does not establish seasonal or physical feasibility', result['plausibilityLimit'])
+        self.assertEqual(result['issueMode'], 'example')
         path, sent = call.call_args.args
         self.assertEqual(path, '/predict/v1/from-raw')
         self.assertEqual((sent['forecast_horizon_minutes'], sent['flexible_load_capacity_mw']), (60, 50))
@@ -158,10 +190,15 @@ class SyntheticHttpTests(unittest.TestCase):
 
     @patch('explorer.call')
     def test_invalid_options_are_rejected_without_calling_the_model(self, call):
-        for payload in ({'horizon': 45}, {'scenario': 'storm'}, {'capacityMw': 0}, {'horizon': True}, ['x']):
+        for payload in ({'horizon': 45}, {'scenario': 'storm'}, {'capacityMw': 0}, {'horizon': True}, {'issueTime': 'soon'}, ['x']):
             with self.subTest(payload=payload):
                 self.assertEqual(self.post(payload)[0], 400)
         call.assert_not_called()
+
+    @patch('synthetic.example_request', side_effect=synthetic.SchemaDrift('The API example no longer matches its schema: x'))
+    def test_schema_drift_is_502_with_its_own_code(self, _example):
+        status, body = self.post({})
+        self.assertEqual((status, body['error']['code']), (502, 'EXAMPLE_SCHEMA_DRIFT'))
 
     @patch('synthetic.example_request', side_effect=TimeoutError())
     def test_model_failure_is_502(self, _example):
