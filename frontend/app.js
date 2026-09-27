@@ -50,9 +50,7 @@ function fitDesktop(){
   }
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
-  const banner=main.querySelector('.fallback-banner');
-  const inset=innerWidth<=600?12:24;
-  document.documentElement.style.setProperty('--volt-top',`${Math.max(inset,banner?banner.getBoundingClientRect().bottom+12:0)}px`);
+  document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
   fitDashboardCards();
 }
 function render(){
@@ -61,7 +59,7 @@ function render(){
   const previous=app.querySelector('.outlook-ready');
   if(previous)previous.remove();
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
-  app.innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
+  app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
   const replacement=app.querySelector('.outlook-ready');
   if(previous && replacement)replacement.replaceWith(previous);
   else if(previous)outlookTeardown();

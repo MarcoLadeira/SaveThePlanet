@@ -69,7 +69,7 @@ node --check frontend/app.js
 
 Manual: inspect all four screens, switch 30/60 minutes, set capacity to 0.1 MW
 (100 kW, so recovery cannot exceed 0.05 MWh), stop the model and refresh to verify
-the simulated fallback banner, restart the model and click Retry model. Charging and Impact should
+the simulated fallback footer label, restart the model and click Reload forecast in Settings. Charging and Impact should
 show the same scenario recovery as Overview.
 
 ## Shared scenario
@@ -125,9 +125,9 @@ Fallback provenance:
 The alternative reason is `INVALID_MODEL_RESPONSE`. Derived scenario data also
 has `dataMode=simulated` and carries the fixture source. A successful model call
 returns `fallback.active=false` with a null reason and normal model provenance.
-The UI shows a permanent amber banner on every page while fallback is active;
-Settings cannot suppress it. Refresh forecast / Retry model always tries the
-model again, clearing the banner on success. There is no background retry timer.
+The UI labels fallback results in the page footer ("Simulated fallback").
+Refresh forecast / Reload forecast always tries the
+model again. There is no background retry timer.
 
 The fixture has fixed timestamps, probabilities and energy values (0.35 and
 0.80 MWh), not random data or a cached successful request. The same input produces
@@ -139,8 +139,8 @@ seconds. The browser request timeout is 15 seconds. This fallback protects again
 model outages; the local SaveThePlanet backend must still be running.
 
 Rehearsal: start only `python backend/server.py` with GridToEv stopped, open the
-app, check the banner on each page and edit charging demand. Start GridToEv and
-click Retry model; the banner disappears and the entered assumptions remain.
+app, check the "Simulated fallback" footer and edit charging demand. Start GridToEv and
+click Reload forecast in Settings; the footer switches to model data and the entered assumptions remain.
 
 ## Health endpoint
 
@@ -193,6 +193,6 @@ never returned; only whether the model is `local` or `hosted` and whether a key 
 | `INVALID_MODEL_RESPONSE` | The model answered but the forecast failed validation (see `detail`). |
 
 The forecast `fallback.reason` stays `MODEL_UNAVAILABLE` or `INVALID_MODEL_RESPONSE`;
-the health codes above are the finer-grained explanation. The fallback banner shows
-the health message, and Settings → Model connection shows the full status with a
+the health codes above are the finer-grained explanation. Settings → Model connection
+shows the health message and the full status with a
 **Check connection** button (active probe) and **Reload forecast**.
