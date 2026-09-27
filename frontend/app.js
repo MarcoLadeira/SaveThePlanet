@@ -37,7 +37,7 @@ try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'
 let saved=true;
 function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','settings'].includes(p)?p:'overview'}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation"><span class="nav-pill" aria-hidden="true"></span>${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
 function fitDesktop(){
   const shell=document.querySelector('.app-shell');
   if(!shell)return;
@@ -52,15 +52,27 @@ function fitDesktop(){
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
   document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
 }
+let lastPage='';
+function slideNavPill(page,previous){
+  const nav=document.querySelector('.dash-sidebar .nav'),pill=nav?.querySelector('.nav-pill');
+  if(!pill)return;
+  const item=key=>nav.querySelector(`.nav-item[data-page="${key}"]`),target=item(page),from=item(previous);
+  if(!target){pill.style.opacity='0';return}
+  const place=el=>{pill.style.transform=`translateY(${el.offsetTop}px)`;pill.style.height=`${el.offsetHeight}px`};
+  if(from&&from!==target){pill.style.transition='none';place(from);pill.getBoundingClientRect();pill.style.transition=''}
+  place(target);
+}
 function render(){
-  const page=pageFromHash();
+  const page=pageFromHash(),previousPage=lastPage;
+  lastPage=page;
   const app=document.getElementById('app');
   const charts=chartsCollect(app);
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
-  app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
+  app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main${previousPage&&previousPage!==page?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
   chartsRestore(app,charts);
   document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
+  slideNavPill(page,previousPage);
   chartsSync(app);
 }
 document.addEventListener('click',event=>{
