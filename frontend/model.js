@@ -271,13 +271,3 @@ function isDemoData() {
 function dataSourceLabel() {
     return isDemoData() ? "Simulated demo data" : "Historical prediction";
 }
-function fallbackBanner() {
-    if (!isDemoData()) return "";
-    const diagnosis = modelState.health?.model?.error;
-    const reason = diagnosis
-        ? escapeHtml(diagnosis.message)
-        : modelState.data.fallback?.reason === "INVALID_MODEL_RESPONSE"
-          ? "The model returned unusable data."
-          : "The model is unavailable.";
-    return `<aside class="fallback-banner" role="status"><div><strong>Demo fallback — simulated data</strong><p>${reason} All results use a fixed example, with your charging assumptions. No live model predictions are being shown.</p></div><button class="secondary-button" id="model-retry">Retry model</button></aside>`;
-}
