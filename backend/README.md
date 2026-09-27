@@ -59,6 +59,30 @@ The response contains `generatedAt`, `source`, `dataMode`, `region`, `modelVersi
 Invalid region/capacity yields HTTP 400 with `error.code=INVALID_REQUEST`.
 Connection/timeout/non-2xx failures and malformed or inconsistent model responses return HTTP 200 with a validated local demo fixture. The payload explicitly marks simulated data and the reason (see below). Invalid user input remains HTTP 400; it never triggers fallback.
 
+### Impact day replay
+
+`GET /api/v1/impact/day?date=YYYY-MM-DD&capacityMw=100&totalDemandKwh=1000&flexibleDemandKwh=500`
+powers the Impact page's "Impact over time" and "Cumulative impact" charts and KPI sparklines
+(the page omits `date`, so it always shows the live forecast day; it also requests the day before
+for the day-over-day change). It calls
+GridToEv `POST /predict/window/from-dataset` once (24 h of +30-minute forecasts, ~15 s upstream,
+then cached per date and capacity). A background prefetch of neighbouring days exists but is off
+(`PREFETCH_DAYS = 0`) because the Impact page follows the live forecast day without a date picker;
+concurrent requests for the same day still share one upstream call. `GET /dataset/info` supplies the valid range
+(currently 2026-01-02 to 2026-01-31; the last day is partial). `date` defaults to the day the
++30/+60 forecast is issued on (the day before `GRID_TO_EV_ISSUE_TIMESTAMP`), so every card shows one day.
+
+The response has `date`, `range{min,max}`, `intervals[]` (`targetAt`, `atRiskMwh`,
+`potentialRecoveryMwh`, `remainingWasteMwh`, `avoidedEmissionsTco2`, `evRangeKm`), `totals`,
+`assumptions` and `methodology`. Intervals are consecutive, non-overlapping half-hours, so unlike
+the +30/+60 alternatives they may be summed; this assumes the entered flexible demand is available
+again in every half-hour (stated in `methodology`). Week/month/year views are not offered: the V1
+dataset covers one month and replays at most 24 h per call.
+
+Errors: invalid input or a date outside the dataset → HTTP 400 (`INVALID_REQUEST`,
+`DATE_OUT_OF_RANGE`); model unreachable or invalid → HTTP 502. There is no demo fallback for the
+day replay; the page keeps showing the two-target view instead.
+
 ## Verification
 
 ```powershell
