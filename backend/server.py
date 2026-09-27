@@ -1,5 +1,5 @@
 """Small product API and static frontend host. Run: python backend/server.py."""
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
-from scenario import build_scenario, validate_demand
+from scenario import build_day, build_scenario, validate_demand
 from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
@@ -44,38 +44,41 @@ def timestamp(value):
     return parsed.astimezone(timezone.utc)
 
 
+def normalize_row(row, capacity):
+    """Validate one GridToEv V1 prediction row and map it to product fields."""
+    horizon = number(row['forecast_horizon_minutes'], 'horizon')
+    if horizon not in (30, 60):
+        raise ValueError('Unsupported horizon')
+    issued, target = timestamp(row['issue_timestamp_utc']), timestamp(row['target_timestamp_utc'])
+    if (target - issued).total_seconds() != horizon * 60:
+        raise ValueError('Inconsistent target timestamp')
+    total = number(row['predicted_dispatch_down_mwh'], 'energy')
+    curtailment = number(row['predicted_curtailment_mwh'], 'curtailment')
+    constraint = number(row['predicted_constraint_mwh'], 'constraint')
+    recovered = number(row['recoverable_surplus_mwh'], 'recovery')
+    supplied_capacity = number(row['flexible_load_capacity_mw'], 'capacity')
+    if not math.isclose(supplied_capacity, capacity) or not math.isclose(total, curtailment + constraint, abs_tol=0.001):
+        raise ValueError('Inconsistent capacity or components')
+    if not math.isclose(recovered, min(total, capacity * 0.5), abs_tol=0.001):
+        raise ValueError('Inconsistent recoverable energy')
+    lower, median, upper = [number(row[f'prediction_interval_{q}_mwh'], q) for q in ('p10', 'p50', 'p90')]
+    if not lower <= median <= upper:
+        raise ValueError('Invalid uncertainty range')
+    risk = row['risk_level']
+    version = row['model_version']
+    if risk not in ('low', 'medium', 'high') or not isinstance(version, str) or not version:
+        raise ValueError('Invalid model metadata')
+    return dict(horizonMinutes=int(horizon), issuedAt=issued.isoformat(), targetAt=target.isoformat(),
+                modelVersion=version, probability=number(row['dispatch_down_probability'], 'probability', maximum=1),
+                risk=risk, atRiskMwh=total, curtailmentMwh=curtailment, constraintMwh=constraint,
+                lowerMwh=lower, medianMwh=median, upperMwh=upper, potentialRecoveryMwh=recovered)
+
+
 def normalize(payload, capacity):
     rows = payload['predictions']
     if not isinstance(rows, list) or len(rows) != 2:
         raise ValueError('Expected both forecast horizons')
-    points = []
-    for row in rows:
-        horizon = number(row['forecast_horizon_minutes'], 'horizon')
-        if horizon not in (30, 60):
-            raise ValueError('Unsupported horizon')
-        issued, target = timestamp(row['issue_timestamp_utc']), timestamp(row['target_timestamp_utc'])
-        if (target - issued).total_seconds() != horizon * 60:
-            raise ValueError('Inconsistent target timestamp')
-        total = number(row['predicted_dispatch_down_mwh'], 'energy')
-        curtailment = number(row['predicted_curtailment_mwh'], 'curtailment')
-        constraint = number(row['predicted_constraint_mwh'], 'constraint')
-        recovered = number(row['recoverable_surplus_mwh'], 'recovery')
-        supplied_capacity = number(row['flexible_load_capacity_mw'], 'capacity')
-        if not math.isclose(supplied_capacity, capacity) or not math.isclose(total, curtailment + constraint, abs_tol=0.001):
-            raise ValueError('Inconsistent capacity or components')
-        if not math.isclose(recovered, min(total, capacity * 0.5), abs_tol=0.001):
-            raise ValueError('Inconsistent recoverable energy')
-        lower, median, upper = [number(row[f'prediction_interval_{q}_mwh'], q) for q in ('p10', 'p50', 'p90')]
-        if not lower <= median <= upper:
-            raise ValueError('Invalid uncertainty range')
-        risk = row['risk_level']
-        version = row['model_version']
-        if risk not in ('low', 'medium', 'high') or not isinstance(version, str) or not version:
-            raise ValueError('Invalid model metadata')
-        points.append(dict(horizonMinutes=int(horizon), issuedAt=issued.isoformat(), targetAt=target.isoformat(),
-                           modelVersion=version, probability=number(row['dispatch_down_probability'], 'probability', maximum=1),
-                           risk=risk, atRiskMwh=total, curtailmentMwh=curtailment, constraintMwh=constraint,
-                           lowerMwh=lower, medianMwh=median, upperMwh=upper, potentialRecoveryMwh=recovered))
+    points = [normalize_row(row, capacity) for row in rows]
     points.sort(key=lambda p: p['horizonMinutes'])
     if [p['horizonMinutes'] for p in points] != [30, 60] or len({p['issuedAt'] for p in points}) != 1 or len({p['modelVersion'] for p in points}) != 1:
         raise ValueError('Forecast horizons must share an issue time and model')
@@ -115,6 +118,172 @@ def post_prediction(capacity, horizon):
 def fetch_forecast(capacity):
     rows = [post_prediction(capacity, horizon) for horizon in (30, 60)]
     return normalize({'predictions': rows}, capacity)
+
+
+# A 24-hour window replay takes ~15 s upstream (well beyond the per-call TIMEOUT), and the
+# hosted model serves requests one at a time, so allow for one queued replay ahead of it.
+WINDOW_TIMEOUT = 90
+# Days either side of a served day that are replayed in the background, nearest first,
+# so stepping through the date picker is usually instant.
+PREFETCH_DAYS = 3
+_day_cache = {}
+_day_inflight = {}  # key -> Event set when the owning fetch finishes (success or failure)
+_day_cache_lock = threading.Lock()
+# Prefetch plan: replaced (not appended) on each served day, so stale neighbours of days the
+# user has moved away from are dropped. The worker waits while any user replay is in flight,
+# because the upstream model processes one request at a time.
+_prefetch_plan = []
+_prefetch_wakeup = threading.Condition(_day_cache_lock)
+_user_replays = 0
+_prefetch_worker = None
+_dataset_range = None
+
+
+class DateOutOfRange(Exception):
+    def __init__(self, first, last):
+        super().__init__(f'Choose a date between {first} and {last}.')
+
+
+def model_request(path, body=None, timeout=TIMEOUT):
+    headers = {'Accept': 'application/json'}
+    key = os.environ.get('GRID_TO_EV_API_KEY')
+    if key:
+        headers['X-API-Key'] = key
+    data = None
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        data = json.dumps(body).encode()
+    request = Request(f'{MODEL_URL}{path}', data=data, headers=headers, method='POST' if data else 'GET')
+    with urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
+def dataset_range():
+    """First/last replayable issue times of the fixed historical dataset (cached per process)."""
+    global _dataset_range
+    if _dataset_range is None:
+        info = model_request('/dataset/info')
+        first = timestamp(info['available_issue_timestamp_min_utc'])
+        last = timestamp(info['available_issue_timestamp_max_utc'])
+        if last < first:
+            raise ValueError('Invalid dataset range')
+        _dataset_range = first, last
+    return _dataset_range
+
+
+def fetch_day_replay(day, capacity):
+    """48 consecutive +30 minute predictions issued across one UTC day (cached by day and capacity).
+
+    Concurrent requests for the same day share one upstream call: a user request for a
+    day that is already being prefetched waits for that result instead of starting a second
+    ~15 s replay.
+    """
+    key = (day.isoformat(), capacity)
+    for _ in range(2):
+        with _day_cache_lock:
+            if key in _day_cache:
+                return _day_cache[key]
+            pending = _day_inflight.get(key)
+            if pending is None:
+                pending = _day_inflight[key] = threading.Event()
+                break
+        pending.wait(WINDOW_TIMEOUT)  # owner failed or timed out if the cache is still empty
+    else:  # the previous owner never produced a result; fetch it ourselves
+        with _day_cache_lock:
+            pending = _day_inflight[key] = threading.Event()
+    try:
+        replay = _replay_day(day, capacity)
+        with _day_cache_lock:
+            _day_cache[key] = replay
+        return replay
+    finally:
+        with _day_cache_lock:
+            if _day_inflight.get(key) is pending:
+                del _day_inflight[key]
+        pending.set()
+
+
+def _replay_day(day, capacity):
+    first, last = dataset_range()
+    start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+    # The dataset's last day can be partial; only request issue times that exist.
+    hours = min(24.0, ((last - start).total_seconds() / 3600) + 0.5)
+    if start < first or hours <= 0:
+        raise DateOutOfRange(first.date(), last.date())
+    payload = model_request('/predict/window/from-dataset', dict(
+        start_timestamp_utc=start.isoformat().replace('+00:00', 'Z'), duration_hours=hours,
+        forecast_horizons_minutes=[30], flexible_load_capacity_mw=capacity), timeout=WINDOW_TIMEOUT)
+    rows = payload['predictions']
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('Empty window replay')
+    points = sorted((normalize_row(row, capacity) for row in rows), key=lambda p: p['targetAt'])
+    if any(p['horizonMinutes'] != 30 for p in points) or len({p['targetAt'] for p in points}) != len(points):
+        raise ValueError('Window replay must contain distinct +30 minute targets')
+    if len({p['modelVersion'] for p in points}) != 1:
+        raise ValueError('Window replay mixes model versions')
+    return dict(date=day.isoformat(), range=dict(min=first.date().isoformat(), max=last.date().isoformat()),
+                source='grid-to-ev-model', modelVersion=points[0]['modelVersion'], intervalMinutes=30,
+                horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
+
+
+def neighbour_days(day, first, last, span=None):
+    """Days within span (default PREFETCH_DAYS) of day, nearest first (+1, -1, +2, ...), clipped to the dataset."""
+    span = PREFETCH_DAYS if span is None else span
+    offsets = [sign * n for n in range(1, span + 1) for sign in (1, -1)]
+    return [d for d in (day + timedelta(days=o) for o in offsets) if first <= d <= last]
+
+
+def _next_prefetch():
+    """Block until a planned day can be fetched without delaying a user request."""
+    with _prefetch_wakeup:
+        while True:
+            while _prefetch_plan and (_prefetch_plan[0] in _day_cache or _prefetch_plan[0] in _day_inflight):
+                _prefetch_plan.pop(0)
+            if _prefetch_plan and _user_replays == 0:
+                return _prefetch_plan.pop(0)
+            _prefetch_wakeup.wait()
+
+
+def _prefetch_loop():
+    while True:
+        day, capacity = _next_prefetch()
+        try:
+            fetch_day_replay(date.fromisoformat(day), capacity)
+        except Exception:  # best effort; a real request will surface any error
+            pass
+
+
+def schedule_prefetch(day, capacity):
+    """Replace the prefetch plan with this day's uncached neighbours (one background worker)."""
+    global _prefetch_worker
+    if PREFETCH_DAYS <= 0:
+        return
+    first, last = (t.date() for t in dataset_range())
+    with _prefetch_wakeup:
+        _prefetch_plan[:] = [key for key in ((d.isoformat(), capacity) for d in neighbour_days(day, first, last))
+                             if key not in _day_cache and key not in _day_inflight]
+        if _prefetch_worker is None:
+            _prefetch_worker = threading.Thread(target=_prefetch_loop, name='day-prefetch', daemon=True)
+            _prefetch_worker.start()
+        _prefetch_wakeup.notify_all()
+
+
+class user_replay:
+    """Marks a user-facing replay as in flight so the prefetch worker holds off."""
+    def __enter__(self):
+        global _user_replays
+        with _prefetch_wakeup:
+            _user_replays += 1
+
+    def __exit__(self, *exc):
+        global _user_replays
+        with _prefetch_wakeup:
+            _user_replays -= 1
+            _prefetch_wakeup.notify_all()
+
+
+def default_replay_day():
+    return timestamp(ISSUE_TIMESTAMP).date()
 
 
 # def fetch_forecast(capacity):
@@ -263,6 +432,37 @@ class Handler(SimpleHTTPRequestHandler):
         except (URLError, TimeoutError, OSError, HTTPException, ValueError):
             self.send_json(502, {'error': {'code': 'CHAT_UNAVAILABLE', 'message': 'Cannot reach the AI service. Check your connection and retry.'}})
 
+    def impact_day(self, query):
+        try:
+            capacity = float(query.get('capacityMw', ['100'])[0])
+            number(capacity, 'capacity', minimum=0.001, maximum=10000)
+            total = float(query.get('totalDemandKwh', ['1000'])[0])
+            flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
+            validate_demand(total, flexible)
+            requested = query.get('date', [None])[0]
+            day = date.fromisoformat(requested) if requested else default_replay_day()
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use date YYYY-MM-DD, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
+            return
+        try:
+            with user_replay():
+                status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
+        except DateOutOfRange as error:
+            status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
+        except (URLError, TimeoutError, OSError, HTTPException):
+            status, body = 502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model for the day replay. Retry shortly.'}}
+        except (ValueError, KeyError, TypeError, OverflowError):
+            status, body = 502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': 'The model returned an invalid day replay.'}}
+        if status == 200:
+            try:
+                schedule_prefetch(day, capacity)
+            except Exception:  # prefetch is only an optimisation
+                pass
+        try:
+            self.send_json(status, body)
+        except (ConnectionError, TimeoutError):
+            pass  # the browser moved on (e.g. picked another day); the replay stays cached
+
     def do_GET(self):
         route = urlsplit(self.path)
         if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
@@ -287,6 +487,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model API. Start GridToEv on port 8000, then retry.'}})
             except (ValueError, KeyError, TypeError, OverflowError):
                 self.send_json(502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': 'The model returned an invalid forecast. Check the model service and retry.'}})
+            return
+        if route.path == '/api/v1/impact/day':
+            self.impact_day(parse_qs(route.query))
             return
         if route.path == '/api/v1/health':
             probe = parse_qs(route.query).get('probe', ['true']) != ['false']
