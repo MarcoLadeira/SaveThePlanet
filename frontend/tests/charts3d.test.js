@@ -72,7 +72,7 @@ test('confidence rows order targets, scale to P90 and mark the selection', () =>
   assert.equal(values.max, 2);
   const html = context.dashCharts.confidence.draw(values);
   assert.match(html, /data-horizon="60" aria-pressed="true"/);
-  assert.match(html, /17:25–17:55/);
+  assert.match(html, /17:55–18:25/); // target labels the start of its half-hour
   assert.match(html, /\+30 min · issued 17:25/);
   assert.match(html, /\+60 min · issued 16:55/);
   assert.match(html, /left:20\.00%;width:calc\(55\.00% - 20\.00%\)/);

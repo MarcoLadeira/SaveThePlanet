@@ -43,7 +43,14 @@ def build_scenario(forecast, total_kwh, flexible_kwh):
     capacity = forecast['flexibleCapacityMw'] * hours
     outcomes = [interval_outcome(p, capacity, hours, total, flexible) for p in forecast['predictions']]
     # Each outcome is an alternative use of the same demand, never an additive plan.
-    best = max(outcomes, key=lambda item: (item['potentialRecoveryMwh'], -item['horizonMinutes']))
+    shared_target = len({p['targetAt'] for p in forecast['predictions']}) == 1
+    if shared_target:
+        # Two forecast vintages of ONE half-hour, not two charging windows. Picking the larger
+        # estimate would cherry-pick the more optimistic forecast, so plan on the most recent
+        # vintage (+30 min, issued closest to the target).
+        best = min(outcomes, key=lambda item: item['horizonMinutes'])
+    else:
+        best = max(outcomes, key=lambda item: (item['potentialRecoveryMwh'], -item['horizonMinutes']))
     identity = dict(capacityMw=forecast['flexibleCapacityMw'], totalDemandKwh=total_kwh,
                     flexibleDemandKwh=flexible_kwh, predictions=forecast['predictions'])
     scenario_id = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12]
@@ -52,10 +59,15 @@ def build_scenario(forecast, total_kwh, flexible_kwh):
         source=forecast['source'], totalDemandKwh=total_kwh,
         flexibleDemandKwh=flexible_kwh, totalDemandMwh=total, flexibleDemandMwh=flexible,
         recommendedHorizonMinutes=best['horizonMinutes'] if best['potentialRecoveryMwh'] > 0 else None,
+        sharedTarget=shared_target,
+        recommendationBasis='most-recent-forecast' if shared_target else 'greatest-recovery',
         assumptions=dict(gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM),
         outcomes=outcomes, commitmentsMet=None, missedTargets=None, connectedEvs=None,
         methodology=[
             'Potential recovery is the minimum of predicted surplus, flexible demand and power capacity times 0.5 hours.',
+            ('Both horizons forecast the same half-hour from different issue times (+30 and +60 minutes before it): '
+             'they are two estimates of one charging window, not two windows. The plan uses the most recent (+30 min) '
+             'forecast rather than the larger estimate. Never add them.') if shared_target else
             'The two horizons are alternative scenarios using the same demand. Do not add their recovery values.',
             'All entered flexible demand is assumed available at either forecast target; 100% charging efficiency is assumed.',
             'Remaining demand must be scheduled separately. Vehicle deadlines, battery targets and baseline schedules are not supplied.',

@@ -19,9 +19,11 @@ function chartNiceMax(value) {
   return (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 2.5 ? 2.5 : ratio <= 5 ? 5 : 10) * step;
 }
 
+// The API's target timestamp is the START of the predicted half-hour ("the half-hour beginning
+// 30 or 60 minutes after issue"), matching PR #26's charging_window.
 function targetWindow(p) {
-  const end = new Date(p.targetAt);
-  const start = new Date(end.getTime() - (modelState.data?.intervalMinutes || 30) * 60000);
+  const start = new Date(p.targetAt);
+  const end = new Date(start.getTime() + (modelState.data?.intervalMinutes || 30) * 60000);
   return `${modelTime(start)}–${modelTime(end)}`;
 }
 

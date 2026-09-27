@@ -40,12 +40,24 @@ class ScenarioTests(unittest.TestCase):
         self.assertTrue(result['outcomes'][0]['powerLimitRespected'])
 
     def test_forecast_limits_recovery_and_best_horizon(self):
+        # Separate target half-hours are alternative windows: recommend the greater recovery.
+        forecast = self.forecast()
+        forecast['predictions'][0]['atRiskMwh'] = .1
+        forecast['predictions'][1]['atRiskMwh'] = .2
+        forecast['predictions'][1]['targetAt'] = '2026-01-31T23:30:00+00:00'
+        result = build_scenario(forecast, 1000, 500)
+        self.assertEqual((result['recommendedHorizonMinutes'], result['recommendationBasis']), (60, 'greatest-recovery'))
+        self.assertEqual(result['outcomes'][1]['potentialRecoveryMwh'], .2)
+
+    def test_two_vintages_of_one_target_plan_on_the_most_recent_forecast(self):
+        # Same half-hour from two issue times: never cherry-pick the larger (more optimistic) estimate.
         forecast = self.forecast()
         forecast['predictions'][0]['atRiskMwh'] = .1
         forecast['predictions'][1]['atRiskMwh'] = .2
         result = build_scenario(forecast, 1000, 500)
-        self.assertEqual(result['recommendedHorizonMinutes'], 60)
-        self.assertEqual(result['outcomes'][1]['potentialRecoveryMwh'], .2)
+        self.assertTrue(result['sharedTarget'])
+        self.assertEqual((result['recommendedHorizonMinutes'], result['recommendationBasis']), (30, 'most-recent-forecast'))
+        self.assertIn('two estimates of one charging window', ' '.join(result['methodology']))
 
     def test_zero_demand_or_surplus(self):
         result = build_scenario(self.forecast(), 0, 0)
