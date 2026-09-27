@@ -12,6 +12,8 @@ const modelState = {
 };
 let healthRequest = 0;
 let modelRequest = 0;
+let modelUpdateTimer;
+let modelInputsDirty = false;
 function escapeHtml(value) {
     return String(value).replace(
         /[&<>"']/g,
@@ -180,6 +182,9 @@ function modelView(page) {
     );
 }
 async function loadModelForecast() {
+    clearTimeout(modelUpdateTimer);
+    modelUpdateTimer = undefined;
+    modelInputsDirty = false;
     const request = ++modelRequest;
     modelState.loading = true;
     modelState.error = "";
@@ -251,15 +256,76 @@ document.addEventListener("change", (event) => {
         render();
     }
 });
-document.addEventListener("submit", (event) => {
-    if (event.target.id !== "model-capacity-form") return;
-    event.preventDefault();
-    const capacity = Number(document.getElementById("model-capacity").value);
-    if (!Number.isFinite(capacity) || capacity < 0.001 || capacity > 10000)
-        return;
-    modelState.capacity = capacity;
-    loadModelForecast();
+// One debounced update for capacity and demand, shared by every product page.
+const modelInputKeys = {
+    "model-capacity": "capacity",
+    "scenario-total": "totalDemandKwh",
+    "scenario-flexible": "flexibleDemandKwh",
+};
+function updateModelInputs(immediate = false) {
+    const flexible = document.getElementById("scenario-flexible");
+    const total = document.getElementById("scenario-total");
+    const validation = document.getElementById("scenario-validation");
+    if (flexible) flexible.setCustomValidity("");
+    const message = flexible && total && flexible.value !== "" && total.value !== ""
+        && Number(flexible.value) > Number(total.value)
+        ? "Flexible demand must not exceed total demand." : "";
+    if (flexible) flexible.setCustomValidity(message);
+    if (validation) validation.textContent = message;
+
+    const changes = {};
+    for (const [id, key] of Object.entries(modelInputKeys)) {
+        const input = document.getElementById(id);
+        if (!input) continue;
+        if (input.value === "" || !input.validity.valid || !Number.isFinite(Number(input.value))) {
+            clearTimeout(modelUpdateTimer);
+            modelUpdateTimer = undefined;
+            return;
+        }
+        changes[key] = Number(input.value);
+    }
+    const changed = Object.entries(changes).some(([key, value]) => modelState[key] !== value);
+    if (!changed && !modelInputsDirty) return;
+    Object.assign(modelState, changes);
+    modelInputsDirty = true;
+    clearTimeout(modelUpdateTimer);
+    if (immediate) loadModelForecast();
+    else modelUpdateTimer = setTimeout(loadModelForecast, 500);
+}
+
+document.addEventListener("input", (event) => {
+    if (Object.hasOwn(modelInputKeys, event.target.id)) updateModelInputs();
 });
+document.addEventListener("change", (event) => {
+    if (Object.hasOwn(modelInputKeys, event.target.id)) updateModelInputs();
+});
+document.addEventListener("submit", (event) => {
+    if (!["model-capacity-form", "charging-scenario-form"].includes(event.target.id)) return;
+    event.preventDefault();
+    updateModelInputs(true);
+});
+
+// Renders caused by network responses must not interrupt typing or clear drafts.
+function captureModelInputs() {
+    return Object.keys(modelInputKeys).map(id => {
+        const input = document.getElementById(id);
+        return input ? { id, input, focused: input === document.activeElement,
+            validation: input.validity.customError ? input.validationMessage : "" } : null;
+    }).filter(Boolean);
+}
+function restoreModelInputs(inputs) {
+    for (const saved of inputs) {
+        const input = document.getElementById(saved.id);
+        if (!input) continue;
+        input.replaceWith(saved.input);
+        if (saved.focused) saved.input.focus({ preventScroll: true });
+        if (saved.id === "scenario-flexible") {
+            const validation = document.getElementById("scenario-validation");
+            if (validation) validation.textContent = saved.validation;
+        }
+    }
+}
+
 document.addEventListener("click", (event) => {
     if (event.target.closest("#model-retry")) loadModelForecast();
     if (event.target.closest("#model-health-check")) loadModelHealth(true);
@@ -270,14 +336,4 @@ function isDemoData() {
 }
 function dataSourceLabel() {
     return isDemoData() ? "Simulated demo data" : "Historical prediction";
-}
-function fallbackBanner() {
-    if (!isDemoData()) return "";
-    const diagnosis = modelState.health?.model?.error;
-    const reason = diagnosis
-        ? escapeHtml(diagnosis.message)
-        : modelState.data.fallback?.reason === "INVALID_MODEL_RESPONSE"
-          ? "The model returned unusable data."
-          : "The model is unavailable.";
-    return `<aside class="fallback-banner" role="status"><div><strong>Demo fallback — simulated data</strong><p>${reason} All results use a fixed example, with your charging assumptions. No live model predictions are being shown.</p></div><button class="secondary-button" id="model-retry">Retry model</button></aside>`;
 }
