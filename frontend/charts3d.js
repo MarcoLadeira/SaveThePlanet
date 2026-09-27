@@ -202,14 +202,14 @@ dashCharts.fleetSplit = {
     return { absorbed: o.potentialRecoveryMwh, left: o.remainingFlexibleMwh, flexible: modelState.data.scenario.flexibleDemandMwh };
   },
   start: (target) => ({ ...target, absorbed: 0, left: 0 }),
-  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Absorbable', fleetShare(absorbed, flexible))
+  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Upper bound', fleetShare(absorbed, flexible))
     + fleetStat('orange', 'clock', left, 'Flexibility left', fleetShare(left, flexible)),
 };
 
 dashCharts.planHeadline = {
   values: () => ({ energy: scenarioNow().potentialRecoveryMwh, time: modelTime(selectedPrediction().targetAt) }),
   start: (target) => ({ ...target, energy: 0 }),
-  draw: ({ energy, time }) => `<h3 class="plan-headline">Use up to <em>${n(energy)} MWh</em> of flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
+  draw: ({ energy, time }) => `<h3 class="plan-headline">At most <em>${n(energy)} MWh</em> for flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
 };
 
 dashCharts.planBars = {
@@ -218,7 +218,7 @@ dashCharts.planBars = {
     return { rise: 1, bars: [
       { key: 'risk', label: 'At risk', value: p.atRiskMwh },
       { key: 'flex', label: 'Flexible', value: modelState.data.scenario.flexibleDemandMwh },
-      { key: 'recovery', label: 'Absorbable', value: scenarioNow().potentialRecoveryMwh },
+      { key: 'recovery', label: 'Upper bound', value: scenarioNow().potentialRecoveryMwh },
     ] };
   },
   start: (target) => ({ ...target, rise: 0 }),

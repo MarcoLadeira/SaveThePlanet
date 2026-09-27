@@ -427,7 +427,7 @@ function fxShortView() {
           <div class="fx-range-key"><span><i class="is-pred"></i>Predicted ${n(Math.round(p.atRiskMwh * 10) / 10)}</span>${actual === null || actual === undefined ? '' : `<span><i class="is-actual"></i>Observed ${n(Math.round(actual * 10) / 10)}</span>`}<span><i class="is-band"></i>P10–P90</span></div></div>
         <div class="studio-component"><div><span>Grid constraint</span><b>${n(Math.round(p.constraintMwh * 10) / 10)} MWh</b></div><progress max="${Math.max(p.atRiskMwh, 0.001)}" value="${p.constraintMwh}"></progress></div>
         <div class="studio-component"><div><span>Curtailment</span><b>${n(Math.round(p.curtailmentMwh * 10) / 10)} MWh</b></div><progress max="${Math.max(p.atRiskMwh, 0.001)}" value="${p.curtailmentMwh}"></progress></div>
-        <div class="studio-side-number"><span>Absorbable with ${n(r.capacityMw)} MW flexible load</span><strong>${n(Math.round(p.recoverableMwh * 10) / 10)} MWh</strong><small>min(predicted energy, capacity × 0.5 h) · set capacity on the Dashboard</small></div>
+        <div class="studio-side-number"><span>Upper bound with ${n(r.capacityMw)} MW flexible load</span><strong>${n(Math.round(p.recoverableMwh * 10) / 10)} MWh</strong><small>min(predicted energy, capacity × 0.5 h). Assumes chargers are connected where and when the dispatch-down happens; location, local grid constraints, fleet connection, charging power and response time can reduce it.</small></div>
       </section>
     </div>
     ${fxShortInfo()}

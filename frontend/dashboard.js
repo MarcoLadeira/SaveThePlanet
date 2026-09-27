@@ -23,14 +23,15 @@ function dashboardFleet(){
 function dashboardRecoveryChannel(p,o){
   const ratio=p.atRiskMwh?o.potentialRecoveryMwh/p.atRiskMwh:0;
   const green=Math.min(100,Math.max(0,ratio*100));
-  return `<div class="dash-recovery-channel" role="img" aria-label="${n(o.potentialRecoveryMwh)} MWh recoverable of ${n(p.atRiskMwh)} MWh at risk"><div class="dash-channel-label"><strong>${pct(o.recoveryRate)}</strong><span>of risk can be absorbed</span></div><div class="dash-channel-bed"><div class="dash-channel-fill" style="width:${green}%"></div></div><div class="dash-channel-foot"><span>${n(o.potentialRecoveryMwh)} MWh potential</span><span>${n(o.remainingWasteMwh)} MWh remaining</span></div></div>`;
+  return `<div class="dash-recovery-channel" role="img" aria-label="At most ${n(o.potentialRecoveryMwh)} MWh of ${n(p.atRiskMwh)} MWh at risk could be used by flexible charging (upper bound)"><div class="dash-channel-label"><strong>${pct(o.recoveryRate)}</strong><span>of risk is the charging upper bound</span></div><div class="dash-channel-bed"><div class="dash-channel-fill" style="width:${green}%"></div></div><div class="dash-channel-foot"><span>${n(o.potentialRecoveryMwh)} MWh potential</span><span>${n(o.remainingWasteMwh)} MWh remaining</span></div></div>`;
 }
 
 function dashboardPlan(p,o){
-  const label=`At risk ${n(p.atRiskMwh)} MWh, flexible ${n(modelState.data.scenario.flexibleDemandMwh)} MWh, absorbable ${n(o.potentialRecoveryMwh)} MWh`;
+  const label=`At risk ${n(p.atRiskMwh)} MWh, flexible ${n(modelState.data.scenario.flexibleDemandMwh)} MWh, upper bound ${n(o.potentialRecoveryMwh)} MWh`;
   return `<section class="dash-card dash-plan">${cardHead('tricolour','Your next move','Scenario recommendation')}
     ${chartSlot('planHeadline','Recommendation','plan-headline-slot','group')}
     ${chartSlot('planBars',label,'plan-chart')}
+    <p class="plan-caveat">Upper bound: assumes chargers are connected where and when the dispatch-down happens. Location, local grid constraints, fleet connection, charging power and response time can reduce it.</p>
     <button class="plan-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',20)}</button>
   </section>`;
 }
