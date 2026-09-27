@@ -184,14 +184,37 @@ class ModelCallTests(unittest.TestCase):
             return {'actuals': [{'status': 'available', 'target_timestamp_utc': t, 'actual_dispatch_down_mwh': 1.0}
                                 for t in body['target_timestamps_utc']]}
         call.side_effect = fake
+        for horizon, start in ((30, '2026-01-08T23:30:00Z'), (60, '2026-01-08T23:00:00Z')):
+            with self.subTest(horizon=horizon), patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
+                requests.clear()
+                day = explorer.short_term_day('2026-01-09', horizon)
+                # One window per request, for this horizon only: the hosted service slows down badly
+                # when replays run in parallel.
+                self.assertEqual([(r['start_timestamp_utc'], r['forecast_horizons_minutes']) for r in requests], [(start, [horizon])])
+                targets = sorted(p['targetAt'] for p in day['points'])
+                self.assertEqual({p['horizonMinutes'] for p in day['points']}, {horizon})
+                self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
+                self.assertEqual(len(day['observed']), 48)
+
+    @patch('explorer.call')
+    def test_day_replay_retries_a_timed_out_window_once(self, call):
+        start = explorer.utc('2026-01-08T00:00:00Z')
+        times = [explorer.iso(start + explorer.timedelta(minutes=30 * i)) for i in range(96)]
+        attempts = []
+
+        def fake(path, body=None):
+            if path == '/predict/window/from-dataset':
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise TimeoutError()
+                first = explorer.utc(body['start_timestamp_utc'])
+                return {'predictions': [v1_row(explorer.iso(first + explorer.timedelta(minutes=30 * i)), 30)
+                                        for i in range(int(body['duration_hours'] * 2))]}
+            return {'actuals': []}
+        call.side_effect = fake
         with patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
-            day = explorer.short_term_day('2026-01-09')
-        self.assertEqual(sorted((r['start_timestamp_utc'], r['forecast_horizons_minutes'][0]) for r in requests),
-                         [('2026-01-08T23:00:00Z', 60), ('2026-01-08T23:30:00Z', 30)])
-        for horizon in (30, 60):
-            targets = sorted(p['targetAt'] for p in day['points'] if p['horizonMinutes'] == horizon)
-            self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
-        self.assertEqual(len(day['observed']), 48)
+            day = explorer.short_term_day('2026-01-09', 30)
+        self.assertEqual((len(attempts), len(day['points'])), (2, 48))
 
     @patch('explorer.daily_info', return_value=V2_INFO)
     @patch('explorer.call')

@@ -191,3 +191,4 @@ i.is-marker{background:none;border-left:2px dashed var(--forest);border-radius:0
   .fx-info-grid{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){.fx-popover,.fx-dot-spin{animation:none}.fx-gauge-fill{transition:none}}
+.fx-chart-empty.is-error{flex-direction:column;gap:10px;color:#8f2b1d;text-align:center}

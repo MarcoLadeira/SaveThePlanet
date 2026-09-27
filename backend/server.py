@@ -356,10 +356,15 @@ class Handler(SimpleHTTPRequestHandler):
                 if target.minute not in (0, 30) or target.second or target.microsecond:
                     raise ValueError('Target must be a UTC half-hour')
                 action = partial(explorer.short_term_predict, target.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
-            elif name in ('short-term/day', 'daily/predict', 'daily/week'):
+            elif name == 'short-term/day':
                 day = date.fromisoformat(query.get('date', '')).isoformat()
-                action = partial({'short-term/day': explorer.short_term_day, 'daily/predict': explorer.daily_predict,
-                                  'daily/week': explorer.daily_week}[name], day)
+                horizon = int(query.get('horizon', '30'))
+                if horizon not in (30, 60):
+                    raise ValueError('Horizon must be 30 or 60')
+                action = partial(explorer.short_term_day, day, horizon)
+            elif name in ('daily/predict', 'daily/week'):
+                day = date.fromisoformat(query.get('date', '')).isoformat()
+                action = partial({'daily/predict': explorer.daily_predict, 'daily/week': explorer.daily_week}[name], day)
             elif name in ('short-term', 'daily'):
                 action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
             else:

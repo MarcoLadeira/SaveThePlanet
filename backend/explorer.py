@@ -14,7 +14,7 @@ import math
 import os
 import threading
 import time
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 # Window replays can take ~15 s on the hosted service, and a sleeping service
@@ -333,34 +333,47 @@ def day_targets(day):
     return [iso(start + timedelta(minutes=30 * i)) for i in range(48)]
 
 
-def short_term_day(day):
-    """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at both horizons, with actuals.
+def _with_retry(fn):
+    """One retry for a timeout or 5xx: the hosted service queues heavy replays and can time out."""
+    try:
+        return fn()
+    except HTTPError as error:
+        if error.code < 500:
+            raise
+    except (URLError, TimeoutError, OSError):
+        pass
+    return fn()
+
+
+def short_term_day(day, horizon=30):
+    """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at one horizon, with actuals.
 
     A target at 00:00 is predicted from 23:30 (+30) or 23:00 (+60) the day before, so each
-    horizon replays its own issue times, shifted back by the horizon.
+    horizon replays its own issue times, shifted back by the horizon. The hosted service
+    processes replays one at a time (a 24 h window takes ~13 s alone, ~39 s when two run
+    together), so one horizon is replayed per request and its runs are fetched sequentially.
     """
+    if horizon not in (30, 60):
+        raise ValueError('Horizon must be 30 or 60 minutes')
     day = date.fromisoformat(day).isoformat()
     info = short_term_info()
     if not any(t.startswith(day) for t in info['times']):
         raise LookupError('That date is not in the short-term model dataset.')
     available, targets = set(info['times']), day_targets(day)
-
-    def issues(horizon):
-        found = (forecast_issues(t, available).get(horizon) for t in targets)
-        return [t for t in found if t]
+    last = max(available)
+    issues = [i for i in (forecast_issues(t, available, last).get(horizon) for t in targets) if i]
 
     def build():
-        jobs = [lambda r=r, h=h: _window(r, h) for h in (30, 60) for r in contiguous_runs(issues(h))]
-        rows = [row for batch in parallel(*jobs) for row in batch]
+        rows = [row for run in contiguous_runs(issues) for row in _with_retry(lambda run=run: _window(run, horizon))]
         points = [p for p in map(_v1_point, rows) if p['targetAt'].startswith(day)]
         actuals = _v1_actuals(targets)
         for p in points:
             actual = actuals.get(p['targetAt'])
             p['actualMwh'] = actual['dispatchDownMwh'] if actual else None
         observed = [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None} for t in targets]
-        return {'date': day, 'modelVersion': rows[0].get('model_version') if rows else None,
+        return {'date': day, 'horizonMinutes': horizon, 'modelVersion': rows[0].get('model_version') if rows else None,
                 'points': points, 'observed': observed}
-    return cached(('v1-day', day), None, build)
+    return cached(('v1-day', day, horizon), None, build)
 
 
 # ---------------------------------------------------------------- V2 daily
