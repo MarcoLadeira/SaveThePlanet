@@ -65,7 +65,7 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 
 /* energy flow hero */
 /* the canvas keeps the scene ratio and fits inside whatever height the card has, so callouts stay aligned */
-.flow-stage{flex:1;min-height:0;container-type:size;display:grid;place-items:end center}
+.flow-stage{flex:1;min-height:0;container:flow/size;display:grid;place-items:end center}
 .flow-canvas{position:relative;width:min(100cqw,calc(100cqh * 1000 / 240));aspect-ratio:1000/240}
 .flow-scene{position:absolute;inset:0;width:100%;height:100%}
 .flow-water{fill:#d7ecf4}.flow-land{fill:#e4efe4}.flow-land-edge{fill:#c8dcc9}.flow-hill{fill:#bfe0c3}
@@ -155,17 +155,7 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .impact-alloc-key b{color:var(--ink)}
 .impact-link{flex:0 0 auto;display:flex;align-items:center;gap:6px;white-space:nowrap;padding:0;border:0;background:none;color:var(--green-deep);font-size:12px;font-weight:800;cursor:pointer}
 
-/* methodology (unchanged behaviour) */
-.impact-method{flex:0 0 auto;padding:8px 16px;border-radius:18px}
-.impact-method summary{display:flex;align-items:center;gap:12px;cursor:pointer;list-style:none}
-.impact-method summary::-webkit-details-marker{display:none}
-.impact-method-copy{display:flex;flex-direction:column;gap:2px}
-.impact-method summary strong{font-size:14px;color:var(--ink)}
-.impact-method summary small{font-size:11px;color:var(--ink-3)}
-.impact-method summary::after{content:"+";margin-left:auto;font-size:20px;font-weight:700;color:var(--ink-2)}
-.impact-method[open] summary::after{content:"−"}
-.impact-method ul{margin:10px 0 2px;padding-left:20px;display:grid;gap:4px;font-size:12px;line-height:1.45;color:var(--ink-2)}
-.dashboard-main[data-explanations="false"] .impact-method,.dashboard-main[data-explanations="false"] .impact-note{display:none}
+.dashboard-main[data-explanations="false"] .impact-note{display:none}
 
 /* narrower layouts (container queries: the shell is scaled, so viewport media queries do not apply) */
 @container impact (max-width:1000px){
@@ -228,10 +218,12 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 @keyframes flow-pulse{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
 @media(prefers-reduced-motion:reduce){.flow-ribbon.pulse{animation:none;opacity:0}}
 
-/* Generated landscape with a precisely aligned animated light overlay. */
+/* Generated landscape with a precisely aligned animated light overlay. Both share one box at the
+   art's true 2060:763 ratio: full width, resting on the bottom edge. A short card trims empty sky
+   first and a little lake; a very wide one stops growing so the turbines stay in frame. */
 .flow-canvas{width:100%;height:100%;aspect-ratio:auto;isolation:isolate;border-radius:14px;overflow:hidden;background:#fff}
-.flow-artwork{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:fill}
-.flow-motion{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.flow-artwork,.flow-motion{position:absolute;inset:auto 0 min(0px,(100cqh - min(100cqw,420cqh) * 763 / 2060) * .4) 0;display:block;width:min(100cqw,420cqh);height:auto;aspect-ratio:2060/763;margin:0 auto;pointer-events:none}
+@container flow (min-aspect-ratio:21/5){.flow-artwork,.flow-motion{mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}}
 .flow-light{fill:none;stroke:#f3fff5;stroke-width:5;stroke-linecap:round;stroke-dasharray:5 95;filter:drop-shadow(0 0 5px #67ed87);animation:flow-art-pulse 4s linear infinite}
 .flow-light.blue{stroke:#fff0e5;filter:drop-shadow(0 0 5px #ff9a52);animation-duration:3.6s}
 .flow-light.soft{stroke-width:3;opacity:.75}
@@ -253,3 +245,30 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-blue)}i.is-amb
 .is-motion-paused .flow-rotor{animation-play-state:paused}
 .flow-callout.at-source{left:32%;top:4%}
 @media(prefers-reduced-motion:reduce){.flow-rotor{animation:none}}
+
+/* Entrance, like the dashboard: cards rise in one after another while figures count up (chart engine),
+   then the charts draw themselves. .is-intro marks the page arriving; .is-drawing a chart's new data. */
+.impact-layout.is-intro .impact-kpi,.impact-layout.is-intro>.dash-card{animation:dash-card-in .48s cubic-bezier(.16,.84,.38,1) both}
+.impact-layout.is-intro .impact-kpi:nth-child(2){animation-delay:.05s}
+.impact-layout.is-intro .impact-kpi:nth-child(3){animation-delay:.1s}
+.impact-layout.is-intro .impact-kpi:nth-child(4){animation-delay:.15s}
+.impact-layout.is-intro>.impact-flow{animation-delay:.12s}
+.impact-layout.is-intro>.impact-time{animation-delay:.18s}
+.impact-layout.is-intro>.impact-events{animation-delay:.24s}
+.impact-layout.is-intro>.impact-cumulative{animation-delay:.3s}
+.is-intro .flow-artwork,.is-intro .flow-motion{animation:impact-art-in 1.1s cubic-bezier(.2,.8,.2,1) .15s both}
+.is-intro .flow-callout{animation:impact-float-in .5s cubic-bezier(.16,.84,.38,1) both}
+.is-intro .flow-callout.at-source{animation-delay:.5s}
+.is-intro .flow-callout.at-battery{animation-delay:.62s}
+.is-intro .flow-callout.at-chargers{animation-delay:.74s}
+.is-intro .impact-event{animation:impact-float-in .45s cubic-bezier(.16,.84,.38,1) both}
+.is-intro .impact-event:nth-child(1){animation-delay:.36s}
+.is-intro .impact-event:nth-child(2){animation-delay:.44s}
+.is-drawing .impact-area .line,.is-drawing .impact-cum-line,.is-drawing .impact-spark .line{stroke-dasharray:1;animation:impact-draw 1.2s cubic-bezier(.45,.05,.25,1) .25s both}
+.is-drawing .impact-area .area,.is-drawing .impact-cum-area,.is-drawing .impact-spark .area,.is-drawing .impact-bar rect:not(.hit),.is-drawing .impact-micro rect{transform-box:fill-box;transform-origin:50% 100%;animation:impact-rise .9s cubic-bezier(.2,.8,.2,1) .25s both}
+.is-drawing .impact-peak,.is-drawing .impact-cum-total{transform-box:fill-box;transform-origin:50% 100%;animation:impact-pop .45s cubic-bezier(.2,.9,.3,1.25) 1.2s both}
+@keyframes impact-art-in{from{opacity:0;scale:1.04}}
+@keyframes impact-float-in{from{opacity:0;translate:0 10px}}
+@keyframes impact-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes impact-rise{from{opacity:0;scale:1 .2}}
+@keyframes impact-pop{from{opacity:0;scale:.7}}

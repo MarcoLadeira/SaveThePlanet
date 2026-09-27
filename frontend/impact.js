@@ -31,7 +31,7 @@ function impactDateLabel(value){return value?new Intl.DateTimeFormat('en-IE',{ti
 // Placeholder for day-replay sections while a day loads, so the previous day's bars never linger.
 function impactSkeleton(bars=24){
   const heights=Array.from({length:bars},(_,i)=>28+Math.round(22*Math.sin(i/2.4)+18*Math.sin(i/5.1+1)));
-  return `<div class="impact-skeleton" role="status" aria-live="polite"><div class="impact-skel-bars" aria-hidden="true">${heights.map(h=>`<i style="height:${Math.max(8,h)}%"></i>`).join('')}</div><span>Loading ${escapeHtml(impactDateLabel(impactDay.date))} replay…</span></div>`;
+  return `<div class="impact-skeleton" role="status" aria-live="polite"><div class="impact-skel-bars" aria-hidden="true">${heights.map(h=>`<i class="motion-loop" style="height:${Math.max(8,h)}%"></i>`).join('')}</div><span>Loading ${escapeHtml(impactDateLabel(impactDay.date))} replay…</span></div>`;
 }
 
 // ---------- day replay loading ----------
@@ -116,9 +116,13 @@ function impactDefs(){
 function sparkArea(values,tone){
   const w=110,h=42,max=Math.max(...values,0)||1,pts=values.map((v,i)=>[2+(w-4)*(i/(values.length-1||1)),h-3-(v/max)*(h-8)]);
   const line=smoothPath(pts);
-  return `<svg class="impact-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#impact-fill-${tone})"/><path class="line" d="${line}" filter="url(#impact-glow)"/></svg>`;
+  return `<svg class="impact-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#impact-fill-${tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/></svg>`;
 }
 function tipAttrs(text){return `data-tip="${escapeHtml(text)}" tabindex="0" aria-label="${escapeHtml(text)}"`}
+// Charts draw themselves in when they first appear or show new data; live refreshes and
+// unrelated re-renders leave them still.
+const impactDrawn={};
+function drawIn(name,signature){const fresh=impactDrawn[name]!==signature;impactDrawn[name]=signature;return fresh&&!liveRender?' is-drawing':''}
 
 // Tiny data-backed microvisuals for the KPI cards.
 function microBars(values,active){
@@ -126,15 +130,27 @@ function microBars(values,active){
   return `<svg class="impact-micro" viewBox="0 0 ${w} ${h}" aria-hidden="true">${values.map((v,i)=>{const bh=Math.max(v/max*(h-4),v>0?2:0);return `<rect x="${i*(bw+gap)}" y="${h-bh}" width="${bw}" height="${bh}" rx="${Math.min(3,bw/2)}" class="${i===active?'on':''}"/>`}).join('')}</svg>`;
 }
 function kpiMicro(field,scale=1,tone='green'){
-  if(impactDayLoading())return {svg:'<span class="impact-micro impact-micro-skel" aria-hidden="true"></span>',caption:'Loading…'};
+  if(impactDayLoading())return {svg:'<span class="impact-micro impact-micro-skel motion-loop" aria-hidden="true"></span>',caption:'Loading…'};
   if(impactDayReady())return {svg:sparkArea(impactDay.data.intervals.map(i=>i[field]*scale),tone),caption:`${shortDate(impactDay.date)} · 48 half-hours`};
   const outcomes=modelState.data.scenario.outcomes;
   return {svg:microBars(outcomes.map(o=>o[field]*scale),outcomes.findIndex(o=>o.horizonMinutes===modelState.horizon)),caption:outcomes.map(o=>`+${o.horizonMinutes}`).join(' · ')};
 }
 
 // ---------- 1. KPI cards ----------
-function impactKpi(iconName,tone,label,value,unit,note,micro){
-  return `<article class="impact-kpi is-${tone}">${tile(iconName,tone)}<div class="impact-kpi-copy"><span>${label}</span><strong>${value}<small>${unit}</small></strong><em>${note}</em></div><figure class="impact-kpi-micro">${micro.svg}<figcaption>${micro.caption}</figcaption></figure></article>`;
+// Headline figures count up when they appear and glide to new values on live refreshes,
+// through the dashboard's chart engine (charts3d.js).
+function impactFigure(name,value,format){dashCharts[name]={value,format,values:()=>({v:value()}),start:()=>({v:0}),draw:({v})=>{const [num,unit]=format(v);return `<strong>${num}<small>${unit}</small></strong>`}}}
+impactFigure('impactRecovery',()=>scenarioNow().potentialRecoveryMwh,v=>[n(v),'MWh']);
+impactFigure('impactCharging',()=>scenarioNow().potentialRecoveryMwh*1000,v=>[n(v),'kWh']);
+impactFigure('impactCo2',()=>scenarioNow().avoidedEmissionsTco2,impactCo2Parts);
+impactFigure('impactRange',()=>scenarioNow().evRangeKm,v=>[n(Math.round(v)),'km']);
+impactFigure('impactFlowRisk',()=>selectedPrediction().atRiskMwh,v=>[n(v),'MWh']);
+impactFigure('impactFlowCharging',()=>scenarioNow().potentialRecoveryMwh*1000,v=>[n(v),'kWh']);
+impactFigure('impactFlowRange',()=>scenarioNow().evRangeKm,v=>[n(Math.round(v)),'km']);
+// Rendered at zero, so the card keeps its height until chartsSync counts the figure up.
+function figureSlot(name,label){const f=dashCharts[name];return `<div class="chart3d" data-chart="${name}" role="img" aria-label="${escapeHtml(`${label}: ${f.format(f.value()).join(' ')}`)}">${f.draw({v:0})}</div>`}
+function impactKpi(iconName,tone,label,figure,note,micro){
+  return `<article class="impact-kpi is-${tone}">${tile(iconName,tone)}<div class="impact-kpi-copy"><span>${label}</span>${figureSlot(figure,label)}<em>${note}</em></div><figure class="impact-kpi-micro">${micro.svg}<figcaption>${micro.caption}</figcaption></figure></article>`;
 }
 // Day-over-day change between two replay days' totals. Every recovery-derived KPI scales with
 // recovered energy, so they share the same change.
@@ -151,13 +167,13 @@ function dayDelta(field){
   return `<span class="impact-delta is-${dir}" title="${escapeHtml(title)}">${{up:'↑',down:'↓',flat:'→'}[dir]} ${Math.round(Math.abs(change*100))}%<small> vs ${vs}</small></span>`;
 }
 function impactStats(o){
-  const scope=`+${o.horizonMinutes} min · ${impactLabel().toLowerCase()}`,[co2,co2Unit]=impactCo2Parts(o.avoidedEmissionsTco2);
+  const scope=`+${o.horizonMinutes} min · ${impactLabel().toLowerCase()}`;
   const note=(field,fallback)=>dayDelta(field)||fallback;
-  return `<section class="impact-kpis" aria-label="Selected scenario impact">
-    ${impactKpi('bolt','green','Potential renewable recovery',n(o.potentialRecoveryMwh),'MWh',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of at-risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
-    ${impactKpi('battery','blue','Potential EV charging',n(o.potentialRecoveryMwh*1000),'kWh',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
-    ${impactKpi('leaf','green','Est. emissions avoided',co2,co2Unit,note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
-    ${impactKpi('car','blue','EV range equivalent',n(Math.round(o.evRangeKm)),'km',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
+  return `<section class="impact-kpis${drawIn('kpis',`${impactDay.status}|${impactDay.key}`)}" aria-label="Selected scenario impact">
+    ${impactKpi('bolt','green','Potential renewable recovery','impactRecovery',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of at-risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
+    ${impactKpi('battery','blue','Potential EV charging','impactCharging',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
+    ${impactKpi('leaf','green','Est. emissions avoided','impactCo2',note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
+    ${impactKpi('car','blue','EV range equivalent','impactRange',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
   </section>`;
 }
 
@@ -165,10 +181,17 @@ function impactStats(o){
 // The static artwork and animated overlay use the same coordinate system.
 // Keep API-driven figures in HTML, never baked into the image.
 let impactFlowPaused=false;
+// Loops pick up the phase already on screen (the old page is still in the DOM while rendering),
+// so re-renders such as live refreshes never make the turbines jump.
+function loopDelay(selector,index,delay){
+  const running=document.querySelectorAll(`#app ${selector}`)[index]?.getAnimations()[0];
+  return running?.currentTime==null?delay:(running.effect.getTiming().delay-running.currentTime)/1000;
+}
 function flowScene(){
-  const rotor=(x,y,scale,duration,delay)=>`<g transform="translate(${x} ${y}) scale(${scale})"><g class="flow-rotor" style="animation-duration:${duration}s;animation-delay:${delay}s">${[0,120,240].map(angle=>`<g transform="rotate(${angle})"><path d="M-4 3 C-9 -20 -6 -46 -2 -69 L0 -124 C5 -103 10 -60 9 -34 L4 3Z" fill="url(#rotor-metal)" stroke="#9daeb2" stroke-width=".7"/><path d="M0 -119 L1 -12" stroke="#f5f9f9" stroke-width="1" opacity=".8"/></g>`).join('')}<circle r="8" fill="url(#rotor-hub)" stroke="#9aabad"/></g></g>`;
+  let rotors=0,pulses=0;
+  const rotor=(x,y,scale,duration,delay)=>`<g transform="translate(${x} ${y}) scale(${scale})"><g class="flow-rotor motion-loop" style="animation-duration:${duration}s;animation-delay:${loopDelay('.flow-rotor',rotors++,delay).toFixed(3)}s">${[0,120,240].map(angle=>`<g transform="rotate(${angle})"><path d="M-4 3 C-9 -20 -6 -46 -2 -69 L0 -124 C5 -103 10 -60 9 -34 L4 3Z" fill="url(#rotor-metal)" stroke="#9daeb2" stroke-width=".7"/><path d="M0 -119 L1 -12" stroke="#f5f9f9" stroke-width="1" opacity=".8"/></g>`).join('')}<circle r="8" fill="url(#rotor-hub)" stroke="#9aabad"/></g></g>`;
 
-  const pulse=(tone,d,delay)=>`<path class="flow-light ${tone}" d="${d}" pathLength="100" style="animation-delay:${delay}s"/>`;
+  const pulse=(tone,d,delay)=>`<path class="flow-light motion-loop ${tone}" d="${d}" pathLength="100" style="animation-delay:${loopDelay('.flow-light',pulses++,delay).toFixed(3)}s"/>`;
   return `<img class="flow-artwork" src="./assets/energy-flow-landscape.png?v=orange1" width="2060" height="763" alt="Wind turbines beside a lake, an energy cabinet and electric cars at charging stations, linked by illustrative green and orange energy ribbons." decoding="async">
     <svg class="flow-motion" viewBox="0 0 2060 763" preserveAspectRatio="none" aria-hidden="true">
       <defs>
@@ -185,14 +208,14 @@ function flowScene(){
     </svg>`;
 }
 function impactFlow(p,o){
-  const callout=(cls,tone,iconName,value,unit,label)=>`<div class="flow-callout ${cls} is-${tone}">${tile(iconName,tone)}<div><strong>${value}<small>${unit}</small></strong><span>${label}</span></div></div>`;
+  const callout=(cls,tone,iconName,figure,name,label)=>`<div class="flow-callout ${cls} is-${tone}">${tile(iconName,tone)}<div>${figureSlot(figure,name)}<span>${label}</span></div></div>`;
   return `<section class="dash-card impact-flow ${impactFlowPaused?'is-motion-paused':''} ${o.potentialRecoveryMwh>0?'':'is-flow-idle'}" aria-labelledby="impact-flow-title">
     <div class="impact-card-head"><div><h2 id="impact-flow-title">Energy flow</h2><p>From renewables at risk to potential EV charging · +${o.horizonMinutes} min target</p></div>
       <ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-blue"></i>Potential EV charging</li><li><small>Illustrative, not to scale</small></li><li><button class="flow-motion-toggle" type="button" data-flow-pause aria-pressed="${impactFlowPaused}">${impactFlowPaused?'Play animation':'Pause animation'}</button></li></ul></div>
     <div class="flow-stage"><div class="flow-canvas">${flowScene()}
-      ${callout('at-source','green','turbine',n(p.atRiskMwh),'MWh',`at risk · up to ${n(o.potentialRecoveryMwh)} MWh recoverable`)}
-      ${callout('at-battery','blue','bolt',n(o.potentialRecoveryMwh*1000),'kWh','potential EV charging')}
-      ${callout('at-chargers','blue','car',n(Math.round(o.evRangeKm)),'km','EV range equivalent')}
+      ${callout('at-source','green','turbine','impactFlowRisk','Renewables at risk',`at risk · up to ${n(o.potentialRecoveryMwh)} MWh recoverable`)}
+      ${callout('at-battery','blue','bolt','impactFlowCharging','Potential EV charging','potential EV charging')}
+      ${callout('at-chargers','blue','car','impactFlowRange','EV range equivalent','EV range equivalent')}
     </div></div>
     <ol class="flow-steps" aria-label="Energy flow summary">
       <li><span>1</span><b>${n(p.atRiskMwh)} MWh</b> renewables predicted at risk</li>
@@ -226,15 +249,15 @@ function areaChart(rows,series,{width=420,height=250}={}){
   const ticks=rows.map((r,i)=>i%8===0?`<text class="impact-tick" x="${x(i)}" y="${bottom+17}" text-anchor="middle">${modelTime(r.targetAt)}</text>`:'').join('');
   const at=values.indexOf(peak),px=Math.min(Math.max(x(at),left+44),right-44);
   const callout=peak>0?`<g class="impact-peak" aria-hidden="true"><circle class="dot is-${series.tone}" cx="${x(at)}" cy="${y(peak)}" r="4.5"/><rect x="${px-44}" y="${y(peak)-34}" width="88" height="26" rx="7"/><text x="${px}" y="${y(peak)-22}" text-anchor="middle">${escapeHtml(series.format(peak))}</text><text class="sub" x="${px}" y="${y(peak)-12}" text-anchor="middle">peak · ${modelTime(rows[at].targetAt)}</text></g>`:'';
-  return `<svg class="impact-chart impact-area is-${series.tone}" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(series.label)} per half-hour">${yAxis(max,top,bottom,left,right,series.unit)}<path class="area" d="${line} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-${series.tone})"/><path class="line" d="${line}" filter="url(#impact-glow)"/>${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/>${hits}${callout}</svg>`;
+  return `<svg class="impact-chart impact-area is-${series.tone}" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(series.label)} per half-hour">${yAxis(max,top,bottom,left,right,series.unit)}<path class="area" d="${line} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-${series.tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/>${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/>${hits}${callout}</svg>`;
 }
 function seriesSelect(){
   return `<label class="impact-select"><span class="visually-hidden">Series</span><select id="impact-time-metric">${Object.entries(IMPACT_SERIES).map(([k,m])=>`<option value="${k}" ${impactDay.timeMetric===k?'selected':''}>${m.label}</option>`).join('')}</select></label>`;
 }
 function impactOverTime(s){
   const day=impactDayReady(),legend=`<ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-amber"></i>Still at risk</li></ul>`;
-  if(impactDayLoading())return `<section class="dash-card impact-time" aria-labelledby="impact-time-title" aria-busy="true">
-    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(impactDateLabel(impactDay.date))} replay · MWh per half-hour</p></div>${legend}</div>${impactSkeleton(48)}</section>`;
+  if(impactDayLoading()){drawIn('time','loading');return `<section class="dash-card impact-time" aria-labelledby="impact-time-title" aria-busy="true">
+    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(impactDateLabel(impactDay.date))} replay · MWh per half-hour</p></div>${legend}</div>${impactSkeleton(48)}</section>`}
   let rows,sub,table;
   if(day){
     const series=IMPACT_SERIES[impactDay.timeMetric];
@@ -242,7 +265,7 @@ function impactOverTime(s){
     table=`<table><caption>${escapeHtml(series.label)} per half-hour</caption><thead><tr><th>Half-hour</th><th>${escapeHtml(series.label)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(modelTime(r.targetAt))}</td><td>${escapeHtml(series.format(r[series.field]))}</td></tr>`).join('')}</tbody></table>`;
     return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
     <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(shortDate(impactDay.date))} replay · ${series.unit} per half-hour</p></div>${seriesSelect()}</div>
-    <div class="impact-chart-wrap">${areaChart(rows,series)}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
+    <div class="impact-chart-wrap${drawIn('time',`${impactDay.key}|${impactDay.timeMetric}`)}">${areaChart(rows,series)}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
     <details class="impact-data-table"><summary>View data</summary>${table}</details>
   </section>`;
   }else{
@@ -252,7 +275,7 @@ function impactOverTime(s){
   table=`<table><caption>Impact over time data</caption><thead><tr><th>Target</th><th>At risk MWh</th><th>Recoverable MWh</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td>${n(r.atRiskMwh)}</td><td>${n(r.potentialRecoveryMwh)}</td></tr>`).join('')}</tbody></table>`;
   return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
     <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${sub}</p></div>${legend}</div>
-    <div class="impact-chart-wrap">${stackedBars(rows,{label:'Potential recovery and remaining risk per half-hour'})}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
+    <div class="impact-chart-wrap${drawIn('time','targets')}">${stackedBars(rows,{label:'Potential recovery and remaining risk per half-hour'})}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
     ${day?'':`<p class="impact-pending">${impactDay.status==='error'?`Day replay unavailable for ${escapeHtml(impactDateLabel(impactDay.date))} — showing the two forecast targets. Pick another day to retry.`:'48-interval day replay appears here once <code>/api/v1/impact/day</code> is connected.'}</p>`}
     <details class="impact-data-table"><summary>View data</summary>${table}</details>
   </section>`;
@@ -287,7 +310,7 @@ function cumulativeChart(metric){
   const line=smoothPath(points.map((p,i)=>[x(i),y(p.v)]));
   const dots=points.map((p,i)=>`<circle class="impact-cum-dot" cx="${x(i)}" cy="${y(p.v)}" r="5" ${tipAttrs(`${modelTime(p.t)}: ${m.format(p.v)} cumulative`)}/>`).join('');
   const ticks=points.map((p,i)=>i%8===0?`<text class="impact-tick" x="${x(i)}" y="${bottom+17}" text-anchor="middle">${modelTime(p.t)}</text>`:'').join('');
-  return `<div class="impact-chart-wrap"><svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="Cumulative ${m.label.toLowerCase()} over the replayed day">${yAxis(max,top,bottom,left,right,'')}<path class="impact-cum-area" d="${line} L${x(points.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-green)"/><path class="impact-cum-line" d="${line}" filter="url(#impact-glow)"/>${dots}${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg><div class="impact-tooltip" role="status" aria-live="polite"></div><span class="impact-cum-total">${m.format(sum)}<small>day total</small></span></div>`;
+  return `<div class="impact-chart-wrap${drawIn('cum',`${impactDay.key}|${metric}`)}"><svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="Cumulative ${m.label.toLowerCase()} over the replayed day">${yAxis(max,top,bottom,left,right,'')}<path class="impact-cum-area" d="${line} L${x(points.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-green)"/><path class="impact-cum-line" d="${line}" pathLength="1" filter="url(#impact-glow)"/>${dots}${ticks}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg><div class="impact-tooltip" role="status" aria-live="polite"></div><span class="impact-cum-total">${m.format(sum)}<small>day total</small></span></div>`;
 }
 function allocationBars(o,s){
   const bar=(title,total,parts)=>`<div class="impact-alloc"><div class="impact-alloc-head"><span>${title}</span><b>${n(total)} MWh</b></div><div class="impact-alloc-bar">${parts.map(([cls,v])=>`<i class="${cls}" style="flex-grow:${total>0?v/total:0}"></i>`).join('')}</div><div class="impact-alloc-key">${parts.map(([cls,v,l])=>`<span><i class="${cls}"></i>${l} <b>${n(v)} MWh</b></span>`).join('')}</div></div>`;
@@ -295,8 +318,8 @@ function allocationBars(o,s){
     +bar('Charging demand',s.totalDemandMwh,[['is-blue',o.potentialRecoveryMwh,'From recovered renewables'],['is-grey',o.remainingDemandMwh,'Schedule elsewhere']]);
 }
 function impactCumulative(o,s){
-  if(impactDayLoading())return `<section class="dash-card impact-cumulative" aria-labelledby="impact-cum-title" aria-busy="true">
-    <div class="impact-card-head"><div><h2 id="impact-cum-title">Cumulative impact</h2><p>Running total · ${escapeHtml(impactDateLabel(impactDay.date))} replay</p></div></div>${impactSkeleton(16)}</section>`;
+  if(impactDayLoading()){drawIn('cum','loading');return `<section class="dash-card impact-cumulative" aria-labelledby="impact-cum-title" aria-busy="true">
+    <div class="impact-card-head"><div><h2 id="impact-cum-title">Cumulative impact</h2><p>Running total · ${escapeHtml(impactDateLabel(impactDay.date))} replay</p></div></div>${impactSkeleton(16)}</section>`}
   const day=impactDayReady();
   const tabs=day?`<div class="studio-segment" role="group" aria-label="Cumulative metric">${Object.entries(IMPACT_METRICS).map(([k,m])=>`<button type="button" data-impact-metric="${k}" class="${impactDay.metric===k?'active':''}" aria-pressed="${impactDay.metric===k}">${m.label}</button>`).join('')}</div>`:'';
   return `<section class="dash-card impact-cumulative" aria-labelledby="impact-cum-title">
@@ -318,18 +341,16 @@ function impactToolbar(){
   return `<div class="impact-toolbar">${dateNav}${studioControls()}</div>`;
 }
 
-function impactMethodology(s){
-  const a=s.assumptions;
-  return `<details class="dash-card impact-method"><summary>${tile('settings','green')}<span class="impact-method-copy"><strong>Methodology and assumptions</strong><small>${n(a.gridIntensityTco2PerMwh*1000)} gCO₂/kWh grid intensity · ${n(a.evKwhPerKm)} kWh/km · ${escapeHtml(impactLabel().toLowerCase())} values</small></span></summary><ul>${s.methodology.map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul></details>`;
-}
-
 function renderImpact(){
   const subtitle='Turning renewable energy at risk into potential EV-charging benefits.';
   if(modelState.loading||modelState.error)return studioShell('Impact',subtitle,()=>'');
   ensureImpactDay();
+  // Cards rise in only when the page (or its first data) arrives; the old page is still in the DOM here.
+  const intro=!liveRender&&!document.querySelector('#app .impact-layout');
+  if(intro)for(const name in impactDrawn)delete impactDrawn[name];
   const top=studioHeader('Impact',subtitle)+impactToolbar();
   const p=selectedPrediction(),o=scenarioOutcome(p),s=modelState.data.scenario;
-  return `${impactDefs()}${top}<div class="impact-layout">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${impactMethodology(s)}${provenance()}`;
+  return `${impactDefs()}${top}<div class="impact-layout${intro?' is-intro':''}">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${provenance()}`;
 }
 
 // ---------- interactions ----------
