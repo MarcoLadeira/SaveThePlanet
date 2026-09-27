@@ -1,11 +1,13 @@
 // Forecast page: explore GridToEv's two models on dates from their own datasets.
 // Daily (V2) predicts curtailment over a UTC day; short-term (V1) predicts
-// half-hour dispatch-down 30 and 60 minutes after a historical issue time.
+// half-hour dispatch-down 30 and 60 minutes ahead. The short-term view is organised
+// by target half-hour, so a target always stays on its own day even when its
+// forecast was issued the previous evening.
 const fx = {
   model: 'daily',
   picker: null, // {month:'YYYY-MM'} while the date picker is open
   daily: { info: null, infoLoading: false, infoError: '', date: null, result: null, loading: false, error: '', week: null, weekLoading: false },
-  short: { info: null, infoLoading: false, infoError: '', date: null, issue: null, result: null, loading: false, error: '', day: null, dayLoading: false, horizon: 30, byDate: null, timeSet: null },
+  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', day: null, dayLoading: false, horizon: 30, targets: null, byDate: null, issueSet: null },
 };
 try { if (localStorage.getItem('forecast-model') === 'short') fx.model = 'short'; } catch {}
 const fxTokens = { daily: 0, short: 0, week: 0, day: 0 };
@@ -22,6 +24,9 @@ function fxDateLabel(day, style = 'long') {
   return new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', ...options }).format(new Date(`${day}T00:00:00Z`));
 }
 function fxClock(stamp) { return stamp.slice(11, 16); }
+function fxShift(stamp, minutes) { return new Date(Date.parse(stamp) + minutes * 6e4).toISOString().replace('.000Z', 'Z'); }
+// Issue time relative to the target's day, e.g. "23:30 prev. day" for a 00:00 target.
+function fxIssueLabel(issue, day) { return issue.slice(0, 10) === day ? fxClock(issue) : `${fxClock(issue)} prev. day`; }
 function fxMonthLabel(month) { return new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${month}-01T00:00:00Z`)); }
 function fxShiftMonth(month, delta) { const d = new Date(`${month}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + delta); return d.toISOString().slice(0, 7); }
 function fxAddDays(day, delta) { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + delta); return d.toISOString().slice(0, 10); }
@@ -54,9 +59,11 @@ async function fxLoadInfo(kind) {
   try {
     s.info = await fxGet(`/api/v1/explorer/${kind === 'daily' ? 'daily' : 'short-term'}`);
     if (kind === 'short') {
+      // A target is selectable when the dataset has its +30 or +60 minute issue time.
+      s.issueSet = new Set(s.info.times);
+      s.targets = [...new Set(s.info.times.flatMap((t) => [fxShift(t, 30), fxShift(t, 60)]))].sort();
       s.byDate = new Map();
-      for (const t of s.info.times) { const d = t.slice(0, 10); if (!s.byDate.has(d)) s.byDate.set(d, []); s.byDate.get(d).push(t); }
-      s.timeSet = new Set(s.info.times);
+      for (const t of s.targets) { const d = t.slice(0, 10); if (!s.byDate.has(d)) s.byDate.set(d, []); s.byDate.get(d).push(t); }
     }
   } catch (error) { s.infoError = error.message; }
   s.infoLoading = false;
@@ -65,7 +72,7 @@ async function fxLoadInfo(kind) {
     // Default to midday on the latest complete (48 half-hour) day, which is in the held-out test split.
     const full = [...s.byDate.keys()].filter((d) => s.byDate.get(d).length === 48).at(-1);
     const noon = `${full}T12:00:00Z`;
-    fxSelectShort(s.timeSet.has(noon) ? noon : s.info.dataset.to);
+    fxSelectShort(s.byDate.get(full)?.includes(noon) ? noon : s.targets.at(-1));
   }
   else fxRerender();
 }
@@ -91,13 +98,12 @@ async function fxLoadWeek(day) {
   if (token === fxTokens.week) { s.weekLoading = false; fxRerender(); }
 }
 
-async function fxSelectShort(issue, keepDay = false) {
-  const s = fx.short, token = ++fxTokens.short, day = issue.slice(0, 10);
-  const dayChanged = !keepDay && s.day?.date !== day;
-  s.issue = issue; s.date = day; s.loading = true; s.error = ''; fxRerender();
-  if (dayChanged) fxLoadDay(day);
+async function fxSelectShort(target) {
+  const s = fx.short, token = ++fxTokens.short, day = target.slice(0, 10);
+  s.target = target; s.date = day; s.loading = true; s.error = ''; fxRerender();
+  if (s.day?.date !== day) fxLoadDay(day);
   try {
-    const result = await fxGet(`/api/v1/explorer/short-term/predict?issue=${encodeURIComponent(issue)}&capacityMw=${modelState.capacity}`);
+    const result = await fxGet(`/api/v1/explorer/short-term/predict?target=${encodeURIComponent(target)}&capacityMw=${modelState.capacity}`);
     if (token === fxTokens.short) s.result = result;
   } catch (error) { if (token === fxTokens.short) { s.error = error.message; s.result = null; } }
   if (token === fxTokens.short) { s.loading = false; fxRerender(); }
@@ -116,24 +122,27 @@ function fxStep(delta) {
     const s = fx.daily, next = fxAddDays(s.date, delta);
     if (s.info && next >= s.info.dataset.from && next <= s.info.dataset.to) fxSelectDaily(next, true);
   } else {
-    const s = fx.short, i = s.info.times.indexOf(s.issue) + delta;
-    if (i >= 0 && i < s.info.times.length) fxSelectShort(s.info.times[i]);
+    const s = fx.short, i = s.targets.indexOf(s.target) + delta;
+    if (i >= 0 && i < s.targets.length) fxSelectShort(s.targets[i]);
   }
 }
+
+// The issue time that colours a target's train/validation/test dot: its +30 issue, else +60.
+function fxShortIssue(target) { const s = fx.short, i30 = fxShift(target, -30); return s.issueSet.has(i30) ? i30 : fxShift(target, -60); }
 
 // ---------------------------------------------------------------- date picker
 function fxPickerButton() {
   const daily = fx.model === 'daily', s = fx[fx.model];
-  const value = daily ? (s.date ? fxDateLabel(s.date) : 'Choose a day') : (s.issue ? `${fxDateLabel(s.date)} · ${fxClock(s.issue)}` : 'Choose a time');
+  const value = daily ? (s.date ? fxDateLabel(s.date) : 'Choose a day') : (s.target ? `${fxDateLabel(s.date)} · ${fxClock(s.target)}` : 'Choose a time');
   const open = Boolean(fx.picker);
-  const atStart = daily ? s.date === s.info?.dataset.from : s.issue === s.info?.times[0];
-  const atEnd = daily ? s.date === s.info?.dataset.to : s.issue === s.info?.times.at(-1);
+  const atStart = daily ? s.date === s.info?.dataset.from : s.target === s.targets?.[0];
+  const atEnd = daily ? s.date === s.info?.dataset.to : s.target === s.targets?.at(-1);
   return `<div class="fx-target">
     <button type="button" class="fx-step" data-fx-step="-1" aria-label="Previous ${daily ? 'day' : 'half-hour'}" ${!s.info || atStart ? 'disabled' : ''}>${fxChevron('left')}</button>
     <div class="fx-picker-anchor">
       <button type="button" class="fx-date-button ${open ? 'is-open' : ''}" data-fx-picker aria-haspopup="dialog" aria-expanded="${open}" ${s.info ? '' : 'disabled'}>
         <span class="fx-date-icon">${icon(daily ? 'calendar' : 'clock', 19)}</span>
-        <span class="fx-date-text"><small>${daily ? 'Target day · UTC' : 'Issue time · UTC'}</small><strong>${escapeHtml(value)}</strong></span>
+        <span class="fx-date-text"><small>${daily ? 'Target day · UTC' : 'Target half-hour · UTC'}</small><strong>${escapeHtml(value)}</strong></span>
         <span class="fx-date-chevron">${fxChevron('down')}</span>
       </button>
       ${open ? fxPicker() : ''}
@@ -144,8 +153,8 @@ function fxPickerButton() {
 
 function fxPicker() {
   const daily = fx.model === 'daily', s = fx[fx.model], info = s.info;
-  const first = daily ? info.dataset.from : info.dataset.from.slice(0, 10);
-  const last = daily ? info.dataset.to : info.dataset.to.slice(0, 10);
+  const first = daily ? info.dataset.from : s.targets[0].slice(0, 10);
+  const last = daily ? info.dataset.to : s.targets.at(-1).slice(0, 10);
   const partitions = daily ? info.dataset.partitions : info.model.partitions;
   const month = fx.picker.month;
   const [y, m] = month.split('-').map(Number);
@@ -157,14 +166,14 @@ function fxPicker() {
   for (let d = 1; d <= days; d++) {
     const day = `${month}-${String(d).padStart(2, '0')}`;
     const available = daily ? day >= first && day <= last : s.byDate.has(day);
-    const partition = available ? fxPartitionOf(daily ? day : s.byDate.get(day)[0], partitions) : null;
+    const partition = available ? fxPartitionOf(daily ? day : fxShortIssue(s.byDate.get(day)[0]), partitions) : null;
     cells.push(`<button type="button" class="fx-cal-day ${day === selected ? 'is-selected' : ''} ${partition ? `is-${partition}` : ''}" ${available ? `data-fx-day="${day}"` : 'disabled'} aria-label="${fxDateLabel(day)}${available ? '' : ' (not in dataset)'}" ${day === selected ? 'aria-pressed="true"' : ''}>${d}<i></i></button>`);
   }
   const years = [];
   for (let year = Number(first.slice(0, 4)); year <= Number(last.slice(0, 4)); year++) years.push(year);
   const yearChips = years.length > 1 ? `<div class="fx-cal-years">${years.map((year) => `<button type="button" class="${year === y ? 'is-active' : ''}" data-fx-year="${year}">${year}</button>`).join('')}</div>` : '';
   const canPrev = fxShiftMonth(month, -1) >= first.slice(0, 7), canNext = fxShiftMonth(month, 1) <= last.slice(0, 7);
-  const count = daily ? `${n(info.dataset.count)} complete days` : `${n(info.dataset.count)} half-hour issue times`;
+  const count = daily ? `${n(info.dataset.count)} complete days` : `${n(s.targets.length)} target half-hours`;
   const calendar = `<div class="fx-cal">
       <div class="fx-cal-nav"><button type="button" data-fx-month="-1" ${canPrev ? '' : 'disabled'} aria-label="Previous month">${fxChevron('left')}</button><strong>${fxMonthLabel(month)}</strong><button type="button" data-fx-month="1" ${canNext ? '' : 'disabled'} aria-label="Next month">${fxChevron('right')}</button></div>
       ${yearChips}
@@ -176,13 +185,13 @@ function fxPicker() {
     const available = new Set(s.byDate.get(s.date) || []);
     const slots = Array.from({ length: 48 }, (_, i) => `${s.date}T${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}:00Z`);
     times = `<div class="fx-times"><div class="fx-times-head"><strong>${fxDateLabel(s.date)}</strong><span>${available.size} of 48 half-hours available</span></div><div class="fx-times-grid">${slots.map((t) => {
-      const ok = available.has(t), partition = ok ? fxPartitionOf(t, info.model.partitions) : null;
-      return `<button type="button" class="fx-time ${t === s.issue ? 'is-selected' : ''} ${partition ? `is-${partition}` : ''}" ${ok ? `data-fx-issue="${t}"` : 'disabled'}>${fxClock(t)}</button>`;
-    }).join('')}</div><p>Predictions target ${fx.short.horizon === 30 ? '30' : '60'} min after the issue time. Greyed-out slots are missing from the dataset.</p></div>`;
+      const ok = available.has(t), partition = ok ? fxPartitionOf(fxShortIssue(t), info.model.partitions) : null;
+      return `<button type="button" class="fx-time ${t === s.target ? 'is-selected' : ''} ${partition ? `is-${partition}` : ''}" ${ok ? `data-fx-target="${t}"` : 'disabled'}>${fxClock(t)}</button>`;
+    }).join('')}</div><p>Each half-hour gets a +30 min forecast (issued 30 min before) and a +60 min one (issued 60 min before). Greyed-out slots have no forecast in the dataset.</p></div>`;
   }
   const quick = [['first', 'Earliest'], ['last', 'Latest'], ['random', 'Surprise me']];
-  return `<div class="fx-popover ${daily ? '' : 'is-wide'}" role="dialog" aria-label="Choose a target ${daily ? 'day' : 'issue time'}">
-    <div class="fx-popover-head"><div><strong>${daily ? 'Pick a target day' : 'Pick an issue time'}</strong><span>Dataset: ${fxDateLabel(first, 'short')} – ${fxDateLabel(last, 'short')} · ${count}</span></div><button type="button" class="fx-close" data-fx-close aria-label="Close">×</button></div>
+  return `<div class="fx-popover ${daily ? '' : 'is-wide'}" role="dialog" aria-label="Choose a target ${daily ? 'day' : 'half-hour'}">
+    <div class="fx-popover-head"><div><strong>${daily ? 'Pick a target day' : 'Pick a target half-hour'}</strong><span>Dataset: ${fxDateLabel(first, 'short')} – ${fxDateLabel(last, 'short')} · ${count}</span></div><button type="button" class="fx-close" data-fx-close aria-label="Close">×</button></div>
     <div class="fx-popover-body">${calendar}${times}</div>
     <div class="fx-popover-foot">${quick.map(([key, label]) => `<button type="button" data-fx-quick="${key}">${label}</button>`).join('')}</div>
   </div>`;
@@ -231,10 +240,10 @@ function fxDayChart() {
   const band = runs.map((run) => `M${run.map((p) => `${x(p.targetAt).toFixed(1)} ${y(p.upperMwh).toFixed(1)}`).join(' L')} L${run.slice().reverse().map((p) => `${x(p.targetAt).toFixed(1)} ${y(p.lowerMwh).toFixed(1)}`).join(' L')} Z`).join(' ');
   const grid = [0, 0.5, 1].map((f) => `<line class="fx-gridline" x1="${left}" x2="${W - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text class="fx-axis" x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(Math.round(max * f))}</text>`).join('');
   const hours = ['00:00', '06:00', '12:00', '18:00', '23:30'].map((clock) => `<text class="fx-axis" x="${x(`${s.day.date}T${clock}:00Z`)}" y="${base + 20}" text-anchor="middle">${clock}</text>`).join('');
-  const selected = pts.find((p) => p.issuedAt === s.issue);
-  const marker = selected ? `<line class="fx-marker" x1="${x(selected.targetAt)}" x2="${x(selected.targetAt)}" y1="${top - 6}" y2="${base}"/><circle class="fx-marker-dot" cx="${x(selected.targetAt)}" cy="${y(selected.atRiskMwh)}" r="6"/>` : '';
+  const selected = pts.find((p) => p.targetAt === s.target);
+  const marker = s.target?.startsWith(s.day.date) ? `<line class="fx-marker" x1="${x(s.target)}" x2="${x(s.target)}" y1="${top - 6}" y2="${base}"/>${selected ? `<circle class="fx-marker-dot" cx="${x(s.target)}" cy="${y(selected.atRiskMwh)}" r="6"/>` : ''}` : '';
   const hitW = (W - left - right) / 47;
-  const hits = pts.map((p) => `<rect class="fx-hit" data-fx-issue="${p.issuedAt}" data-fx-keep-day x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${p.issuedAt.slice(0, 10) === s.day.date ? '' : 'previous day '}${fxClock(p.issuedAt)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
+  const hits = pts.map((p) => `<rect class="fx-hit" data-fx-target="${p.targetAt}" x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${fxIssueLabel(p.issuedAt, s.day.date)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
   const actualDots = observed.map((o) => `<circle class="fx-actual-dot" cx="${x(o.targetAt).toFixed(1)}" cy="${y(o.actualMwh).toFixed(1)}" r="2.4"/>`).join('');
   return `<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(s.day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${hours}${hits}</svg>`;
 }
@@ -324,23 +333,23 @@ function fxShortView() {
   const p = preds.find((x) => x.horizonMinutes === s.horizon) || preds[0];
   const horizonMetric = (h) => {
     const x = preds.find((q) => q.horizonMinutes === h);
-    return x ? metric(`+${h} min · dispatch-down`, n(Math.round(x.atRiskMwh * 10) / 10), 'MWh', `${fxPercent(x.probability, 1)} event chance · target ${fxClock(x.targetAt)}`, h === s.horizon ? 'amber' : '') : metric(`+${h} min`, '—', '', 'No dataset row for this target');
+    return x ? metric(`+${h} min forecast`, n(Math.round(x.atRiskMwh * 10) / 10), 'MWh', `${fxPercent(x.probability, 1)} event chance · issued ${fxIssueLabel(x.issuedAt, s.date)}`, h === s.horizon ? 'amber' : '') : metric(`+${h} min forecast`, '—', '', 'No dataset issue time for this target');
   };
-  const actual = p.actual?.dispatchDownMwh;
+  const actual = r.actual?.dispatchDownMwh;
   const range = Math.max(p.upperMwh, actual ?? 0, p.atRiskMwh, 1) * 1.05;
   const pos = (v) => `${Math.min(100, (v / range) * 100)}%`;
   return `<div class="fx-content ${s.loading ? 'is-loading' : ''}">
     ${statStrip([
       horizonMetric(30),
       horizonMetric(60),
-      actual === null || actual === undefined ? metric('Observed at target', p.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(p.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', `+${p.horizonMinutes} min forecast was ${n(Math.round(Math.abs(p.atRiskMwh - actual) * 10) / 10)} MWh ${p.atRiskMwh > actual ? 'high' : 'low'}`, 'green'),
-      fxPartitionMetric(r.partition),
+      actual === null || actual === undefined ? metric('Observed at target', r.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(r.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', `+${p.horizonMinutes} min forecast was ${n(Math.round(Math.abs(p.atRiskMwh - actual) * 10) / 10)} MWh ${p.atRiskMwh > actual ? 'high' : 'low'}`, 'green'),
+      fxPartitionMetric(p.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', `Day replay · ${fxDateLabel(s.day?.date || s.date)}`, 'Each target half-hour of the day, forecast vs reality · click the chart to pick a target', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
+      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', `Day replay · ${fxDateLabel(s.date)}`, 'Each target half-hour of the day, forecast vs reality · click the chart to pick a target', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
         <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span>${settings.uncertainty ? '<span><i class="is-band"></i>P10–P90 range</span>' : ''}<span><i class="is-marker"></i>Your target</span></div>
         <div class="fx-chart-wrap">${fxDayChart()}</div></section>
-      <section class="dash-card studio-side-card">${cardHead('clock', 'green', `+${p.horizonMinutes} min forecast`, `Issued ${fxClock(r.issuedAt)} → target ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
+      <section class="dash-card studio-side-card">${cardHead('clock', 'green', `+${p.horizonMinutes} min forecast`, `Issued ${fxIssueLabel(p.issuedAt, s.date)} → target ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
         <div class="fx-range"><div class="fx-range-head"><span>Prediction range</span><b>${n(Math.round(p.lowerMwh))}–${n(Math.round(p.upperMwh))} MWh</b></div>
           <div class="fx-range-track"><span class="fx-range-band" style="left:${pos(p.lowerMwh)};width:calc(${pos(p.upperMwh)} - ${pos(p.lowerMwh)})"></span><span class="fx-range-point" style="left:${pos(p.atRiskMwh)}" title="Predicted"></span>${actual === null || actual === undefined ? '' : `<span class="fx-range-actual" style="left:${pos(actual)}" title="Observed"></span>`}</div>
           <div class="fx-range-key"><span><i class="is-pred"></i>Predicted ${n(Math.round(p.atRiskMwh * 10) / 10)}</span>${actual === null || actual === undefined ? '' : `<span><i class="is-actual"></i>Observed ${n(Math.round(actual * 10) / 10)}</span>`}<span><i class="is-band"></i>P10–P90</span></div></div>
@@ -370,13 +379,13 @@ function renderForecast() {
 // ---------------------------------------------------------------- events
 function fxOpenPicker() {
   const s = fx[fx.model];
-  fx.picker = { month: (s.date || (fx.model === 'daily' ? s.info.dataset.to : s.info.dataset.to.slice(0, 10))).slice(0, 7) };
+  fx.picker = { month: (s.date || (fx.model === 'daily' ? s.info.dataset.to : s.targets.at(-1))).slice(0, 7) };
 }
 function fxChooseDay(day) {
   if (fx.model === 'daily') { fx.picker = null; fxSelectDaily(day); return; }
   const s = fx.short, times = s.byDate.get(day);
   if (!times) return;
-  const sameClock = `${day}T${(s.issue || 'T12:00:00Z').slice(11)}`;
+  const sameClock = `${day}T${(s.target || 'T12:00:00Z').slice(11)}`;
   fxSelectShort(times.includes(sameClock) ? sameClock : times[0]);
   fx.picker = { month: day.slice(0, 7) }; // keep open so a time can be chosen
   render();
@@ -390,7 +399,7 @@ function fxQuick(kind) {
     else if (kind === 'last') fxSelectDaily(to);
     else { const span = (Date.parse(to) - Date.parse(from)) / 864e5; fxSelectDaily(fxAddDays(from, Math.floor(Math.random() * (span + 1)))); }
   } else {
-    const times = s.info.times;
+    const times = s.targets;
     fxSelectShort(kind === 'first' ? times[0] : kind === 'last' ? times.at(-1) : times[Math.floor(Math.random() * times.length)]);
   }
 }
@@ -408,19 +417,19 @@ document.addEventListener('click', (event) => {
   if (pick('data-fx-close')) { fx.picker = null; render(); return; }
   if ((el = pick('data-fx-month'))) { fx.picker.month = fxShiftMonth(fx.picker.month, Number(el.dataset.fxMonth)); render(); return; }
   if ((el = pick('data-fx-year'))) {
-    const s = fx[fx.model], year = el.dataset.fxYear, first = s.info.dataset.from.slice(0, 7), last = s.info.dataset.to.slice(0, 7);
+    const s = fx[fx.model], year = el.dataset.fxYear, first = (s.targets?.[0] || s.info.dataset.from).slice(0, 7), last = (s.targets?.at(-1) || s.info.dataset.to).slice(0, 7);
     const month = `${year}-${fx.picker.month.slice(5)}`;
     fx.picker.month = month < first ? first : month > last ? last : month; render(); return;
   }
   if ((el = pick('data-fx-quick'))) { fxQuick(el.dataset.fxQuick); return; }
-  if ((el = pick('data-fx-issue'))) { fx.picker = null; fxSelectShort(el.dataset.fxIssue, 'fxKeepDay' in el.dataset); return; }
+  if ((el = pick('data-fx-target'))) { fx.picker = null; fxSelectShort(el.dataset.fxTarget); return; }
   if ((el = pick('data-fx-day'))) { if ('fxInWeek' in el.dataset) fxSelectDaily(el.dataset.fxDay, true); else fxChooseDay(el.dataset.fxDay); return; }
   if ((el = pick('data-fx-step'))) { fxStep(Number(el.dataset.fxStep)); return; }
   if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); render(); return; }
   if ((el = pick('data-fx-retry'))) {
     const s = fx[fx.model];
     if (el.dataset.fxRetry === 'info') { s.infoError = ''; fxLoadInfo(fx.model); }
-    else if (fx.model === 'daily') fxSelectDaily(s.date); else fxSelectShort(s.issue);
+    else if (fx.model === 'daily') fxSelectDaily(s.date); else fxSelectShort(s.target);
     return;
   }
   if (fx.picker && !t.closest('.fx-picker-anchor')) { fx.picker = null; render(); }

@@ -210,11 +210,13 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 | `GET /api/v1/explorer/daily/predict?date=YYYY-MM-DD` | V2 `/predict/curtailment/day` + `/actuals/daily-curtailment` |
 | `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for the date and the 6 days after it (shifted back near the dataset end) |
 | `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
-| `GET /api/v1/explorer/short-term/predict?issue=…Z&capacityMw=100` | V1 `/predict/from-dataset` for 30 and 60 min + `/actuals/v1/batch` |
+| `GET /api/v1/explorer/short-term/predict?target=…Z&capacityMw=100` | V1 `/predict/from-dataset` at +30 (issued target-30 min) and +60 (issued target-60 min) + `/actuals/v1/batch` for the target |
 | `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per horizon and gap-free run, so targets cover 00:00-23:30 of the day, + actuals for all 48 targets |
 
 - Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
-- Short-term selectable times: the V1 dataset's half-hour issue times (January 2026).
+- Short-term selection is by **target** half-hour: a target is selectable when its +30 or +60
+  minute issue time is in the V1 dataset (January 2026). A 00:00 target therefore stays on its
+  own day even though its forecasts were issued the previous evening.
   `/dataset/available-times` returns at most the latest 1000. Earlier half-hours are only
   accepted without extra calls when `available_issue_timestamp_count` proves there is no
   gap among them; otherwise each is confirmed by replaying it through the window route,

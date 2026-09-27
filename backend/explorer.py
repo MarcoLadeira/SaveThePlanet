@@ -245,34 +245,39 @@ def _v1_actuals(targets):
     return {a['targetAt']: a for a in map(_v1_actual, body.get('actuals', []))}
 
 
-def validate_issue(value):
+def short_term_predict(target, capacity):
+    """Both forecasts of one target half-hour: +30 min (issued 30 min before) and
+    +60 min (issued 60 min before), with the observed value for that half-hour.
+
+    Working by target keeps the selected half-hour on its own day even when a
+    forecast for 00:00 was issued the previous evening.
+    """
     info = short_term_info()
-    moment = iso(utc(value))
-    if moment not in set(info['times']):
-        raise LookupError('That issue time is not in the short-term model dataset.')
-    return moment, info
-
-
-def short_term_predict(issue, capacity):
-    issue, info = validate_issue(issue)
+    target, available = iso(utc(target)), set(info['times'])
+    issues = {h: iso(utc(target) - timedelta(minutes=h)) for h in (30, 60)}
+    issues = {h: t for h, t in issues.items() if t in available}
+    if not issues:
+        raise LookupError('No dataset issue time forecasts that target half-hour.')
 
     def one(horizon):
         try:
-            return call('/predict/from-dataset', {'issue_timestamp_utc': issue, 'forecast_horizon_minutes': horizon,
+            return call('/predict/from-dataset', {'issue_timestamp_utc': issues[horizon], 'forecast_horizon_minutes': horizon,
                                                   'flexible_load_capacity_mw': capacity})
         except HTTPError as error:
             if missing_row(error):
                 return None
             raise
-    rows = [row for row in parallel(lambda: one(30), lambda: one(60)) if row]
+    rows = [row for row in parallel(*[lambda h=h: one(h) for h in issues]) if row]
     if not rows:
-        raise LookupError('The model has no prediction for that issue time.')
+        raise LookupError('The model has no prediction for that target half-hour.')
     points = sorted(map(_v1_point, rows), key=lambda p: p['horizonMinutes'])
-    actuals = _v1_actuals([p['targetAt'] for p in points])
+    if any(p['targetAt'] != target for p in points):
+        raise ValueError('Prediction target does not match the requested half-hour')
+    actual = _v1_actuals([target]).get(target)
     for p in points:
-        p['actual'] = actuals.get(p['targetAt'])
-    return {'issuedAt': issue, 'modelVersion': rows[0].get('model_version'), 'capacityMw': capacity,
-            'partition': partition_of(issue, info['model']['partitions']), 'predictions': points}
+        p['partition'] = partition_of(p['issuedAt'], info['model']['partitions'])
+    return {'targetAt': target, 'modelVersion': rows[0].get('model_version'), 'capacityMw': capacity,
+            'actual': actual, 'predictions': points}
 
 
 def contiguous_runs(times):

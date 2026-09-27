@@ -285,8 +285,10 @@ class Handler(SimpleHTTPRequestHandler):
             if name == 'short-term/predict':
                 capacity = float(query.get('capacityMw', '100'))
                 number(capacity, 'capacity', minimum=0.001, maximum=10000)
-                issue = timestamp(query.get('issue'))
-                action = partial(explorer.short_term_predict, issue.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
+                target = timestamp(query.get('target'))
+                if target.minute not in (0, 30) or target.second or target.microsecond:
+                    raise ValueError('Target must be a UTC half-hour')
+                action = partial(explorer.short_term_predict, target.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
             elif name in ('short-term/day', 'daily/predict', 'daily/week'):
                 day = date.fromisoformat(query.get('date', '')).isoformat()
                 action = partial({'short-term/day': explorer.short_term_day, 'daily/predict': explorer.daily_predict,
@@ -297,7 +299,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
                 return
         except (ValueError, TypeError):
-            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a dataset date (YYYY-MM-DD), a UTC half-hour issue time and capacity 0.001-10000 MW.'}})
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a dataset date (YYYY-MM-DD), a UTC half-hour target time and capacity 0.001-10000 MW.'}})
             return
         try:
             self.send_json(200, action())

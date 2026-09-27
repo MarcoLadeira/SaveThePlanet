@@ -91,19 +91,44 @@ class ModelCallTests(unittest.TestCase):
 
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')
+    def test_target_gets_both_horizons_from_their_own_issue_times(self, call, _info):
+        requests = []
+
+        def fake(path, body=None):
+            if path == '/predict/from-dataset':
+                requests.append((body['issue_timestamp_utc'], body['forecast_horizon_minutes']))
+                return v1_row(body['issue_timestamp_utc'], body['forecast_horizon_minutes'])
+            return {'actuals': [{'status': 'available', 'target_timestamp_utc': '2026-01-31T23:00:00Z',
+                                 'actual_dispatch_down_mwh': 12.0, 'actual_curtailment_mwh': 0.0, 'actual_constraint_mwh': 12.0}]}
+        call.side_effect = fake
+        result = explorer.short_term_predict('2026-01-31T23:00:00Z', 100)
+        self.assertEqual(sorted(requests), [('2026-01-31T22:00:00Z', 60), ('2026-01-31T22:30:00Z', 30)])
+        self.assertEqual([p['targetAt'] for p in result['predictions']], ['2026-01-31T23:00:00Z'] * 2)
+        self.assertEqual(result['actual']['dispatchDownMwh'], 12.0)
+        self.assertEqual([p['partition'] for p in result['predictions']], ['test', 'test'])
+
+    @patch('explorer.short_term_info', return_value={**V1_INFO, 'times': ['2026-01-08T23:30:00Z', '2026-01-09T00:00:00Z']})
+    @patch('explorer.call')
+    def test_midnight_target_uses_previous_evening_issue_and_stays_on_its_day(self, call, _info):
+        call.side_effect = lambda path, body=None: (v1_row(body['issue_timestamp_utc'], body['forecast_horizon_minutes'])
+                                                    if path == '/predict/from-dataset' else {'actuals': []})
+        result = explorer.short_term_predict('2026-01-09T00:00:00Z', 100)
+        self.assertEqual(result['targetAt'], '2026-01-09T00:00:00Z')
+        self.assertEqual([(p['horizonMinutes'], p['issuedAt']) for p in result['predictions']], [(30, '2026-01-08T23:30:00Z')])
+
+    @patch('explorer.short_term_info', return_value=V1_INFO)
+    @patch('explorer.call')
     def test_missing_horizon_row_is_skipped_not_fatal(self, call, _info):
         def fake(path, body=None):
             if path == '/predict/from-dataset':
                 if body['forecast_horizon_minutes'] == 60:
                     raise not_found()
                 return v1_row(body['issue_timestamp_utc'], 30)
-            return {'actuals': [{'status': 'available', 'target_timestamp_utc': '2026-01-31T23:00:00Z',
-                                 'actual_dispatch_down_mwh': 12.0, 'actual_curtailment_mwh': 0.0, 'actual_constraint_mwh': 12.0}]}
+            return {'actuals': []}
         call.side_effect = fake
-        result = explorer.short_term_predict('2026-01-31T22:30:00Z', 100)
+        result = explorer.short_term_predict('2026-01-31T23:00:00Z', 100)
         self.assertEqual([p['horizonMinutes'] for p in result['predictions']], [30])
-        self.assertEqual(result['predictions'][0]['actual']['dispatchDownMwh'], 12.0)
-        self.assertEqual(result['partition'], 'test')
+        self.assertIsNone(result['actual'])
 
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')
@@ -112,7 +137,7 @@ class ModelCallTests(unittest.TestCase):
             with self.subTest(body=body):
                 call.side_effect = lambda path, b=None, body=body: (_ for _ in ()).throw(http_error(404, body))
                 with self.assertRaises(HTTPError):
-                    explorer.short_term_predict('2026-01-31T22:30:00Z', 100)
+                    explorer.short_term_predict('2026-01-31T23:00:00Z', 100)
 
     def test_call_keeps_upstream_error_body_readable(self):
         upstream = HTTPError('http://model/x', 404, 'Not Found', {},
@@ -124,7 +149,7 @@ class ModelCallTests(unittest.TestCase):
 
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')
-    def test_issue_time_outside_dataset_never_calls_model(self, call, _info):
+    def test_target_without_dataset_issue_time_never_calls_model(self, call, _info):
         with self.assertRaises(LookupError):
             explorer.short_term_predict('2026-01-31T12:00:00Z', 100)
         call.assert_not_called()
@@ -209,7 +234,8 @@ class ExplorerHttpTests(unittest.TestCase):
     @patch('explorer.daily_predict')
     def test_invalid_input_is_400_without_model_call(self, predict):
         for path in ('/api/v1/explorer/daily/predict?date=15-03-2026', '/api/v1/explorer/daily/predict',
-                     '/api/v1/explorer/short-term/predict?issue=2026-01-20T12:00:00', '/api/v1/explorer/short-term/predict?issue=2026-01-20T12:00:00Z&capacityMw=0'):
+                     '/api/v1/explorer/short-term/predict?target=2026-01-20T12:00:00', '/api/v1/explorer/short-term/predict?target=2026-01-20T12:15:00Z',
+                     '/api/v1/explorer/short-term/predict?target=2026-01-20T12:00:00Z&capacityMw=0'):
             with self.subTest(path=path):
                 self.assertEqual(self.get(path)[0], 400)
         predict.assert_not_called()
