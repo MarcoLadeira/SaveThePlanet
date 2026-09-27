@@ -82,10 +82,14 @@ function dashboardRecoveryCard(p,o){
   </div></section>`;
 }
 
-function dashboardPillars(p,o){
-  const values=[['risk','At risk',p.atRiskMwh],['flex','Flexible',modelState.data.scenario.flexibleDemandMwh],['recovery','Absorbable',o.potentialRecoveryMwh]];
-  const max=Math.max(1,...values.map(([, ,v])=>v));
-  return `<div class="dash-pillars" role="img" aria-label="${values.map(([,label,value])=>`${label} ${n(value)} MWh`).join(', ')}"><div class="dash-pillar-row">${values.map(([key,,value],i)=>`<div class="dash-pillar is-${key}" style="--h:${value/max};--delay:${i*.1}s"><div class="dash-pillar-value"><strong>${n(value)}</strong><span>MWh</span></div><div class="dash-pillar-body"></div></div>`).join('')}</div><div class="dash-plinth">${values.map(([,label])=>`<span>${label}</span>`).join('')}<i></i><i></i></div></div>`;
+function dashboardPlan(p,o){
+  const bars=[['risk','At risk',p.atRiskMwh],['flex','Flexible',modelState.data.scenario.flexibleDemandMwh],['recovery','Absorbable',o.potentialRecoveryMwh]];
+  const max=Math.max(...bars.map(([,,value])=>value));
+  return `<section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation')}
+    <h3 class="plan-headline">Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at <em>${escapeHtml(modelTime(p.targetAt))}</em>.</h3>
+    <div class="plan-chart" role="img" aria-label="${bars.map(([,label,value])=>`${label} ${n(value)} MWh`).join(', ')}"><div class="plan-bars">${bars.map(([key,,value],i)=>`<div class="plan-bar is-${key}" style="--plan-h:${max>0?value/max:0};--plan-delay:${i*.08}s"><span class="plan-bar-value"><strong>${n(value)}</strong>MWh</span><i></i></div>`).join('')}</div><div class="plan-labels">${bars.map(([,label])=>`<span>${label}</span>`).join('')}</div></div>
+    <button class="plan-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',20)}</button>
+  </section>`;
 }
 
 function renderDashboard(){
@@ -96,7 +100,7 @@ function renderDashboard(){
       ${dashboardRecoveryCard(p,o)}
       ${dashboardFleet(o)}
       ${outlookCard(p)}
-      <section class="dash-card dash-plan">${cardHead('swap','lime','Your next move','Scenario recommendation',`<span class="dash-chip is-ready"><i></i>Projected</span>`)}<h3>Use up to <em>${n(o.potentialRecoveryMwh)} MWh</em> of flexible charging at ${escapeHtml(modelTime(p.targetAt))}.</h3>${dashboardPillars(p,o)}<p class="restored-plan-note">Demand and capacity limit the estimate. Vehicle decisions are not supplied.</p><button class="dash-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',18)}</button></section>
+      ${dashboardPlan(p,o)}
     </div>${provenance()}`;
   });
 }
