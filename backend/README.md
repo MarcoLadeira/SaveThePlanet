@@ -196,3 +196,30 @@ The forecast `fallback.reason` stays `MODEL_UNAVAILABLE` or `INVALID_MODEL_RESPO
 the health codes above are the finer-grained explanation. The fallback banner shows
 the health message, and Settings → Model connection shows the full status with a
 **Check connection** button (active probe) and **Reload forecast**.
+
+## Forecast page explorer
+
+The Forecast page explores both GridToEv models on targets taken from each model's
+own dataset. `explorer.py` proxies the model (the API key never reaches the
+browser), validates that every requested date/time is in the dataset before
+calling it, and pairs each prediction with the observed EirGrid actual.
+
+| Route | Model call(s) |
+| --- | --- |
+| `GET /api/v1/explorer/daily` | V2 `/model-info/daily-curtailment` + `/dataset/daily-curtailment/coverage` (cached 10 min) |
+| `GET /api/v1/explorer/daily/predict?date=YYYY-MM-DD` | V2 `/predict/curtailment/day` + `/actuals/daily-curtailment` |
+| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for 7 days around the date, clipped to the dataset |
+| `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
+| `GET /api/v1/explorer/short-term/predict?issue=…Z&capacityMw=100` | V1 `/predict/from-dataset` for 30 and 60 min + `/actuals/v1/batch` |
+| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per gap-free run of the day + actuals |
+
+- Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
+- Short-term selectable times: the V1 dataset's half-hour issue times (January 2026).
+  `/dataset/available-times` returns at most 1000, so earlier times are filled in as
+  the contiguous half-hours from the dataset minimum.
+- A horizon whose target row is outside the dataset (for example +60 min from the
+  final issue time) is omitted instead of failing the request.
+- Invalid input → 400, target outside the dataset → 404 `NOT_IN_DATASET`, model
+  failure → 502 with the same `error.code` values as the health endpoint.
+  There is no demo fallback here: the page shows the error and a retry button.
+- Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
