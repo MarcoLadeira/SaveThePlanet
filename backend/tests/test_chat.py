@@ -55,17 +55,18 @@ class RequestTests(unittest.TestCase):
 
 
 class SemanticsTests(unittest.TestCase):
-    def test_at_risk_lists_separate_intervals_with_trusted_values(self):
-        reply = ask({'intent': 'at_risk', 'text': 'Both targets are forecast from one issue time.'})
+    def test_at_risk_lists_both_forecasts_of_one_target_with_trusted_values(self):
+        reply = ask({'intent': 'at_risk', 'text': 'Both forecasts are for the same half-hour.'})
         card = reply['card']
         self.assertEqual([r['value'] for r in card['rows']], [0.3, 0.8])  # demo 0.35 / 0.80 rounded
         self.assertEqual([r['label'] for r in card['rows']], ['Forecast target +30 min', 'Forecast target +60 min'])
-        self.assertIn('not an hourly total', card['note'])
+        self.assertIn('same 30-minute target, not an hourly total', card['note'])
         self.assertEqual((reply['navigate'], reply['source']), ('forecast', 'ai'))
 
     def test_provenance_marks_simulated_and_historical(self):
         self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'}, simulated=True)['provenance']['label'], 'Example forecast')
-        self.assertEqual(ask({'intent': 'at_risk', 'text': 'ok.'})['provenance']['mode'], 'historical')
+        historical = ask({'intent': 'at_risk', 'text': 'ok.'})['provenance']
+        self.assertEqual((historical['mode'], historical['label']), ('historical', 'Historical dataset prediction'))
 
     def test_dominant_component_only_when_supported(self):
         self.assertEqual(chat.main_component({'atRiskMwh': 10, 'constraintMwh': 7, 'curtailmentMwh': 3})['name'], 'Grid constraint')

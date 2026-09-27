@@ -234,7 +234,7 @@ dashCharts.confidence = {
     const rows = [...modelState.data.predictions]
       .sort((a, b) => a.horizonMinutes - b.horizonMinutes)
       .map((p) => ({
-        horizon: String(p.horizonMinutes), window: targetWindow(p), risk: p.risk,
+        horizon: String(p.horizonMinutes), issued: modelTime(p.issuedAt), window: targetWindow(p), risk: p.risk,
         probability: p.probability, low: p.lowerMwh, high: p.upperMwh, expected: p.atRiskMwh,
       }));
     return { rows, max: chartNiceMax(Math.max(...rows.map((row) => Math.max(row.high, row.expected)))), selected: String(modelState.horizon) };
@@ -243,7 +243,7 @@ dashCharts.confidence = {
   draw({ rows, max, selected }) {
     const at = (value) => `${Math.min(100, Math.max(0, (value / max) * 100)).toFixed(2)}%`;
     return `<div class="conf-rows">${rows.map((row) => `<button type="button" class="conf-row is-${escapeHtml(row.risk)}${row.horizon === selected ? ' is-selected' : ''}" data-horizon="${row.horizon}" aria-pressed="${row.horizon === selected}">
-        <span class="conf-when"><small>+${row.horizon} min</small><b>${escapeHtml(row.window)}</b></span>
+        <span class="conf-when"><small>+${row.horizon} min · issued ${escapeHtml(row.issued)}</small><b>${escapeHtml(row.window)}</b></span>
         <span class="conf-track"><span class="conf-glass"></span><span class="conf-band" style="left:${at(row.low)};width:calc(${at(row.high)} - ${at(row.low)})"></span>
           <span class="conf-end" style="left:${at(row.low)}">${n(row.low)}</span><span class="conf-end is-high" style="left:${at(row.high)}">${n(row.high)}</span>
           <span class="conf-dot" style="left:${at(row.expected)}"><em>${n(row.expected)} MWh</em></span></span>

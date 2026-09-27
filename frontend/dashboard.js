@@ -38,7 +38,7 @@ function dashboardPlan(p,o){
 function dashboardHero(p){
   return `<section class="dash-card dash-hero">${cardHead('orange','Renewable energy at risk','Selected half-hour model forecast')}
     <div class="hero-body"><div class="hero-figure"><strong>${n(p.atRiskMwh)}<small>MWh</small></strong><p>At risk of being wasted<br>+${p.horizonMinutes} min · ${escapeHtml(targetWindow(p))}</p></div>${chartSlot('likelihood',`${Math.round(p.probability*100)}% likelihood of dispatch-down, ${p.risk} risk`,'hero-gauge')}</div>
-    <div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Likely range</span><strong>${n(p.lowerMwh)}–${n(p.upperMwh)} MWh</strong></div></div>
+    <div class="dash-hero-stats"><div><span>Forecast target</span><strong>${escapeHtml(modelTime(p.targetAt,true))}</strong></div><div><span>Horizon</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Likely range</span><strong>${n(p.lowerMwh)}–${n(p.upperMwh)} MWh</strong></div></div>
   </section>`;
 }
 
@@ -48,7 +48,7 @@ function dashboardCauses(p){
 
 function dashboardConfidence(p){
   const legend='<div class="confidence-legend"><span><i class="is-range"></i>Likely range</span><span><i class="is-expected"></i>Expected</span></div>';
-  return `<section class="dash-card dash-confidence">${cardHead('orange','Forecast confidence','Expected energy at risk and its likely range for each half-hour',legend)}${chartSlot('confidence','Forecast targets','confidence-chart','group')}</section>`;
+  return `<section class="dash-card dash-confidence">${cardHead('orange','Forecast confidence','Two forecasts of the same half-hour: expected energy at risk and its likely range',legend)}${chartSlot('confidence','Forecast targets','confidence-chart','group')}</section>`;
 }
 
 function renderDashboard(){

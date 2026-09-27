@@ -294,5 +294,5 @@ function isDemoData() {
     return modelState.data?.dataMode === "simulated";
 }
 function dataSourceLabel() {
-    return isDemoData() ? "Simulated demo data" : "Historical prediction";
+    return isDemoData() ? "Simulated demo data" : "Historical dataset prediction";
 }

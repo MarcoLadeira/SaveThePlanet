@@ -26,7 +26,7 @@ function voltCard(card) {
 
 function voltProvenance(p) {
   return `<div class="volt-source"><span class="volt-badge ${p.mode === 'simulated' ? 'is-sim' : ''}">${escapeHtml(p.label)}</span>
-    <span>${escapeHtml(p.region)} · issued ${escapeHtml(modelTime(p.issuedAt, true))}</span></div>`;
+    <span>${escapeHtml(p.region)} · target ${escapeHtml(modelTime(p.targetAt, true))} · not a live forecast</span></div>`;
 }
 
 function voltReply(m, latest) {
