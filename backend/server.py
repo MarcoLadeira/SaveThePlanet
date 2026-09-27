@@ -1,5 +1,5 @@
 """Small product API and static frontend host. Run: python backend/server.py."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -85,8 +85,15 @@ def normalize(payload, capacity):
                 fallback={'active': False, 'reason': None})
 
 
-# Fixed historical issue time used for demos (must be within the dataset range)
+# End of the historical window replayed in real time (must be within the dataset range)
 ISSUE_TIMESTAMP = os.environ.get('GRID_TO_EV_ISSUE_TIMESTAMP', '2026-01-10T00:00:00+00:00')
+
+
+def replay_issue_timestamp(now=None):
+    """The dataset half-hour matching the current UTC time of day, in the day before ISSUE_TIMESTAMP."""
+    now = now or datetime.now(timezone.utc)
+    day = (timestamp(ISSUE_TIMESTAMP) - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (day + timedelta(minutes=(now.hour * 60 + now.minute) // 30 * 30)).isoformat()
 
 
 def post_prediction(capacity, horizon):
@@ -95,7 +102,7 @@ def post_prediction(capacity, horizon):
     if key:
         headers['X-API-Key'] = key
     body = json.dumps({
-        'issue_timestamp_utc': ISSUE_TIMESTAMP,
+        'issue_timestamp_utc': replay_issue_timestamp(),
         'forecast_horizon_minutes': horizon,
         'flexible_load_capacity_mw': capacity,
     }).encode()
@@ -200,7 +207,7 @@ def available_forecast(capacity):
     else:
         record_model_status(started, forecast['modelVersion'])
         return forecast
-    forecast = normalize(demo_payload(capacity), capacity)
+    forecast = normalize(demo_payload(capacity, datetime.now(timezone.utc)), capacity)
     forecast.update(source='local-demo-fixture', dataMode='simulated',
                     fallback={'active': True, 'reason': reason})
     return forecast
