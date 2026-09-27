@@ -50,7 +50,7 @@ function renderSettings(){
   const capacity=live?live.flexibleCapacityMw:modelState.capacity,total=s?s.totalDemandKwh:modelState.totalDemandKwh,flexible=s?s.flexibleDemandKwh:modelState.flexibleDemandKwh;
   return studioHeader('Settings','Model display and workspace preferences.')+`<div class="settings-layout">
     <div class="settings-upper">
-      <section class="dash-card settings-section">${cardHead('settings','green','General','Location, display and appearance')}
+      <section class="dash-card settings-section">${cardHead('green','General','Location, display and appearance')}
         <div class="settings-rows">
           <div class="settings-row"><span>Region</span><strong>${region}</strong></div>
           <label class="settings-row" for="settings-timezone"><span>Display timezone</span><select id="settings-timezone" data-setting="timezone"><option ${settings.timezone==='Europe/Dublin'?'selected':''}>Europe/Dublin</option><option ${settings.timezone==='Europe/London'?'selected':''}>Europe/London</option><option ${settings.timezone==='UTC'?'selected':''}>UTC</option></select></label>
@@ -58,7 +58,7 @@ function renderSettings(){
           ${settingSwitch('Dark appearance','theme','Use the same appearance on every page')}
         </div>
       </section>
-      <section class="dash-card settings-section">${cardHead('forecast','green','Forecast view','Choose the details shown across the app')}
+      <section class="dash-card settings-section">${cardHead('green','Forecast view','Choose the details shown across the app')}
         <div class="settings-rows">
           <div class="settings-row"><span>Forecast targets</span><strong>${targets}</strong></div>
           ${settingSwitch('Show uncertainty range','uncertainty','Display the model P10–P90 interval')}
@@ -68,15 +68,15 @@ function renderSettings(){
       </section>
     </div>
     <div class="settings-lower">
-      <section class="dash-card settings-section">${cardHead('battery','blue','Charging inputs','Values used by the backend for Charging and Impact')}
+      <section class="dash-card settings-section">${cardHead('orange','Charging inputs','Values used by the backend for Charging and Impact')}
         <div class="settings-facts"><div><span>Flexible capacity</span><strong>${n(capacity)} MW</strong></div><div><span>Total demand</span><strong>${n(total)} kWh</strong></div><div><span>Flexible demand</span><strong>${n(flexible)} kWh</strong></div>${s?`<div><span>Scenario ID</span><strong>${escapeHtml(s.id)}</strong></div>`:''}</div>
         <button class="settings-link" type="button" data-page="charging">Edit charging inputs ${icon('arrow',17)}</button>
       </section>
-      <section class="dash-card settings-section">${cardHead('pulse','green','Model connection','Live status reported by the backend')}
+      <section class="dash-card settings-section">${cardHead('green','Model connection','Live status reported by the backend')}
         ${healthGrid()}
         <div class="settings-actions"><button class="settings-link" id="model-health-check" type="button" ${modelState.healthChecking?'disabled':''}>${modelState.healthChecking?'Checking…':'Check connection'} ${icon('pulse',17)}</button><button class="settings-link" id="model-retry" type="button" ${modelState.loading?'disabled':''}>Reload forecast ${icon('arrow',17)}</button></div>
       </section>
-      <section class="dash-card settings-section">${cardHead('leaf','green','About this workspace','How the backend calculates the figures')}
+      <section class="dash-card settings-section">${cardHead('green','About this workspace','How the backend calculates the figures')}
         <div class="settings-methodology">${methodology}</div>
       </section>
     </div>

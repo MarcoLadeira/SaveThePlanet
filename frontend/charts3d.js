@@ -109,7 +109,7 @@ dashCharts.likelihood = {
     const [leftX, leftY] = chartPoint(cx, cy, 7, 7, angle - Math.PI / 2);
     const [rightX, rightY] = chartPoint(cx, cy, 7, 7, angle + Math.PI / 2);
     return `<svg viewBox="0 0 240 160" aria-hidden="true">
-      <defs><linearGradient id="gauge-fill" x1="${cx - outer}" x2="${cx + outer}" gradientUnits="userSpaceOnUse"><stop stop-color="#3fe0a8"/><stop offset=".5" stop-color="#ffd066"/><stop offset="1" stop-color="#ff7d59"/></linearGradient></defs>
+      <defs><linearGradient id="gauge-fill" x1="${cx - outer}" x2="${cx + outer}" gradientUnits="userSpaceOnUse"><stop stop-color="#22b574"/><stop offset=".5" stop-color="#f4f8f3"/><stop offset="1" stop-color="#ff883e"/></linearGradient></defs>
       <path class="gauge-slab" d="${chartBand(cx, cy + 8, outer, inner, Math.PI, 2 * Math.PI)}"/>
       ${zone(0, 0.4, 'is-low')}${zone(0.4, 0.7, 'is-medium')}${zone(0.7, 1, 'is-high')}
       ${value > 0.002 ? `<path class="gauge-depth" d="${chartBand(cx, cy + 8, outer, inner, Math.PI, angle)}"/><path fill="url(#gauge-fill)" d="${chartBand(cx, cy, outer, inner, Math.PI, angle)}"/>` : ''}
