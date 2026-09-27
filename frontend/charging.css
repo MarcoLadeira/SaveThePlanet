@@ -1,0 +1,39 @@
+/* Charging page: recommended action, assumption form and calculation notes. Uses the shared dashboard tokens. */
+.charging-action{flex:0 0 auto;flex-direction:row;display:flex;align-items:center;gap:16px;padding:14px 20px;border-radius:22px;background:var(--green-soft);box-shadow:0 4px 0 var(--green-soft-edge)}
+.charging-action.is-empty{background:var(--amber-soft);box-shadow:0 4px 0 var(--amber-deep)}
+.charging-action .dash-tile{flex:0 0 48px;width:48px;height:48px}
+.charging-action-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.charging-action-copy p{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--green-deep)}
+.charging-action.is-empty .charging-action-copy p{color:var(--amber-ink)}
+.charging-action-copy h2{font-size:20px;line-height:1.15;font-weight:800;color:var(--ink)}
+.charging-action-copy>span{font-size:13px;line-height:1.45;color:var(--ink-2)}
+.charging-action-copy b{color:var(--ink)}
+.charging-action .studio-button{flex:0 0 auto;width:auto;margin:0}
+.charging-action-state{flex:0 0 auto;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:750;color:var(--green-deep)}
+.charging-demo-tag{padding:2px 8px;border-radius:999px;background:var(--amber-soft);color:var(--amber-ink);font-size:10px;letter-spacing:0;text-transform:none}
+.charging-form{gap:10px}
+.charging-form fieldset{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:0;padding:0;border:0}
+.charging-form legend{margin-bottom:6px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.charging-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.charging-field small{font-size:10px;color:var(--ink-3)}
+.charging-form input[aria-invalid="true"]{border-color:#bb402d;background:#fdf1ee}
+.charging-form p:empty{min-height:0}
+.charging-method{font-size:11px;line-height:1.5;color:var(--ink-2)}
+.charging-method summary{cursor:pointer;font-size:12px;font-weight:750;color:var(--green-deep)}
+.charging-method ul{margin:8px 0 6px;padding-left:16px;display:flex;flex-direction:column;gap:4px}
+.energy-best{display:inline-block;margin-left:6px;padding:2px 7px;letter-spacing:0;vertical-align:1px;border-radius:999px;background:var(--green-deep);color:#fff;font-size:10px;font-style:normal;font-weight:750}
+/* Keep the fallback banner's Retry button clear of the fixed Volt chat button. */
+.fallback-banner{padding-right:96px}
+/* Space between headline numbers and their units, e.g. "0.5 MWh" rather than "0.5MWh". */
+.studio-metric strong small{margin-left:4px}
+/* The action card adds a row, so the Charging page uses a more compact metric strip and form. */
+.dashboard-main[data-current-page="charging"] .studio-metric{height:98px;padding:14px 18px}
+.dashboard-main[data-current-page="charging"] .studio-metric strong{margin-top:8px;font-size:27px}
+.dashboard-main[data-current-page="charging"] .studio-side-card{gap:10px;padding:18px 20px;overflow:auto}
+.charging-form input{height:34px}
+.dashboard-main[data-current-page="charging"] .energy-chart-rows{gap:10px}
+.dashboard-main[data-current-page="charging"] .energy-target{padding:10px 18px 12px 18px}
+.dashboard-main[data-current-page="charging"] .energy-target-info strong{font-size:26px}
+.dashboard-main[data-current-page="charging"] .energy-target-info small{display:none}
+.dashboard-main[data-current-page="charging"] .energy-target-lanes{gap:6px}
+.dashboard-main[data-current-page="charging"] .energy-track{height:20px;margin-top:5px;box-shadow:0 4px 0 var(--edge)}

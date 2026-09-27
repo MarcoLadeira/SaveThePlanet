@@ -104,6 +104,24 @@ the model. Missing vehicle availability, deadlines and baseline charging schedul
 mean commitments, missed targets and EV counts are explicitly unavailable. No
 financial/emissions estimate or actual charging execution is included.
 
+## EV charging translation (Charging page)
+
+`/api/v1/scenario` also accepts `kwhPerCharge` (1-200, default 30) and `chargerKw`
+(1-400, default 22). They are illustrative assumptions, not vehicle data.
+
+- `scenario.evAssumptions` echoes the values used.
+- Each outcome adds `window` (`startAt`/`endAt`: the target time plus one interval),
+  `evChargesEquivalent` = potential recovery kWh / kWh per charge (an energy
+  equivalent, not a count of connected vehicles) and `chargersNeeded` =
+  ceil(charging power kW / charger kW), the plugs needed to deliver it in the half-hour.
+- `scenario.recommendedWindow` is the recommended outcome's window plus
+  `horizonMinutes`, or `null` when nothing can be recovered.
+- The assumptions are part of the scenario ID. Impact reads the same outcome, so
+  both pages always show the same EV figure.
+
+Example: 0.5 MWh recoverable = 500 kWh / 30 kWh ≈ 17 EV charges; delivering it in
+30 minutes needs 1,000 kW, i.e. 46 chargers at 22 kW or 143 at 7 kW.
+
 ## Automatic demo fallback
 
 No setup or model connection is required for fallback. Every request first tries

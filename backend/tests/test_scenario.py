@@ -3,7 +3,7 @@ from unittest.mock import patch
 import test_server as support
 from test_server import sample
 from server import normalize
-from scenario import build_scenario, validate_demand
+from scenario import build_scenario, validate_demand, validate_ev
 
 
 class ScenarioTests(unittest.TestCase):
@@ -59,6 +59,39 @@ class ScenarioTests(unittest.TestCase):
         self.assertNotEqual(first['id'], build_scenario(self.forecast(), 1000, 100)['id'])
 
 
+class EvTranslationTests(unittest.TestCase):
+    def forecast(self):
+        return normalize(sample(), 100)
+
+    def test_ev_charges_chargers_and_window(self):
+        result = build_scenario(self.forecast(), 1000, 500)
+        outcome = result['outcomes'][0]
+        self.assertEqual(result['evAssumptions'], {'kwhPerCharge': 30, 'chargerKw': 22})
+        self.assertAlmostEqual(outcome['evChargesEquivalent'], 500 / 30)
+        self.assertEqual(outcome['chargersNeeded'], 46)  # 0.5 MWh in 30 min = 1000 kW / 22 kW
+        self.assertEqual(outcome['window'], {'startAt': '2026-01-31T22:30:00+00:00', 'endAt': '2026-01-31T23:00:00+00:00'})
+        self.assertEqual(result['recommendedWindow'], dict(outcome['window'], horizonMinutes=30))
+
+    def test_custom_assumptions_change_translation_and_id(self):
+        default = build_scenario(self.forecast(), 1000, 500)
+        home = build_scenario(self.forecast(), 1000, 500, kwh_per_charge=50, charger_kw=7)
+        self.assertEqual(home['outcomes'][0]['evChargesEquivalent'], 10)
+        self.assertEqual(home['outcomes'][0]['chargersNeeded'], 143)
+        self.assertEqual(home['outcomes'][0]['potentialRecoveryMwh'], default['outcomes'][0]['potentialRecoveryMwh'])
+        self.assertNotEqual(home['id'], default['id'])
+        self.assertEqual(build_scenario(self.forecast(), 1000, 440, charger_kw=22)['outcomes'][0]['chargersNeeded'], 40)
+
+    def test_nothing_to_recover_means_no_window_or_chargers(self):
+        result = build_scenario(self.forecast(), 0, 0)
+        self.assertIsNone(result['recommendedWindow'])
+        self.assertEqual((result['outcomes'][0]['evChargesEquivalent'], result['outcomes'][0]['chargersNeeded']), (0, 0))
+
+    def test_invalid_ev_assumptions(self):
+        for kwh, kw in ((0, 22), (201, 22), (30, 0), (30, 401), (float('nan'), 22), (True, 22)):
+            with self.subTest(kwh=kwh, kw=kw), self.assertRaises(ValueError):
+                validate_ev(kwh, kw)
+
+
 class ScenarioHttpTests(unittest.TestCase):
     setUpClass = classmethod(support.HttpTests.setUpClass.__func__)
     tearDownClass = classmethod(support.HttpTests.tearDownClass.__func__)
@@ -74,7 +107,16 @@ class ScenarioHttpTests(unittest.TestCase):
         fetch.assert_called_once_with(100)
 
     @patch('server.fetch_forecast')
+    def test_ev_assumptions_pass_through(self, fetch):
+        fetch.return_value = normalize(sample(), 100)
+        status, body = self.get('/api/v1/scenario?totalDemandKwh=1000&flexibleDemandKwh=500&kwhPerCharge=50&chargerKw=7')
+        self.assertEqual(status, 200)
+        self.assertEqual(body['scenario']['evAssumptions'], {'kwhPerCharge': 50, 'chargerKw': 7})
+        self.assertEqual(body['scenario']['outcomes'][0]['chargersNeeded'], 143)
+
+    @patch('server.fetch_forecast')
     def test_invalid_demand_rejected_before_model_call(self, fetch):
-        for query in ('totalDemandKwh=1&flexibleDemandKwh=2', 'totalDemandKwh=nan', 'flexibleDemandKwh=-1'):
+        for query in ('totalDemandKwh=1&flexibleDemandKwh=2', 'totalDemandKwh=nan', 'flexibleDemandKwh=-1',
+                      'kwhPerCharge=0', 'chargerKw=1000', 'kwhPerCharge=abc'):
             self.assertEqual(self.get('/api/v1/scenario?' + query)[0], 400)
         fetch.assert_not_called()

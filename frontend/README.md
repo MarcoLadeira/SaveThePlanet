@@ -50,3 +50,17 @@ the backend scenario methodology; *Model connection* shows `/api/v1/health` (sta
 reason code and explanation, model version, response time, last check, service type,
 whether an API key is set) plus the data mode and last-updated time. Timezone,
 appearance and the display toggles remain local preferences.
+
+## Charging page
+
+`charging.js` renders the Charging page from the shared scenario:
+
+- **Recommended action** states the charging window, recoverable MWh, EV charges and
+  chargers needed in one sentence, with a button to switch to the recommended target.
+  When nothing can be recovered it says why instead. Demo data is tagged "Example data".
+- The target chart marks the **Recommended** horizon (also on Impact).
+- **Charging assumptions** edits total and flexible demand (kWh, with the MWh
+  conversion shown) and the EV assumptions (energy per charge in kWh, charger power
+  in kW). Invalid values are flagged next to the field before any request is sent.
+- **How this is calculated** lists the backend methodology and unit conventions.
+- Impact repeats the same EV charge figure for the selected target.
