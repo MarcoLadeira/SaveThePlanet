@@ -123,16 +123,50 @@ def _v1_partitions(info):
                    'rows': p['rows']} for name, p in info['partitions'].items()}
 
 
+def _verify_by_replay(candidates):
+    """Ask the model which candidate issue times exist by replaying them in windows.
+
+    A window error names the first missing issue time; everything before it in that
+    window exists, so that time is dropped and the scan continues after it.
+    """
+    verified, i = [], 0
+    while i < len(candidates):
+        chunk = candidates[i:i + 48]  # the window route accepts at most 24 hours
+        try:
+            rows = call('/predict/window/from-dataset', {'start_timestamp_utc': iso(chunk[0]), 'duration_hours': len(chunk) / 2,
+                                                         'forecast_horizons_minutes': [30]}).get('predictions', [])
+            verified += [utc(r['issue_timestamp_utc']) for r in rows]
+            i += len(chunk)
+        except HTTPError as error:
+            if not missing_row(error):
+                raise
+            missing = error.model_detail.get('first_missing_issue_timestamp_utc')
+            gap = utc(missing) if missing else chunk[0]
+            verified += [t for t in chunk if t < gap]
+            i += max(1, sum(1 for t in chunk if t <= gap))
+    return verified
+
+
 def _available_times(dataset, listed):
-    """The API lists at most 1000 latest times; earlier ones are contiguous half-hours
-    from the dataset minimum (verified against the reported count when possible)."""
+    """Every V1 issue time, verified against the model.
+
+    /dataset/available-times lists at most the latest 1000. The earlier half-hours are
+    only accepted without further calls when the reported total proves there is no gap
+    among them; otherwise each one is confirmed by replaying it.
+    Returns (times, how they were verified).
+    """
     listed = sorted(utc(t) for t in listed)
     earliest = utc(dataset['available_issue_timestamp_min_utc'])
-    earlier, cursor = [], earliest
+    candidates, cursor = [], earliest
     while listed and cursor < listed[0]:
-        earlier.append(cursor)
+        candidates.append(cursor)
         cursor += timedelta(minutes=30)
-    return [iso(t) for t in earlier + listed]
+    if not candidates:
+        return [iso(t) for t in listed], 'listed'
+    if len(candidates) + len(listed) == dataset.get('available_issue_timestamp_count'):
+        return [iso(t) for t in candidates + listed], 'count'
+    key = ('v1-verified', iso(earliest), iso(listed[0]), dataset.get('available_issue_timestamp_count'))
+    return [iso(t) for t in cached(key, None, lambda: _verify_by_replay(candidates)) + listed], 'replay'
 
 
 def short_term_info():
@@ -140,7 +174,7 @@ def short_term_info():
         dataset, listed, info = parallel(lambda: call('/dataset/info'),
                                          lambda: call('/dataset/available-times?limit=1000'),
                                          lambda: call('/model-info'))
-        times = _available_times(dataset, listed['issue_timestamps_utc'])
+        times, verification = _available_times(dataset, listed['issue_timestamps_utc'])
         components = info.get('prediction_components', {})
         evaluation = info.get('evaluation', {})
         test = evaluation.get('test', {})
@@ -173,6 +207,7 @@ def short_term_info():
             },
             'dataset': {'from': times[0], 'to': times[-1], 'count': len(times),
                         'reportedCount': dataset.get('available_issue_timestamp_count'),
+                        'verification': verification,
                         'intervalMinutes': dataset.get('interval_minutes', 30)},
             'times': times,
         }

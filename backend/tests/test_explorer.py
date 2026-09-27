@@ -43,10 +43,38 @@ V2_INFO = {'dataset': {'from': '2024-04-01', 'to': '2026-08-30',
 
 
 class HelperTests(unittest.TestCase):
-    def test_available_times_fills_contiguous_prefix_before_listed_times(self):
-        dataset = {'available_issue_timestamp_min_utc': '2026-01-02T00:00:00+00:00'}
-        times = explorer._available_times(dataset, ['2026-01-02T01:30:00+00:00', '2026-01-02T01:00:00+00:00'])
+    def test_earlier_times_accepted_only_when_the_reported_count_proves_no_gaps(self):
+        dataset = {'available_issue_timestamp_min_utc': '2026-01-02T00:00:00+00:00', 'available_issue_timestamp_count': 4}
+        with patch('explorer.call') as call:
+            times, how = explorer._available_times(dataset, ['2026-01-02T01:30:00+00:00', '2026-01-02T01:00:00+00:00'])
+        call.assert_not_called()
+        self.assertEqual(how, 'count')
         self.assertEqual(times, ['2026-01-02T00:00:00Z', '2026-01-02T00:30:00Z', '2026-01-02T01:00:00Z', '2026-01-02T01:30:00Z'])
+
+    def test_earlier_times_with_a_gap_are_verified_by_replay(self):
+        # 00:00-01:30 are candidates before the listed 02:00, but 00:30 is missing (count 4, not 5).
+        dataset = {'available_issue_timestamp_min_utc': '2026-01-02T00:00:00+00:00', 'available_issue_timestamp_count': 4}
+        present = {'2026-01-02T00:00:00Z', '2026-01-02T01:00:00Z', '2026-01-02T01:30:00Z'}
+
+        def fake(path, body):
+            start = explorer.utc(body['start_timestamp_utc'])
+            slots = [explorer.iso(start + explorer.timedelta(minutes=30 * i)) for i in range(int(body['duration_hours'] * 2))]
+            gap = next((t for t in slots if t not in present), None)
+            if gap:
+                raise http_error(404, json.dumps({'detail': {'error': 'dataset_window_not_available',
+                                                             'first_missing_issue_timestamp_utc': gap}}).encode())
+            return {'predictions': [{'issue_timestamp_utc': t} for t in slots]}
+        explorer._cache.clear()
+        with patch('explorer.call', side_effect=fake):
+            times, how = explorer._available_times(dataset, ['2026-01-02T02:00:00+00:00'])
+        self.assertEqual(how, 'replay')
+        self.assertEqual(times, ['2026-01-02T00:00:00Z', '2026-01-02T01:00:00Z', '2026-01-02T01:30:00Z', '2026-01-02T02:00:00Z'])
+
+    def test_real_errors_during_verification_are_raised(self):
+        dataset = {'available_issue_timestamp_min_utc': '2026-01-02T00:00:00+00:00', 'available_issue_timestamp_count': 1}
+        explorer._cache.clear()
+        with patch('explorer.call', side_effect=http_error(404, b'{"detail":"Not Found"}')), self.assertRaises(HTTPError):
+            explorer._available_times(dataset, ['2026-01-02T01:00:00+00:00'])
 
     def test_contiguous_runs_split_at_gaps(self):
         runs = explorer.contiguous_runs(['2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z'])

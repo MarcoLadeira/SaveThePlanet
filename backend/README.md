@@ -215,8 +215,11 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 
 - Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
 - Short-term selectable times: the V1 dataset's half-hour issue times (January 2026).
-  `/dataset/available-times` returns at most 1000, so earlier times are filled in as
-  the contiguous half-hours from the dataset minimum.
+  `/dataset/available-times` returns at most the latest 1000. Earlier half-hours are only
+  accepted without extra calls when `available_issue_timestamp_count` proves there is no
+  gap among them; otherwise each is confirmed by replaying it through the window route,
+  whose `first_missing_issue_timestamp_utc` pinpoints gaps. The info response reports
+  `dataset.verification` = `listed`, `count` or `replay`.
 - A horizon whose target row is outside the dataset (for example +60 min from the
   final issue time) is omitted instead of failing the request.
 - Invalid input → 400, target outside the dataset → 404 `NOT_IN_DATASET`, model
