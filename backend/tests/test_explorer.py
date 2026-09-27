@@ -181,8 +181,11 @@ class ModelCallTests(unittest.TestCase):
                 horizon = body['forecast_horizons_minutes'][0]
                 return {'predictions': [v1_row(explorer.iso(first + explorer.timedelta(minutes=30 * i)), horizon)
                                         for i in range(int(body['duration_hours'] * 2))]}
-            return {'actuals': [{'status': 'available', 'target_timestamp_utc': t, 'actual_dispatch_down_mwh': 1.0}
-                                for t in body['target_timestamps_utc']]}
+            self.assertEqual(path, '/actuals/v1/window')  # observed values: one window call per day
+            first = explorer.utc(body['start_target_timestamp_utc'])
+            return {'actuals': [{'status': 'available', 'actual_dispatch_down_mwh': 1.0,
+                                 'target_timestamp_utc': explorer.iso(first + explorer.timedelta(minutes=30 * i))}
+                                for i in range(int(body['duration_hours'] * 2))]}
         call.side_effect = fake
         for horizon, start in ((30, '2026-01-08T23:30:00Z'), (60, '2026-01-08T23:00:00Z')):
             with self.subTest(horizon=horizon), patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
@@ -229,14 +232,35 @@ class ModelCallTests(unittest.TestCase):
         self.assertIsNone(result['actual']['curtailmentMwh'])
 
     @patch('explorer.daily_info', return_value=V2_INFO)
-    @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
-    def test_week_starts_on_the_selected_day(self, _one, _info):
+    @patch('explorer._daily_actuals', side_effect=lambda days: {d: None for d in days})
+    @patch('explorer._daily_prediction', side_effect=lambda day: {'date': day})
+    def test_week_starts_on_the_selected_day(self, _prediction, _actuals, _info):
         days = [d['date'] for d in explorer.daily_week('2025-06-10')['days']]
         self.assertEqual((days[0], days[-1], len(days)), ('2025-06-10', '2025-06-16', 7))
 
     @patch('explorer.daily_info', return_value=V2_INFO)
-    @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
-    def test_week_is_clipped_to_dataset_end(self, _one, _info):
+    @patch('explorer.call')
+    def test_week_actuals_come_from_one_window_call_and_are_reused(self, call, _info):
+        def fake(path, body=None):
+            if path == '/predict/curtailment/day':
+                return {'model_version': '2', 'curtailment_event_probability': .5, 'predicted_curtailment_mwh': 10.0}
+            self.assertEqual(path, '/actuals/daily-curtailment/window')
+            start = explorer.date.fromisoformat(body['start_date_utc'])
+            return {'actuals': [{'status': 'available', 'actual_curtailment_mwh': 100.0 + i, 'actual_curtailment_event': True,
+                                 'target_date_utc': (start + explorer.timedelta(days=i)).isoformat()} for i in range(body['days'])]}
+        call.side_effect = fake
+        week = explorer.daily_week('2025-06-10')
+        actual_calls = [c for c in call.call_args_list if c.args[0].startswith('/actuals')]
+        self.assertEqual(len(actual_calls), 1)
+        self.assertEqual([d['actual']['curtailmentMwh'] for d in week['days']], [100.0 + i for i in range(7)])
+        call.reset_mock()
+        self.assertEqual(explorer.daily_predict('2025-06-12')['actual']['curtailmentMwh'], 102.0)
+        call.assert_not_called()  # clicking a day in the week needs no further requests
+
+    @patch('explorer.daily_info', return_value=V2_INFO)
+    @patch('explorer._daily_actuals', side_effect=lambda days: {d: None for d in days})
+    @patch('explorer._daily_prediction', side_effect=lambda day: {'date': day})
+    def test_week_is_clipped_to_dataset_end(self, _prediction, _actuals, _info):
         days = [d['date'] for d in explorer.daily_week('2026-08-30')['days']]
         self.assertEqual(days, ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'])
 

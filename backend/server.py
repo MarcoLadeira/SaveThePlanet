@@ -362,6 +362,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if horizon not in (30, 60):
                     raise ValueError('Horizon must be 30 or 60')
                 action = partial(explorer.short_term_day, day, horizon)
+            elif name == 'short-term/observed':
+                action = partial(explorer.day_observed, date.fromisoformat(query.get('date', '')).isoformat())
             elif name in ('daily/predict', 'daily/week'):
                 day = date.fromisoformat(query.get('date', '')).isoformat()
                 action = partial({'daily/predict': explorer.daily_predict, 'daily/week': explorer.daily_week}[name], day)

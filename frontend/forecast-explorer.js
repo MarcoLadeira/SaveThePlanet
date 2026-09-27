@@ -8,7 +8,7 @@ const fx = {
   picker: null, // {month:'YYYY-MM'} while the date picker is open
   caveatsOpen: { daily: true, short: false }, // survives re-renders
   daily: { info: null, infoLoading: false, infoError: '', date: null, result: null, loading: false, error: '', week: null, weekLoading: false },
-  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', replays: {}, horizon: 30, targets: null, byDate: null, issueSet: null },
+  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', replays: {}, observed: {}, horizon: 30, targets: null, byDate: null, issueSet: null },
 };
 try { if (localStorage.getItem('forecast-model') === 'short') fx.model = 'short'; } catch {}
 const fxTokens = { daily: 0, short: 0, week: 0 };
@@ -32,6 +32,8 @@ function fxMonthLabel(month) { return new Intl.DateTimeFormat('en-IE', { timeZon
 function fxShiftMonth(month, delta) { const d = new Date(`${month}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + delta); return d.toISOString().slice(0, 7); }
 function fxAddDays(day, delta) { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + delta); return d.toISOString().slice(0, 10); }
 function fxMwh(value) { return value === null || value === undefined ? '—' : n(value); }
+// "Model was 12 MWh high" / "+30 min forecast matched": rounded to the precision shown on the card.
+function fxMiss(who, error, scale) { const size = Math.round(Math.abs(error) * scale) / scale; return size === 0 ? `${who} matched` : `${who} was ${n(size)} MWh ${error > 0 ? 'high' : 'low'}`; }
 function fxPercent(value, digits = 0) { return value === null || value === undefined ? '—' : `${(value * 100).toFixed(digits)}%`; }
 function fxPartitionOf(stamp, partitions) {
   for (const name of ['train', 'validation', 'test']) { const p = partitions?.[name]; if (p && p.from <= stamp && stamp <= p.to) return name; }
@@ -104,6 +106,7 @@ async function fxLoadWeek(day) {
 async function fxSelectShort(target) {
   const s = fx.short, token = ++fxTokens.short, day = target.slice(0, 10);
   s.target = target; s.date = day; s.loading = true; s.error = ''; fxRerender();
+  fxLoadObserved(day); // ~0.3 s: lets the chart show reality while the forecast replay (~13 s) runs
   fxEnsureReplay(day, s.horizon);
   fxEnsureReplay(day, s.horizon === 30 ? 60 : 30, true); // prefetch the other horizon afterwards
   try {
@@ -116,6 +119,14 @@ async function fxSelectShort(target) {
 // once), so they load one at a time: the horizon on screen first, the other as a prefetch.
 // A prefetch for a day the user has already left is skipped.
 let fxReplayQueue = Promise.resolve();
+async function fxLoadObserved(day) {
+  const s = fx.short;
+  if (s.observed[day] && s.observed[day].status !== 'error') return;
+  s.observed[day] = { status: 'loading' };
+  try { s.observed[day] = { status: 'ok', data: await fxGet(`/api/v1/explorer/short-term/observed?date=${day}`) }; }
+  catch (error) { s.observed[day] = { status: 'error', error: error.message }; }
+  fxRerender();
+}
 function fxReplay(day = fx.short.date, horizon = fx.short.horizon) { return fx.short.replays[`${day}|${horizon}`]; }
 function fxEnsureReplay(day, horizon, prefetch = false) {
   const s = fx.short, key = `${day}|${horizon}`;
@@ -237,12 +248,17 @@ function fxWeekChart() {
 
 function fxDayChart() {
   const s = fx.short, h = s.horizon;
-  const replay = fxReplay();
-  if (replay?.status === 'error') return `<div class="fx-chart-empty is-error" role="alert"><span>Day replay unavailable: ${escapeHtml(replay.error)}</span><button type="button" class="studio-ghost" data-fx-replay-retry>Retry replay</button></div>`;
-  if (replay?.status !== 'ok') return `<div class="fx-chart-empty"><span class="studio-spinner"></span>${replay?.status === 'loading' ? `Replaying this day's 48 half-hours at +${h} min… about 15 s` : 'Waiting for the model…'}</div>`;
-  const day = replay.data;
+  const replay = fxReplay(), fast = s.observed[s.date], ready = replay?.status === 'ok';
+  const retry = replay?.status === 'error' ? `<span>Forecast replay unavailable: ${escapeHtml(replay.error)}</span><button type="button" class="studio-ghost" data-fx-replay-retry>Retry replay</button>` : '';
+  if (!ready && fast?.status !== 'ok') {
+    if (retry) return `<div class="fx-chart-empty is-error" role="alert">${retry}</div>`;
+    return `<div class="fx-chart-empty"><span class="studio-spinner"></span>Loading this day's observed values…</div>`;
+  }
+  // Until the forecast replay arrives, draw the observed values on their own.
+  const day = ready ? replay.data : { date: s.date, points: [], observed: fast.data.observed };
   const pts = day.points.filter((p) => p.horizonMinutes === h).sort((a, b) => a.targetAt.localeCompare(b.targetAt));
-  if (!pts.length) return '<div class="fx-chart-empty">No replay points for this horizon.</div>';
+  if (ready && !pts.length) return '<div class="fx-chart-empty">No replay points for this horizon.</div>';
+  const status = ready ? '' : `<div class="fx-chart-status ${retry ? 'is-error' : ''}" role="status">${retry || `<span class="fx-dot-spin"></span>Observed values shown · replaying the +${h} min forecast (about 15 s)…`}</div>`;
   // The x-axis is the day's 48 target half-hours (00:00-23:30 UTC); observed values cover every slot.
   const observed = (day.observed || []).filter((o) => o.actualMwh !== null);
   const W = 720, H = 270, left = 52, right = 12, top = 18, base = 228;
@@ -262,7 +278,7 @@ function fxDayChart() {
   const hitW = (W - left - right) / 47;
   const hits = pts.map((p) => `<rect class="fx-hit" data-fx-target="${p.targetAt}" x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${fxIssueLabel(p.issuedAt, day.date)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
   const actualDots = observed.map((o) => `<circle class="fx-actual-dot" cx="${x(o.targetAt).toFixed(1)}" cy="${y(o.actualMwh).toFixed(1)}" r="2.4"/>`).join('');
-  return `<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${hours}${hits}</svg>`;
+  return `<div class="fx-chart-stack">${status}<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${hours}${hits}</svg></div>`;
 }
 
 // ---------------------------------------------------------------- model information
@@ -332,7 +348,7 @@ function fxDailyView() {
   const r = s.result, a = r.actual, likely = r.probability >= 0.5;
   const observed = a.curtailmentMwh === null
     ? metric('Observed (EirGrid)', a.status === 'pending' ? 'Pending' : 'Missing', '', 'No complete observation yet')
-    : metric('Observed (EirGrid)', n(Math.round(a.curtailmentMwh)), 'MWh', `Model was ${n(Math.round(Math.abs(r.predictedMwh - a.curtailmentMwh)))} MWh ${r.predictedMwh > a.curtailmentMwh ? 'high' : 'low'}`, 'green');
+    : metric('Observed (EirGrid)', n(Math.round(a.curtailmentMwh)), 'MWh', fxMiss('Model', r.predictedMwh - a.curtailmentMwh, 1), 'green');
   const gaugeR = 62, circ = Math.PI * gaugeR;
   return `<div class="fx-content ${s.loading ? 'is-loading' : ''}">
     ${fxReplayNote('daily')}
@@ -377,7 +393,7 @@ function fxShortView() {
     ${statStrip([
       horizonMetric(30),
       horizonMetric(60),
-      actual === null || actual === undefined ? metric('Observed at target', r.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(r.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', `+${p.horizonMinutes} min forecast was ${n(Math.round(Math.abs(p.atRiskMwh - actual) * 10) / 10)} MWh ${p.atRiskMwh > actual ? 'high' : 'low'}`, 'green'),
+      actual === null || actual === undefined ? metric('Observed at target', r.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(r.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', fxMiss(`+${p.horizonMinutes} min forecast`, p.atRiskMwh - actual, 10), 'green'),
       fxPartitionMetric(p.partition),
     ])}
     <div class="studio-page-grid fx-grid">

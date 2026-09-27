@@ -263,6 +263,24 @@ def _v1_actual(row):
             'constraintMwh': finite(row.get('actual_constraint_mwh'), 'actual', optional=True)}
 
 
+def day_observed(day):
+    """The 48 observed half-hours (00:00-23:30 UTC) of a day from one /actuals/v1/window call.
+
+    This takes ~0.3 s, while replaying the model's predictions for the same day takes ~13 s,
+    so the page can draw reality immediately and add the forecast line when it arrives.
+    """
+    day = date.fromisoformat(day).isoformat()
+    if not any(t.startswith(day) for t in short_term_info()['times']):
+        raise LookupError('That date is not in the short-term model dataset.')
+
+    def build():
+        body = call('/actuals/v1/window', {'start_target_timestamp_utc': f'{day}T00:00:00Z', 'duration_hours': 24})
+        actuals = {a['targetAt']: a for a in map(_v1_actual, body.get('actuals', []))}
+        return {'date': day, 'observed': [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None}
+                                          for t in day_targets(day)]}
+    return cached(('v1-observed', day), None, build)
+
+
 def _v1_actuals(targets):
     if not targets:
         return {}
@@ -366,11 +384,10 @@ def short_term_day(day, horizon=30):
     def build():
         rows = [row for run in contiguous_runs(issues) for row in _with_retry(lambda run=run: _window(run, horizon))]
         points = [p for p in map(_v1_point, rows) if p['targetAt'].startswith(day)]
-        actuals = _v1_actuals(targets)
+        observed = day_observed(day)['observed']  # usually already cached by the page's fast request
+        by_target = {o['targetAt']: o['actualMwh'] for o in observed}
         for p in points:
-            actual = actuals.get(p['targetAt'])
-            p['actualMwh'] = actual['dispatchDownMwh'] if actual else None
-        observed = [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None} for t in targets]
+            p['actualMwh'] = by_target.get(p['targetAt'])
         return {'date': day, 'horizonMinutes': horizon, 'modelVersion': rows[0].get('model_version') if rows else None,
                 'points': points, 'observed': observed}
     return cached(('v1-day', day, horizon), None, build)
@@ -445,22 +462,46 @@ def validate_day(value):
     return day, info
 
 
-def _daily_one(day):
+def _daily_actual(row):
+    return {'status': row.get('status'),
+            'curtailmentMwh': finite(row.get('actual_curtailment_mwh'), 'actual', optional=True),
+            'event': row.get('actual_curtailment_event')}
+
+
+def _daily_actuals(days):
+    """{day: actual} for consecutive days. Uncached days come from one window call
+    (/actuals/daily-curtailment/window) instead of one request per day."""
+    with _cache_lock:
+        missing = [d for d in days if ('v2-actual', d) not in _cache]
+    if len(missing) == 1:
+        rows = [call(f'/actuals/daily-curtailment?target_date_utc={missing[0]}')]
+    elif missing:
+        rows = call('/actuals/daily-curtailment/window', {'start_date_utc': missing[0], 'days': len(missing)}).get('actuals', [])
+    else:
+        rows = []
+    for row in rows:
+        day = row.get('target_date_utc') or missing[0]
+        cached(('v2-actual', day), None, lambda row=row: _daily_actual(row))
+    return {d: cached(('v2-actual', d), None, lambda: {'status': 'missing', 'curtailmentMwh': None, 'event': None})
+            for d in days}
+
+
+def _daily_prediction(day):
     def build():
-        prediction, actual = parallel(
-            lambda: call('/predict/curtailment/day', {'target_date_utc': day}),
-            lambda: call(f'/actuals/daily-curtailment?target_date_utc={day}'))
+        prediction = call('/predict/curtailment/day', {'target_date_utc': day})
         return {
             'date': day, 'modelVersion': prediction.get('model_version'),
             'issuedAt': prediction.get('issue_timestamp_utc'),
             'weatherAvailableAt': prediction.get('forecast_max_available_at_utc'),
             'probability': finite(prediction['curtailment_event_probability'], 'probability', 0, 1),
             'predictedMwh': finite(prediction['predicted_curtailment_mwh'], 'energy', 0),
-            'actual': {'status': actual.get('status'),
-                       'curtailmentMwh': finite(actual.get('actual_curtailment_mwh'), 'actual', optional=True),
-                       'event': actual.get('actual_curtailment_event')},
         }
     return cached(('v2-day', day), None, build)
+
+
+def _daily_one(day):
+    prediction, actuals = parallel(lambda: _daily_prediction(day), lambda: _daily_actuals([day]))
+    return {**prediction, 'actual': actuals[day]}
 
 
 def daily_predict(day):
@@ -478,5 +519,5 @@ def daily_week(day):
     start = min(date.fromisoformat(day), max(first, last - timedelta(days=6)))
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)
             if start + timedelta(days=i) <= last]
-    results = parallel(*[lambda d=d: _daily_one(d) for d in days])
-    return {'selected': day, 'days': results}
+    actuals, *predictions = parallel(lambda: _daily_actuals(days), *[lambda d=d: _daily_prediction(d) for d in days])
+    return {'selected': day, 'days': [{**p, 'actual': actuals[p['date']]} for p in predictions]}

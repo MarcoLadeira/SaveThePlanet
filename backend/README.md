@@ -208,10 +208,11 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 | --- | --- |
 | `GET /api/v1/explorer/daily` | V2 `/model-info/daily-curtailment` + `/dataset/daily-curtailment/coverage` (cached 10 min) |
 | `GET /api/v1/explorer/daily/predict?date=YYYY-MM-DD` | V2 `/predict/curtailment/day` + `/actuals/daily-curtailment` |
-| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for the date and the 6 days after it (shifted back near the dataset end) |
+| `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | `/predict/curtailment/day` for the date and the 6 days after it (shifted back near the dataset end) + one `/actuals/daily-curtailment/window` call for all 7 actuals |
 | `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
 | `GET /api/v1/explorer/short-term/predict?target=…Z&capacityMw=100` | V1 `/predict/from-dataset` at +30 (issued target-30 min) and +60 (issued target-60 min) + `/actuals/v1/batch` for the target |
-| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per horizon and gap-free run, so targets cover 00:00-23:30 of the day, + actuals for all 48 targets |
+| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD&horizon=30` | V1 `/predict/window/from-dataset` for one horizon, per gap-free run, sequentially (one retry on timeout/5xx) |
+| `GET /api/v1/explorer/short-term/observed?date=YYYY-MM-DD` | One `/actuals/v1/window` call: the day's 48 observed half-hours (~0.3 s), drawn before the ~13 s forecast replay arrives |
 
 - Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
 - Short-term selection is by **target** half-hour: a target is selectable when its +30 or +60
