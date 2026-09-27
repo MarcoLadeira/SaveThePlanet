@@ -199,6 +199,7 @@ class ModelCallTests(unittest.TestCase):
                 self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
                 self.assertEqual(len(day['observed']), 48)
 
+    @patch('explorer.RETRY_BACKOFF_SECONDS', 0)
     @patch('explorer.call')
     def test_day_replay_retries_a_timed_out_window_once(self, call):
         start = explorer.utc('2026-01-08T00:00:00Z')
@@ -363,6 +364,22 @@ class ExplorerHttpTests(unittest.TestCase):
     def test_upstream_failure_is_502_with_diagnosis(self, _info):
         status, body = self.get('/api/v1/explorer/daily')
         self.assertEqual((status, body['error']['code']), (502, 'MODEL_TIMEOUT'))
+
+    def test_busy_gate_is_503_with_retry_after(self):
+        from gate import Busy
+        with patch('explorer.short_term_day', side_effect=Busy()):
+            try:
+                urlopen(self.url + '/api/v1/explorer/short-term/day?date=2026-01-20&horizon=30&client=tab-1&seq=3')
+                self.fail('expected 503')
+            except HTTPError as error:
+                self.assertEqual((error.code, error.headers['Retry-After'], json.load(error)['error']['code']), (503, '5', 'MODEL_BUSY'))
+
+    def test_superseded_request_is_409_and_passes_viewer_identity(self):
+        from gate import Superseded
+        with patch('explorer.short_term_day', side_effect=Superseded()) as replay:
+            status, body = self.get('/api/v1/explorer/short-term/day?date=2026-01-20&horizon=60&client=tab-1&seq=4&prefetch=1')
+        self.assertEqual((status, body['error']['code']), (409, 'SUPERSEDED'))
+        replay.assert_called_once_with('2026-01-20', 60, 'tab-1', 4, True)
 
     def test_unknown_explorer_route_is_404(self):
         self.assertEqual(self.get('/api/v1/explorer/nope')[0], 404)

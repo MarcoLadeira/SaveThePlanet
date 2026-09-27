@@ -17,6 +17,8 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from gate import FOREGROUND, PREFETCH, gate
+
 # Window replays can take ~15 s on the hosted service, and a sleeping service
 # can take up to a minute to wake, so explorer calls get a longer budget.
 TIMEOUT = 60
@@ -134,8 +136,9 @@ def _verify_by_replay(candidates):
     while i < len(candidates):
         chunk = candidates[i:i + 48]  # the window route accepts at most 24 hours
         try:
-            rows = call('/predict/window/from-dataset', {'start_timestamp_utc': iso(chunk[0]), 'duration_hours': len(chunk) / 2,
-                                                         'forecast_horizons_minutes': [30]}).get('predictions', [])
+            body = {'start_timestamp_utc': iso(chunk[0]), 'duration_hours': len(chunk) / 2, 'forecast_horizons_minutes': [30]}
+            rows = gate.run(('verify', iso(chunk[0]), len(chunk)),
+                            lambda body=body: call('/predict/window/from-dataset', body).get('predictions', []), PREFETCH)
             verified += [utc(r['issue_timestamp_utc']) for r in rows]
             i += len(chunk)
         except HTTPError as error:
@@ -351,8 +354,11 @@ def day_targets(day):
     return [iso(start + timedelta(minutes=30 * i)) for i in range(48)]
 
 
+RETRY_BACKOFF_SECONDS = 1.5
+
+
 def _with_retry(fn):
-    """One retry for a timeout or 5xx: the hosted service queues heavy replays and can time out."""
+    """One retry, after a short backoff, for a timeout or 5xx from the hosted service."""
     try:
         return fn()
     except HTTPError as error:
@@ -360,10 +366,11 @@ def _with_retry(fn):
             raise
     except (URLError, TimeoutError, OSError):
         pass
+    time.sleep(RETRY_BACKOFF_SECONDS)
     return fn()
 
 
-def short_term_day(day, horizon=30):
+def short_term_day(day, horizon=30, client=None, seq=None, prefetch=False):
     """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at one horizon, with actuals.
 
     A target at 00:00 is predicted from 23:30 (+30) or 23:00 (+60) the day before, so each
@@ -390,7 +397,10 @@ def short_term_day(day, horizon=30):
             p['actualMwh'] = by_target.get(p['targetAt'])
         return {'date': day, 'horizonMinutes': horizon, 'modelVersion': rows[0].get('model_version') if rows else None,
                 'points': points, 'observed': observed}
-    return cached(('v1-day', day, horizon), None, build)
+    # Every replay goes through the server-wide gate (one upstream replay at a time, shared
+    # across clients, foreground before prefetch, superseded work dropped).
+    key = ('v1-day', day, horizon)
+    return cached(key, None, lambda: gate.run(key, build, PREFETCH if prefetch else FOREGROUND, client, seq))
 
 
 # ---------------------------------------------------------------- V2 daily

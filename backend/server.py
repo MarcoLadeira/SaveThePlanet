@@ -21,6 +21,7 @@ import chat
 import explorer
 import synthetic
 import targets
+from gate import FOREGROUND, PREFETCH, Busy, Superseded, gate
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -189,7 +190,7 @@ def dataset_range():
     return _dataset_range
 
 
-def fetch_day_replay(day, capacity):
+def fetch_day_replay(day, capacity, prefetch=False):
     """48 consecutive +30 minute predictions issued across one UTC day (cached by day and capacity).
 
     Concurrent requests for the same day share one upstream call: a user request for a
@@ -210,7 +211,8 @@ def fetch_day_replay(day, capacity):
         with _day_cache_lock:
             pending = _day_inflight[key] = threading.Event()
     try:
-        replay = _replay_day(day, capacity)
+        replay = gate.run(('impact-day', day.isoformat(), capacity), lambda: _replay_day(day, capacity),
+                          PREFETCH if prefetch else FOREGROUND)
         with _day_cache_lock:
             _day_cache[key] = replay
         return replay
@@ -277,7 +279,7 @@ def _prefetch_loop():
     while True:
         day, capacity = _next_prefetch()
         try:
-            fetch_day_replay(date.fromisoformat(day), capacity)
+            fetch_day_replay(date.fromisoformat(day), capacity, prefetch=True)
         except Exception:  # best effort; a real request will surface any error
             pass
 
@@ -478,7 +480,7 @@ def keep_model_warm():
         model_request('/health', timeout=60)
         targets.dataset_targets()  # the population the dashboard's target is sampled from
         forecast = cached_forecast(100.0)
-        fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0)
+        fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0, prefetch=True)
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
     while True:
@@ -514,9 +516,11 @@ class ProductServer(ThreadingHTTPServer):
         super().server_bind()
 
 class Handler(SimpleHTTPRequestHandler):
-    def send_json(self, status, body):
+    def send_json(self, status, body, headers=None):
         encoded = json.dumps(body, allow_nan=False).encode()
         self.send_response(status)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Content-Length', str(len(encoded)))
@@ -584,6 +588,10 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             with user_replay():
                 status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
+        except Busy:
+            self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
+                           {'Retry-After': str(Busy.retry_after)})
+            return
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
@@ -616,7 +624,12 @@ class Handler(SimpleHTTPRequestHandler):
                 horizon = int(query.get('horizon', '30'))
                 if horizon not in (30, 60):
                     raise ValueError('Horizon must be 30 or 60')
-                action = partial(explorer.short_term_day, day, horizon)
+                # Optional viewer identity so the replay gate can drop this viewer's superseded work.
+                client = query.get('client')
+                if client is not None and not (0 < len(client) <= 64):
+                    raise ValueError('Invalid client')
+                seq = int(query['seq']) if 'seq' in query else None
+                action = partial(explorer.short_term_day, day, horizon, client, seq, query.get('prefetch') == '1')
             elif name == 'short-term/observed':
                 action = partial(explorer.day_observed, date.fromisoformat(query.get('date', '')).isoformat())
             elif name in ('daily/predict', 'daily/week'):
@@ -632,6 +645,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         try:
             self.send_json(200, action())
+        except Busy:
+            self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
+                           {'Retry-After': str(Busy.retry_after)})
+        except Superseded:
+            self.send_json(409, {'error': {'code': 'SUPERSEDED', 'message': 'A newer request from this page replaced this one.'}})
         except LookupError as error:
             self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:

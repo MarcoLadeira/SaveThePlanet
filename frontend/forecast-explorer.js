@@ -107,18 +107,38 @@ async function fxSelectShort(target) {
   const s = fx.short, token = ++fxTokens.short, day = target.slice(0, 10);
   s.target = target; s.date = day; s.loading = true; s.error = ''; fxRerender();
   fxLoadObserved(day); // ~0.3 s: lets the chart show reality while the forecast replay (~13 s) runs
-  fxEnsureReplay(day, s.horizon);
-  fxEnsureReplay(day, s.horizon === 30 ? 60 : 30, true); // prefetch the other horizon afterwards
+  const shown = s.horizon;
+  // The horizon on screen first; the other is prefetched afterwards (if the day is still shown).
+  fxEnsureReplay(day, shown).then(() => { if (s.date === day) fxEnsureReplay(day, shown === 30 ? 60 : 30, true); });
   try {
     const result = await fxGet(`/api/v1/explorer/short-term/predict?target=${encodeURIComponent(target)}&capacityMw=${modelState.capacity}`);
     if (token === fxTokens.short) s.result = result;
   } catch (error) { if (token === fxTokens.short) { s.error = error.message; s.result = null; } }
   if (token === fxTokens.short) { s.loading = false; fxRerender(); }
 }
-// Day replays are heavy for the hosted model (~13 s each, much slower when two run at
-// once), so they load one at a time: the horizon on screen first, the other as a prefetch.
-// A prefetch for a day the user has already left is skipped.
-let fxReplayQueue = Promise.resolve();
+// Day replays are heavy for the hosted model (~13 s each, much slower when two overlap). The
+// server's replay gate runs one at a time for all viewers, puts on-screen requests before
+// prefetches and drops this tab's superseded work, identified by fxClient and fxSeq. It answers
+// 503 (busy: retry with backoff) or 409 (superseded: ignore).
+const fxClient = (globalThis.crypto?.randomUUID?.() || `tab-${Math.random().toString(36).slice(2)}`).slice(0, 64);
+let fxSeq = 0;
+const fxSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function fxFetchReplay(day, horizon, seq, prefetch) {
+  const query = new URLSearchParams({ date: day, horizon: String(horizon), client: fxClient, seq: String(seq) });
+  if (prefetch) query.set('prefetch', '1');
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`/api/v1/explorer/short-term/day?${query}`);
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 409) throw Object.assign(new Error('superseded'), { superseded: true });
+    if (response.status === 503 && attempt < 3) {
+      await fxSleep((Number(response.headers.get('Retry-After')) || 2) * 1000 * 2 ** attempt);
+      if (seq < fxSeq && !prefetch) throw Object.assign(new Error('superseded'), { superseded: true });
+      continue;
+    }
+    if (!response.ok) throw new Error(body.error?.message || 'The model request failed.');
+    return body;
+  }
+}
 async function fxLoadObserved(day) {
   const s = fx.short;
   if (s.observed[day] && s.observed[day].status !== 'error') return;
@@ -130,15 +150,16 @@ async function fxLoadObserved(day) {
 function fxReplay(day = fx.short.date, horizon = fx.short.horizon) { return fx.short.replays[`${day}|${horizon}`]; }
 function fxEnsureReplay(day, horizon, prefetch = false) {
   const s = fx.short, key = `${day}|${horizon}`;
-  if (s.replays[key] && s.replays[key].status !== 'error') return;
-  s.replays[key] = { status: 'queued' };
-  fxReplayQueue = fxReplayQueue.then(async () => {
-    if (prefetch && s.date !== day) { delete s.replays[key]; return; }
-    s.replays[key] = { status: 'loading' }; fxRerender();
-    try { s.replays[key] = { status: 'ok', data: await fxGet(`/api/v1/explorer/short-term/day?date=${day}&horizon=${horizon}`) }; }
-    catch (error) { s.replays[key] = { status: 'error', error: error.message }; }
-    fxRerender();
-  });
+  const existing = s.replays[key];
+  if (existing && existing.status !== 'error' && !(existing.prefetch && !prefetch)) return existing.promise || Promise.resolve();
+  if (!prefetch) fxSeq += 1; // a new on-screen request supersedes this tab's older queued work
+  const seq = fxSeq, entry = { status: 'loading', prefetch };
+  entry.promise = fxFetchReplay(day, horizon, seq, prefetch).then(
+    (data) => { if (s.replays[key] === entry) s.replays[key] = { status: 'ok', data }; },
+    (error) => { if (s.replays[key] === entry) { if (error.superseded) delete s.replays[key]; else s.replays[key] = { status: 'error', error: error.message }; } },
+  ).then(fxRerender);
+  s.replays[key] = entry;
+  return entry.promise;
 }
 
 // Step to the previous/next selectable target without opening the picker.
