@@ -61,7 +61,7 @@ function render(){
   const previous=app.querySelector('.outlook-ready');
   if(previous)previous.remove();
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
-  app.innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${fallbackBanner()}${view()}</main></div>`;
+  app.innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
   const replacement=app.querySelector('.outlook-ready');
   if(previous && replacement)replacement.replaceWith(previous);
   else if(previous)outlookTeardown();
