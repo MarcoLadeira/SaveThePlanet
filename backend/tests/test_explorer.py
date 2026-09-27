@@ -77,6 +77,31 @@ class ModelCallTests(unittest.TestCase):
             explorer.short_term_predict('2026-01-31T12:00:00Z', 100)
         call.assert_not_called()
 
+    @patch('explorer.call')
+    def test_day_replay_covers_the_days_48_targets_at_each_horizon(self, call):
+        start = explorer.utc('2026-01-08T00:00:00Z')
+        times = [explorer.iso(start + explorer.timedelta(minutes=30 * i)) for i in range(96)]  # 8-9 Jan
+        requests = []
+
+        def fake(path, body=None):
+            if path == '/predict/window/from-dataset':
+                requests.append(body)
+                first = explorer.utc(body['start_timestamp_utc'])
+                horizon = body['forecast_horizons_minutes'][0]
+                return {'predictions': [v1_row(explorer.iso(first + explorer.timedelta(minutes=30 * i)), horizon)
+                                        for i in range(int(body['duration_hours'] * 2))]}
+            return {'actuals': [{'status': 'available', 'target_timestamp_utc': t, 'actual_dispatch_down_mwh': 1.0}
+                                for t in body['target_timestamps_utc']]}
+        call.side_effect = fake
+        with patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
+            day = explorer.short_term_day('2026-01-09')
+        self.assertEqual(sorted((r['start_timestamp_utc'], r['forecast_horizons_minutes'][0]) for r in requests),
+                         [('2026-01-08T23:00:00Z', 60), ('2026-01-08T23:30:00Z', 30)])
+        for horizon in (30, 60):
+            targets = sorted(p['targetAt'] for p in day['points'] if p['horizonMinutes'] == horizon)
+            self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
+        self.assertEqual(len(day['observed']), 48)
+
     @patch('explorer.daily_info', return_value=V2_INFO)
     @patch('explorer.call')
     def test_daily_prediction_with_actual(self, call, _info):

@@ -228,11 +228,12 @@ def contiguous_runs(times):
     return runs
 
 
-def _window(run):
-    """Replay one gap-free run; if its final target falls outside the dataset, drop the last half-hour."""
+def _window(run, horizon):
+    """Replay one gap-free run of issue times at one horizon; if its final target falls
+    outside the dataset, drop the last half-hour."""
     def replay(hours):
         return call('/predict/window/from-dataset', {'start_timestamp_utc': iso(run[0]), 'duration_hours': hours,
-                                                     'forecast_horizons_minutes': [30, 60]}).get('predictions', [])
+                                                     'forecast_horizons_minutes': [horizon]}).get('predictions', [])
     try:
         return replay(len(run) / 2)
     except HTTPError as error:
@@ -241,22 +242,38 @@ def _window(run):
     return replay(len(run) / 2 - 0.5) if len(run) > 1 else []
 
 
+def day_targets(day):
+    start = datetime.fromisoformat(f'{day}T00:00:00+00:00')
+    return [iso(start + timedelta(minutes=30 * i)) for i in range(48)]
+
+
 def short_term_day(day):
-    """Replay both horizons across every dataset half-hour of one UTC day, with actuals."""
+    """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at both horizons, with actuals.
+
+    A target at 00:00 is predicted from 23:30 (+30) or 23:00 (+60) the day before, so each
+    horizon replays its own issue times, shifted back by the horizon.
+    """
     day = date.fromisoformat(day).isoformat()
     info = short_term_info()
-    times = [t for t in info['times'] if t.startswith(day)]
-    if not times:
+    if not any(t.startswith(day) for t in info['times']):
         raise LookupError('That date is not in the short-term model dataset.')
+    available, targets = set(info['times']), day_targets(day)
+
+    def issues(horizon):
+        shifted = (iso(utc(t) - timedelta(minutes=horizon)) for t in targets)
+        return [t for t in shifted if t in available]
 
     def build():
-        rows = [row for batch in parallel(*[lambda r=r: _window(r) for r in contiguous_runs(times)]) for row in batch]
-        points = [_v1_point(row) for row in rows]
-        actuals = _v1_actuals(sorted({p['targetAt'] for p in points})[:200])
+        jobs = [lambda r=r, h=h: _window(r, h) for h in (30, 60) for r in contiguous_runs(issues(h))]
+        rows = [row for batch in parallel(*jobs) for row in batch]
+        points = [p for p in map(_v1_point, rows) if p['targetAt'].startswith(day)]
+        actuals = _v1_actuals(targets)
         for p in points:
             actual = actuals.get(p['targetAt'])
             p['actualMwh'] = actual['dispatchDownMwh'] if actual else None
-        return {'date': day, 'modelVersion': rows[0].get('model_version') if rows else None, 'points': points}
+        observed = [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None} for t in targets]
+        return {'date': day, 'modelVersion': rows[0].get('model_version') if rows else None,
+                'points': points, 'observed': observed}
     return cached(('v1-day', day), None, build)
 
 

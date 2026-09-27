@@ -211,7 +211,7 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 | `GET /api/v1/explorer/daily/week?date=YYYY-MM-DD` | The same for 7 days around the date, clipped to the dataset |
 | `GET /api/v1/explorer/short-term` | V1 `/model-info` + `/dataset/info` + `/dataset/available-times` (cached 10 min) |
 | `GET /api/v1/explorer/short-term/predict?issue=…Z&capacityMw=100` | V1 `/predict/from-dataset` for 30 and 60 min + `/actuals/v1/batch` |
-| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per gap-free run of the day + actuals |
+| `GET /api/v1/explorer/short-term/day?date=YYYY-MM-DD` | V1 `/predict/window/from-dataset` per horizon and gap-free run, so targets cover 00:00-23:30 of the day, + actuals for all 48 targets |
 
 - Daily selectable dates: the V2 historical dataset (2024-04-01 to 2026-08-30).
 - Short-term selectable times: the V1 dataset's half-hour issue times (January 2026).
@@ -222,4 +222,9 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 - Invalid input → 400, target outside the dataset → 404 `NOT_IN_DATASET`, model
   failure → 502 with the same `error.code` values as the health endpoint.
   There is no demo fallback here: the page shows the error and a retry button.
+- The day replay is aligned by **target** time: the 00:00 target comes from the 23:30 (+30) or
+  23:00 (+60) issue the previous day. Targets without a dataset issue time are left out;
+  `observed` still lists all 48 half-hours.
+- The P10-P90 band stays ~5 MWh wide even when the prediction is 0 because the model widens
+  every interval by `prediction_interval_adjustment_mwh` (5.44 MWh).
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
