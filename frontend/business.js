@@ -2,7 +2,8 @@
 // Every figure comes from /api/v1/business/impact (backend/business.py and backend/offers.py), replayed
 // on the same nights of Carlson's historical GridToEv forecasts, in two views so that one screen tells
 // one story:
-//  - "Who earns" (per month): the discount-window business case. KPIs, where the € goes (a what-if the
+//  - "Who earns" (per month): the SaveThePlanet Rewards business case (drivers book discount windows).
+//    KPIs, where the € goes (a what-if the
 //    server answers: /api/v1/business/offers/estimate) with both profit bridges, and the energy proof.
 //  - "Depot savings" (per year): the depot's normal / basic smart / AI comparison, its waterfall and
 //    the investment case.
@@ -172,7 +173,7 @@ bzFigure('bzOperator', () => bzD() && { v: bzD().kpis.operatorProfitEur, kind: '
 bzFigure('bzPlatform', () => bzD() && { v: bzD().kpis.platformProfitEur, kind: 'month' });
 
 // Where the € goes: one stacked bar of the month's extra AI savings, 50 / 25 / 25, named in the bar.
-const BZ_PARTS = [['driver', 'Drivers'], ['operator', 'Operator'], ['platform', 'Us']];
+const BZ_PARTS = [['driver', 'Drivers'], ['operator', 'Operator'], ['platform', 'SaveThePlanet']];
 function bzParts(m) {
   return { driver: m.driversEur, operator: m.operator.retainedEur, platform: m.platform.grossEur };
 }
@@ -308,8 +309,8 @@ const BZ_FIELDS = {
   kwhPerSession: ['Energy per session', 1, 100, false, 'kWh', 'Delivered at the charger. An 11 kW charger gives at most 22 kWh in a two-hour window.'],
   savingEurPerKwh: ['Extra AI saving', 0, 1, false, '€/kWh', 'Versus basic smart charging, net of storage losses, battery wear, network and session costs.'],
   operatorFixedEur: ['Operator programme costs', 0, 1000000, false, '€/month', 'The charging operator\'s remaining fixed costs for the programme.'],
-  platformVariableEur: ['Our cost per session', 0, 100, false, '€', 'Our own extra cost for each session (payments, messages, support).'],
-  platformFixedEur: ['Our monthly overhead', 0, 1000000, false, '€/month', 'Software, integration and support allocated to this site.'],
+  platformVariableEur: ['SaveThePlanet cost per session', 0, 100, false, '€', 'SaveThePlanet\'s own extra cost for each session (payments, messages, support).'],
+  platformFixedEur: ['SaveThePlanet monthly overhead', 0, 1000000, false, '€/month', 'Software, integration and support allocated to this site.'],
 };
 const BZ_MAIN = ['sessions', 'kwhPerSession', 'savingEurPerKwh'];
 const BZ_COSTS = ['operatorFixedEur', 'platformVariableEur', 'platformFixedEur'];
@@ -399,7 +400,7 @@ function bzWhatIf() {
         : `${n(c.result.capacity.counted)} of ${n(c.result.capacity.requested)} sessions counted: ${c.result.capacity.limit}`)
         : c.result?.noSpareEnergy ? `<p class="bz-out-note">${bzIcon('info', 15)}<span>No spare energy: no discount and no commission, while both businesses still carry their fixed costs.</span></p>` : '';
   return `<div class="bz-bridges">
-      ${bzBridge('platform', 'Us', [['Commission', m.platform.grossEur], ['Per-session costs', -m.platform.variableEur], ['Overhead', -m.platform.fixedEur]], ['Operating profit', m.platform.profitEur], m.platform.breakEvenSessions, m.yearly.platformProfitEur)}
+      ${bzBridge('platform', 'SaveThePlanet', [['Commission', m.platform.grossEur], ['Per-session costs', -m.platform.variableEur], ['Overhead', -m.platform.fixedEur]], ['Operating profit', m.platform.profitEur], m.platform.breakEvenSessions, m.yearly.platformProfitEur)}
       ${bzBridge('operator', 'Charging operator', [[`${d.split.operator}% share`, m.operator.retainedEur], ['Programme costs', -m.operator.fixedEur]], ['Extra profit', m.operator.profitEur], m.operator.breakEvenSessions, m.yearly.operatorProfitEur)}
     </div>${note}`;
 }
@@ -430,7 +431,7 @@ function bzCalcPaint() {
 }
 function bzCostNote() {
   const v = bz.calc.values || {}, num = (k) => Number(String(v[k] ?? '').replace(/,/g, ''));
-  return `Costs: operator ${bzEur(num('operatorFixedEur'))}/month · us ${bzCents(num('platformVariableEur'))}/session + ${bzEur(num('platformFixedEur'))}/month`;
+  return `Costs: operator ${bzEur(num('operatorFixedEur'))}/month · SaveThePlanet ${bzCents(num('platformVariableEur'))}/session + ${bzEur(num('platformFixedEur'))}/month`;
 }
 
 // ---------------------------------------------------------------- building blocks
@@ -471,7 +472,7 @@ function bzKpiRow(r) {
     ${bzKpi('blue', 'spark', 'Extra savings from our AI', 'bzExtra', `Extra savings from our AI ${bzEur(k.aiExtraSavingsEur)} a month versus basic smart charging`, `<em>${extraFoot}</em>`)}
     ${bzKpi('green', 'car', 'Drivers saved', 'bzDrivers', `Drivers saved ${bzEur(k.driversSavedEur)} a month`, `<em>${driverFoot}</em>`)}
     ${bzKpi(loss(k.operatorProfitEur, 'teal'), 'building', 'Charging operator profit', 'bzOperator', `Charging operator profit ${bzEur(k.operatorProfitEur)} a month after its programme costs`, `<em>${opFoot}</em>`)}
-    ${bzKpi(loss(k.platformProfitEur, 'profit'), 'euro', 'Our operating profit', 'bzPlatform', `Our operating profit ${bzEur(k.platformProfitEur)} a month, from ${bzEur(k.platformGrossEur)} gross commission`, `<em>${usFoot}</em>`)}
+    ${bzKpi(loss(k.platformProfitEur, 'profit'), 'euro', 'SaveThePlanet operating profit', 'bzPlatform', `SaveThePlanet operating profit ${bzEur(k.platformProfitEur)} a month, from ${bzEur(k.platformGrossEur)} gross commission`, `<em>${usFoot}</em>`)}
   </section>`;
 }
 
@@ -488,7 +489,7 @@ function bzSplitLabel() {
   const m = bzShownMonth();
   if (!m) return 'Where the € goes';
   const parts = bzParts(m);
-  return `Of ${bzCents(m.poolEur)} extra savings a month: drivers ${bzCents(parts.driver)}, charging operator ${bzCents(parts.operator)}, us ${bzCents(parts.platform)}`;
+  return `Of ${bzCents(m.poolEur)} extra savings a month: drivers ${bzCents(parts.driver)}, charging operator ${bzCents(parts.operator)}, SaveThePlanet ${bzCents(parts.platform)}`;
 }
 // Where the € goes, as a what-if: presets and three inputs drive the bar and both profit bridges, so the
 // split is shown once. It starts from the replay (the KPIs above); the server answers every change.
@@ -589,7 +590,7 @@ function bzViews(r) {
   const tabs = BZ_VIEWS.map(([id, label, unit]) => `<button type="button" data-bz-view="${id}" aria-pressed="${bz.view === id}" class="${bz.view === id ? 'is-active' : ''}">${label}<small>${unit}</small></button>`).join('');
   const sim = r?.dataMode === 'simulated';
   const label = !r ? '' : bz.view === 'earn'
-    ? `${sim ? 'Illustrative example' : 'Illustrative replay'} · projected revenue, simulated profit · ex VAT`
+    ? `SaveThePlanet Rewards · ${sim ? 'illustrative example' : 'illustrative replay'} · projected revenue, simulated profit · ex VAT`
     : `${sim ? 'Simulated example' : 'Historical replay'} · ${n(r.company.vehicles)} simulated vans · illustrative tariff`;
   return `<div class="bz-views"><div class="bz-seg is-views" role="group" aria-label="Impact view">${tabs}</div>${label ? `<p class="bz-views-label">${bzIcon('info', 14)}${label}</p>` : ''}</div>`;
 }

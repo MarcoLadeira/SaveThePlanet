@@ -78,7 +78,7 @@ test('KPI figures come straight from the backend business case', () => {
   assert.match(draw(run, 'bzExtra'), /€810<small>\/month/);
   assert.match(draw(run, 'bzPlatform'), /€41<small>\/month/);
   const kpis = run('bzKpiRow(bz.result)');
-  for (const text of ['Extra savings from our AI', 'vs basic smart charging', 'Drivers saved', 'Charging operator profit', 'Our operating profit', 'from €201.50 gross commission']) {
+  for (const text of ['Extra savings from our AI', 'vs basic smart charging', 'Drivers saved', 'Charging operator profit', 'SaveThePlanet operating profit', 'from €201.50 gross commission']) {
     assert.ok(kpis.includes(text), text);
   }
 });
@@ -89,7 +89,7 @@ test('a loss is never coloured as profit, and zero is neutral', () => {
   ready(run, r);
   assert.match(draw(run, 'bzPlatform'), /−€120/);
   const kpis = run('bzKpiRow(bz.result)');
-  assert.match(kpis, /bz-kpi is-loss"[\s\S]*Our operating profit/);
+  assert.match(kpis, /bz-kpi is-loss"[\s\S]*SaveThePlanet operating profit/);
   assert.match(kpis, /bz-kpi is-zero"[\s\S]*Charging operator profit/);
   assert.equal(run('bzTone(41.2)'), 'profit');
   assert.equal(run('bzTone(-0.01)'), 'loss');
@@ -104,7 +104,7 @@ test('where the € goes: one 50/25/25 bar and two profit bridges, all from the 
   assert.ok(Math.abs(v.w.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'the parts fill the bar');
   const bar = draw(run, 'bzSplit');
   assert.match(bar, /<b>€810\.03<\/b><span>extra AI savings a month · 403 sessions/);
-  assert.match(bar, /<span>Drivers<\/span> €407\.03[\s\S]*<span>Operator<\/span> €201\.50[\s\S]*<span>Us<\/span> €201\.50/, 'the bar names its parts: no legend to read');
+  assert.match(bar, /<span>Drivers<\/span> €407\.03[\s\S]*<span>Operator<\/span> €201\.50[\s\S]*<span>SaveThePlanet<\/span> €201\.50/, 'the bar names its parts: no legend to read');
   const card = run('bzSplitCard(bz.result)');
   assert.match(card, /Where the € goes[\s\S]*split 50 \/ 25 \/ 25/);
   // Our bridge: commission, costs, profit. The parts add up on screen.
@@ -310,11 +310,12 @@ test('preparing, failed, empty and ready states render the right content', async
   assert.doesNotMatch(html, /aria-busy/);
   // Who earns: the business case, and nothing of the depot's yearly story.
   for (const text of ['<h1>Impact</h1>', 'Who saves and who earns from our AI.', '>Who earns<', '>Depot savings<', 'Extra savings from our AI', 'Drivers saved',
-    'Charging operator profit', 'Our operating profit', 'Where the € goes', 'Energy proof', '>Replay<', '>400 sessions<', '>No spare energy<']) {
+    'Charging operator profit', 'SaveThePlanet operating profit', 'Where the € goes', 'Energy proof', '>Replay<', '>400 sessions<', '>No spare energy<']) {
     assert.ok(html.includes(text), text);
   }
   assert.doesNotMatch(html, /Where does the money come from|Is our AI making a difference|What if…\?/);
-  assert.doesNotMatch(html, /Money earned|SaveThePlanet Rewards/);
+  assert.doesNotMatch(html, /Money earned/);
+  assert.match(html, /SaveThePlanet Rewards · /, 'the programme is named as in issue #56');
   run('bz.view = "depot"');
   html = run('renderBusiness()');
   for (const text of ['Where does the money come from?', 'Is our AI making a difference?', 'Investment case', '>Money<', '>CO₂<', '>Renewable energy<']) {
@@ -418,7 +419,7 @@ test('simulated data and projections are labelled everywhere they could be mista
   assert.match(html, /Example week/);
   assert.doesNotMatch(run('bzScenario()'), /24–31 Jan/, 'no real-looking dates for fixed example weather');
   // The KPI row's label sits right above it (issue #56: "Illustrative replay"; here, simulated data).
-  assert.match(html, /bz-views-label">[\s\S]*Illustrative example · projected revenue, simulated profit · ex VAT/);
+  assert.match(html, /bz-views-label">[\s\S]*SaveThePlanet Rewards · illustrative example · projected revenue, simulated profit · ex VAT/);
   assert.match(html, /Simulated example \(GridToEv unavailable\): fixed weather · hypothetical battery · illustrative prices, costs and demand · network access not verified/);
   run('bz.view = "depot"');
   assert.match(run('renderBusiness()'), /Simulated example · 20 simulated vans · illustrative tariff/);
@@ -429,7 +430,7 @@ test('simulated data and projections are labelled everywhere they could be mista
   html = run('renderBusiness()');
   assert.match(run('bzScenario()'), /Historical replay/);
   assert.match(run('bzScenario()'), /24–31 Jan 2026/);
-  assert.match(html, /Illustrative replay · projected revenue, simulated profit · ex VAT/);
+  assert.match(html, /SaveThePlanet Rewards · illustrative replay · projected revenue, simulated profit · ex VAT/);
   assert.doesNotMatch(html, /Money earned/);
 });
 

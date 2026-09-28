@@ -475,7 +475,7 @@
   "The three strategies are this page's own week-long simulation; the energy bridge (issue #50) plans one forecast window at a time. Every plan here passes the bridge's constraint checker."
  ],
  "discountWindows": {
-  "version": "discount-windows/v1",
+  "version": "rewards/v1",
   "status": "projected",
   "label": "Illustrative replay · projected revenue · simulated profit",
   "hub": {
@@ -1583,7 +1583,7 @@
    "Eligible pool per session = max(0, basic smart cost - AI all-in cost) x kWh, pre-VAT, avoidable costs only.",
    "Basic smart cost: the cheapest half-hours inside the same window that still deliver the session, at the charger rate.",
    "AI all-in cost: stored energy price / discharge efficiency + battery wear + network charges + session costs.",
-   "Split: driver 50% (discount on the public price), operator 25%, our commission 25%. Our commission pays our per-session cost and monthly overhead before any profit; the operator's share pays its remaining programme costs.",
+   "Split: driver 50% (discount on the public price), operator 25%, SaveThePlanet's commission 25%. The commission pays SaveThePlanet's per-session cost and monthly overhead before any profit; the operator's share pays its remaining programme costs.",
    "An offer is locked 30 minutes before its window from surplus already stored and settled, sized by the energy bridge (chargers, connection), battery power and stored energy, and only if both businesses have a non-negative unit contribution.",
    "Month: sessions per replayed day x 30 days, scaled by how often curtailment happens over a full year when that is known."
   ],

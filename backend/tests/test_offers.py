@@ -1,4 +1,4 @@
-"""Discount windows (issue #56): settlement, the 50/25/25 split, profit, the offer gate, the replay and the API."""
+"""SaveThePlanet Rewards (issue #56): settlement, the 50/25/25 split, profit, the offer gate, the replay and the API."""
 from datetime import datetime, timedelta
 from functools import partial
 from http.server import ThreadingHTTPServer
@@ -54,7 +54,7 @@ class SettlementTests(unittest.TestCase):
         none = offers.monthly(0, 20, 0.10)
         self.assertEqual((none['poolEur'], none['platform']['grossEur']), (0.0, 0.0))
         self.assertEqual((none['operator']['profitEur'], none['platform']['profitEur']), (-100.0, -120.0))
-        # Our share never covers our per-session cost: no break-even, however many sessions.
+        # SaveThePlanet's share never covers its per-session cost: no break-even, however many sessions.
         thin = offers.monthly(400, 20, 0.01)
         self.assertIsNone(thin['platform']['breakEvenSessions'])
         self.assertLess(thin['platform']['profitEur'], 0)
@@ -65,7 +65,7 @@ class SettlementTests(unittest.TestCase):
         for pool in range(0, 1001):
             s = offers.split(pool)
             self.assertEqual(s['driverCents'] + s['operatorCents'] + s['platformCents'], pool)
-            self.assertLessEqual(s['platformCents'] * 4, pool, 'our commission is never rounded up')
+            self.assertLessEqual(s['platformCents'] * 4, pool, 'the SaveThePlanet commission is never rounded up')
             self.assertGreaterEqual(s['driverCents'] * 2, pool, 'the driver never loses a rounding cent')
         month = offers.monthly(333, 17.3, 0.0917)
         per = month['perSession']
@@ -273,7 +273,7 @@ class MemberTests(unittest.TestCase):
 
     def test_join_book_rebook_and_cancel(self):
         member = 'demo-member-1'
-        with self.assertRaisesRegex(ValueError, 'Join'):
+        with self.assertRaisesRegex(ValueError, 'Join SaveThePlanet Rewards first'):
             offers.act(self.section, member, 'book', self.offer['id'], 20)
         self.assertTrue(offers.act(self.section, member, 'join')['joined'])
         view = offers.act(self.section, member, 'book', self.offer['id'], 20)

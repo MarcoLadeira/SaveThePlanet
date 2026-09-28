@@ -126,15 +126,15 @@ so they agree to the cent. Contract and methodology:
 - **Header**: title, subtitle and a scenario indicator (the example site, the evaluation week, and
   "Historical replay" or an amber "Simulated data · retry model" chip).
 - **Two views** (remembered per browser), each one story: *Who earns · per month* and *Depot savings · per
-  year*, with a label beside the switch saying what the figures are ("Illustrative replay · projected
+  year*, with a label beside the switch saying what the figures are ("SaveThePlanet Rewards · illustrative replay · projected
   revenue, simulated profit · ex VAT").
 
 *Who earns*:
 - **KPI row**: extra savings from our AI vs basic smart charging, what drivers saved, the charging
-  operator's profit and our operating profit (with our gross commission beneath it). A loss is red, zero is grey.
+  operator's profit and SaveThePlanet's operating profit (with its gross commission beneath it). A loss is red, zero is grey.
 - **Where the € goes** (a what-if): presets (the replay, the 400-session example, *No spare energy*) and
   three inputs (sessions, kWh, extra saving; costs behind *Edit costs*) drive one 50/25/25 bar that names
-  its parts, then our bridge (commission − per-session costs − overhead = operating profit) and the
+  its parts, then SaveThePlanet's bridge (commission − per-session costs − overhead = operating profit) and the
   operator's (25% − programme costs = extra profit), each with its break-even and year. The server answers
   every change (`/api/v1/business/offers/estimate`); sessions beyond the site or the windows worth offering
   are not counted, and the card says why. Typing only repaints the card, so focus is never lost.
@@ -148,7 +148,7 @@ so they agree to the cent. Contract and methodology:
 - **Is our AI making a difference?**: normal, basic smart and AI charging on one metric (Money, CO₂ or
   Renewable energy), basic against normal and our AI against basic, and how often the forecast was right.
 - **Investment case**: the depot's payback, 5-year return, scenarios and multi-site scaling.
-- **EV page, Discount windows**: the demo sign-up and booking card (`charging.js`): join, step through the
+- **EV page, SaveThePlanet Rewards**: the demo sign-up and discount-window booking card (`charging.js`): join, step through the
   replayed days, see both windows (offer or "No discounted window right now" with the next opportunity),
   pick a charge size priced by the server, reserve or cancel.
 
