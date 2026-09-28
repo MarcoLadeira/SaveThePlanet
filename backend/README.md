@@ -153,6 +153,17 @@ target time labels the start or the end of its half-hour is not yet confirmed.
 Day replay intervals (`/api/v1/impact/day`) also carry the model `probability`, used by
 the Charging page's "Best half-hours to charge" ranking.
 
+They also carry the model's `risk` and P10/P50/P90 (`lowerMwh`, `medianMwh`, `upperMwh`) and an
+`expected` outcome that uses the whole forecast, not only the point forecast (GridToEv V1 serves the
+point as a trend blend with ML weight 0, so it reads 0 whenever the last observation did, even at a
+~100% event probability). `expected` re-runs the same plan and battery ledger on the P10, P50 and P90
+scenarios, combines them 30/40/30 (Swanson's rule) and multiplies by the event probability:
+`capturedKwh`, `evGridKwh`, `evBatteryKwh`, `storageGridKwh`, `storedKwh`, `co2AvoidedKg`, `evRangeKm`,
+`atRiskKwh` and `capturedShare` (null unless dispatch-down is more likely than not). A scenario keeps its
+point forecast's curtailment/constraint split, or the day's split when the point forecast is 0. The
+Battery page's day curves and KPI sparklines show `expected`, with the plan as a dashed reference; the
+plan-level figures (headlines, Dashboard) are unchanged.
+
 ## Automatic demo fallback
 
 No setup or model connection is required for fallback. Every request first tries
