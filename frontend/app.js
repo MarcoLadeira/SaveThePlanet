@@ -38,9 +38,9 @@ try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'
 let navDocked=false;
 try{navDocked=localStorage.getItem('planner-nav-docked')==='1'}catch{}
 let saved=true;
-function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings','about'].includes(p)?p:'overview'}
+function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings','about','sources'].includes(p)?p:'overview'}
 // About opens from Settings and has no navigation item of its own, so Settings stays highlighted.
-function navPage(page){return page==='about'?'settings':page}
+function navPage(page){return page==='about'?'settings':page==='sources'?'forecast':page}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
 function sidebar(page){page=navPage(page);return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><button class="nav-dock" type="button" data-nav-dock><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path class="dock-chevron" d="m16 10-2 2 2 2"/></svg></button><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
 // Docking folds the sidebar to an icon rail; pages follow through --nav-w. Labels stay in the DOM
@@ -75,7 +75,7 @@ function fitDesktop(){
   // scaled canvas shown just before, which would keep this page scaled down after navigating back.
   const vw=document.documentElement.clientWidth||innerWidth,vh=document.documentElement.clientHeight||innerHeight;
   // About on a narrow screen is a normal full-width page (about.css), not a scaled-down desktop.
-  if(pageFromHash()==='about'&&vw<=760){shell.classList.remove('is-phone');shell.style.width=shell.style.height=shell.style.transform='';return}
+  if(['about','sources'].includes(pageFromHash())&&vw<=760){shell.classList.remove('is-phone');shell.style.width=shell.style.height=shell.style.transform='';return}
   const phone=vw<=700&&PHONE_PAGES.includes(main?.dataset.currentPage);
   shell.classList.toggle('is-phone',phone);
   if(phone){
@@ -178,7 +178,7 @@ function render(){
   const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
   const charts=chartsCollect(app);
-  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout}[page];
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout,sources:renderSources}[page];
   // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
   const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
   let shell=app.querySelector(':scope>.app-shell');
@@ -194,13 +194,14 @@ function render(){
   }
   shell.classList.toggle('is-live',liveRender);
   shell.classList.toggle('is-about',page==='about');
+  shell.classList.toggle('is-sources',page==='sources');
   const main=shell.querySelector(':scope>main');
   if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
   // Once the entrance has played, drop it so finished animations don't keep content on separate
   // compositing layers (which renders text slightly differently from a fresh load).
   if(entering)setTimeout(()=>main.classList.remove('is-entering'),PAGE_ENTER_MS-since);
   chartsRestore(app,charts);
-  document.title=`${{overview:'Dashboard',impact:'Battery',charging:'EV',business:'Impact'}[page]||page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
+  document.title=`${{overview:'Dashboard',impact:'Battery',charging:'EV',business:'Impact',sources:'Wind & Solar'}[page]||page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
   moveNavPill(page,changed?'glide':'keep');
   chartsSync(app);

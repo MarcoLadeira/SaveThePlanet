@@ -830,7 +830,9 @@ function fxShortView() {
 function renderForecast() {
   const s = fx[fx.model];
   if (!s.info && !s.infoLoading && !s.infoError) queueMicrotask(() => fxLoadInfo(fx.model));
-  return `${studioHeader('Forecast', 'Replay a model on a past day and compare its forecast with what actually happened.')}
+  // One entry point to the Wind & Solar page (issue #65); nothing else on this page changes.
+  const sources = '<button type="button" class="sources-open" data-page="sources"><i aria-hidden="true"><b></b><b></b></i>Wind vs solar →</button>';
+  return `${studioHeader('Forecast', 'Replay a model on a past day and compare its forecast with what actually happened.', sources)}
   ${fxToolbar()}
   ${fx.model === 'daily' ? fxDailyView() : fxShortView()}`;
 }
