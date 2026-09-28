@@ -13,7 +13,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
-from scenario import build_day, build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
+from scenario import build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
+import dayplan
 from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
@@ -524,6 +525,9 @@ class ProductServer(ThreadingHTTPServer):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
+DAY_PLAN_PRESET = 'depot-and-retail'  # the Dashboard's default fleet preset
+
+
 class Handler(SimpleHTTPRequestHandler):
     def send_json(self, status, body, headers=None):
         encoded = json.dumps(body, allow_nan=False).encode()
@@ -719,20 +723,21 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_json(200, offers.calculate(**values))
 
     def impact_day(self, query):
+        """The Dashboard's fleet + grid battery plan for each half-hour of a replayed day (backend/dayplan.py),
+        for the Battery and EV pages: ?date=YYYY-MM-DD&capacityMw=&preset= (a fleet preset id)."""
         try:
             capacity = float(query.get('capacityMw', ['100'])[0])
             number(capacity, 'capacity', minimum=0.001, maximum=10000)
-            total = float(query.get('totalDemandKwh', ['1000'])[0])
-            flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
-            validate_demand(total, flexible)
+            preset = query.get('preset', [DAY_PLAN_PRESET])[0]
+            fleet = fleets.preset(preset)
             requested = query.get('date', [None])[0]
             day = date.fromisoformat(requested) if requested else default_replay_day()
         except (ValueError, TypeError):
-            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use date YYYY-MM-DD, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use date YYYY-MM-DD, capacity 0.001-10000 MW, and a fleet preset from /api/v1/charging/presets.'}})
             return
         try:
             with user_replay():
-                status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
+                status, body = 200, dayplan.build(fetch_day_replay(day, capacity), fleet, preset)
         except Busy:
             self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
                            {'Retry-After': str(Busy.retry_after)})
@@ -740,7 +745,7 @@ class Handler(SimpleHTTPRequestHandler):
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
-            status, body = 200, build_day(demo_day_replay(day, capacity), total, flexible)
+            status, body = 200, dayplan.build(demo_day_replay(day, capacity), fleet, preset)
             body['dataMode'] = 'simulated'
         if status == 200 and body.get('dataMode') != 'simulated':
             try:

@@ -1,16 +1,15 @@
-// Charging page. Loaded after studio.js, so this renderCharging replaces the older one there.
+// Charging (EV) page. Loaded after studio.js, so this renderCharging replaces the older one there.
 // Four data sources, each labelled on the page:
-//  1. modelState.data.scenario  — the selected forecast half-hour (+30/+60) with the entered
-//     demand and EV assumptions (GET /api/v1/scenario).
-//  2. cgDay  — the 48-half-hour historical replay day (GET /api/v1/impact/day, same as Impact).
-//  3. cgWeek — seven days from the daily model around that day (GET /api/v1/explorer/daily/week).
-//  4. dw     — discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
-// Every figure is a model prediction or an upper-bound scenario estimate. Nothing is invented:
-// charts without data show a loading or "unavailable" state instead.
+//  1. modelState.plan — the Dashboard's simulated fleet + grid battery plan for the selected half-hour
+//     (POST /api/v1/charging/optimize), so every figure here matches the Dashboard.
+//  2. dayPlan (bridge.js) — that same plan for each half-hour of the replay day (GET /api/v1/impact/day).
+//     Each half-hour is a separate what-if with the same fleet, so charging is never added up across the day.
+//  3. cgWeek — seven days from the experimental daily model (GET /api/v1/explorer/daily/week), a different
+//     model from the half-hour forecasts, labelled as such, with EirGrid's observed values beside it.
+//  4. dw — discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
+// Nothing is invented: charts without data show a loading or "unavailable" state instead.
 
-const cgDay = { status: 'idle', data: null, key: '', request: 0 };
 const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '', retried: '' };
-let cgAssumptionsOpen = false;
 // Week picker: chosen Monday (null = week of the replay day), the daily model's date range and the open calendar month.
 let cgWeekMonday = null;
 let cgCalMonth = null;
@@ -31,7 +30,7 @@ function cgToday() {
     return new Date().toISOString().slice(0, 10);
 }
 function cgSelectedMonday() {
-    return cgWeekMonday || (cgDay.status === 'ready' ? cgWeekStart(cgDay.data.date) : '');
+    return cgWeekMonday || (dayPlanReady() ? cgWeekStart(dayPlan.data.date) : '');
 }
 // Why a week has no data, or '' when at least one of its days is in the daily model's range.
 function cgNoDataReason(monday) {
@@ -55,18 +54,14 @@ async function cgLoadRange() {
         cgRerender();
     }
 }
-// The schedule follows the pinned dashboard target's day (see pinning.js), like Impact, so
-// Dashboard, Charging, Impact and Volt always describe the same half-hour.
-function cgTargetDay() { return modelState.target ? modelState.target.slice(0, 10) : null; }
-function cgKey() {
-    return [cgTargetDay(), modelState.capacity, modelState.totalDemandKwh, modelState.flexibleDemandKwh].join('|');
-}
+// The schedule follows the pinned dashboard target's day (see pinning.js), like the Battery page, so
+// Dashboard, Charging, Battery and Volt always describe the same half-hour.
 function cgRerender() {
     if (pageFromHash() === 'charging') render();
 }
 function cgEnsureData() {
     if (!modelState.data) return;
-    if (cgDay.key !== cgKey() && cgDay.status !== 'loading') cgLoadDay();
+    ensureDayPlan();
     if (cgRange.status === 'idle') cgLoadRange();
     const monday = cgSelectedMonday();
     if (!monday || cgWeek.date === monday || cgWeek.status === 'loading') return;
@@ -78,24 +73,6 @@ function cgEnsureData() {
     }
     // The backend returns seven days starting at the requested date, so ask from the first day in range.
     cgLoadWeek(monday, cgRange.from && monday < cgRange.from ? cgRange.from : monday);
-}
-async function cgLoadDay() {
-    const request = ++cgDay.request;
-    cgDay.key = cgKey();
-    cgDay.status = 'loading';
-    const query = new URLSearchParams({ capacityMw: String(modelState.capacity), totalDemandKwh: String(modelState.totalDemandKwh), flexibleDemandKwh: String(modelState.flexibleDemandKwh) });
-    if (cgTargetDay()) query.set('date', cgTargetDay());
-    try {
-        const response = await fetch(`/api/v1/impact/day?${query}`);
-        const body = await response.json();
-        if (request !== cgDay.request) return;
-        if (!response.ok || !Array.isArray(body.intervals) || !body.intervals.length) throw new Error();
-        Object.assign(cgDay, { status: 'ready', data: body });
-    } catch {
-        if (request === cgDay.request) Object.assign(cgDay, { status: 'error', data: null });
-    } finally {
-        if (request === cgDay.request) cgRerender();
-    }
 }
 async function cgLoadWeek(day, requestDate = day) {
     const request = ++cgWeek.request;
@@ -151,7 +128,7 @@ function cgDefs() {
     return `<svg class="cg-defs" aria-hidden="true" focusable="false"><defs><filter id="cg-glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>${['green', 'orange', 'purple'].map(grad).join('')}</defs></svg>`;
 }
 function cgDayIntervals() {
-    return cgDay.status === 'ready' ? cgDay.data.intervals : [];
+    return dayPlanReady() ? dayPlan.data.intervals : [];
 }
 
 // ---------- motion ----------
@@ -173,20 +150,23 @@ function cgDrawIn(name, signature) {
 
 // ---------- charts (drawn and animated by the shared engine in charts3d.js) ----------
 function cgFigure(name, value, format) {
-    dashCharts[name] = { values: () => ({ v: value() }), start: () => ({ v: 0 }), draw: ({ v }) => { const [num, unit] = format(v); return `<strong>${num}<small>${unit}</small></strong>`; } };
+    dashCharts[name] = { format, values: () => ({ v: value() }), start: () => ({ v: 0 }), draw: ({ v }) => { const [num, unit] = format(v); return `<strong>${num}<small>${unit}</small></strong>`; } };
 }
-cgFigure('cgTotal', () => modelState.data.scenario.totalDemandMwh, (v) => [n(v), 'MWh']);
-cgFigure('cgFlexible', () => modelState.data.scenario.flexibleDemandMwh, (v) => [n(v), 'MWh']);
-cgFigure('cgProposed', () => scenarioOutcome().potentialRecoveryMwh, (v) => [n(v), 'MWh']);
+const cgPlan = () => planAlternative().optimized;
+const cgCarCount = (o) => (o.opportunityAllocations || []).length;
+cgFigure('cgNeed', () => cgPlan().requiredKwh, (v) => [n(v), 'kWh']);
+cgFigure('cgCars', () => cgCarCount(cgPlan()), (v) => [n(Math.round(v)), `of ${cgPlan().vehiclesMet + cgPlan().vehiclesMissed} cars`]);
+cgFigure('cgEv', () => cgPlan().ledger.allocatedToChargersGridKwh, (v) => [n(v), 'kWh']);
 cgFigure('cgAvailable', () => selectedPrediction().atRiskMwh, (v) => [n(v), 'MWh']);
 
-// Per half-hour of the replay day: charging covered by renewable energy at risk and the rest from the grid.
+// Per half-hour of the replay day: the Dashboard's plan if charging were planned for that half-hour.
 function cgDaySeries() {
-    const list = cgDayIntervals(), total = (cgDay.data?.totalDemandKwh || 0) / 1000;
+    const list = cgDayIntervals();
     return {
         renewable: list.map((i) => i.atRiskMwh),
-        charging: list.map((i) => i.potentialRecoveryMwh),
-        grid: list.map((i) => Math.max(0, total - i.potentialRecoveryMwh)),
+        charging: list.map((i) => i.evGridKwh),
+        delivered: list.map((i) => i.evBatteryKwh),
+        cars: list.map((i) => i.carsCharged),
     };
 }
 function cgSpark(name, series, tone) {
@@ -202,45 +182,43 @@ function cgSpark(name, series, tone) {
         },
     };
 }
-cgSpark('cgTotalSpark', 'grid', 'green');
-cgSpark('cgFlexibleSpark', 'charging', 'green');
-cgSpark('cgProposedSpark', 'charging', 'orange');
+cgSpark('cgNeedSpark', 'delivered', 'green');
+cgSpark('cgCarsSpark', 'cars', 'green');
+cgSpark('cgEvSpark', 'charging', 'orange');
 cgSpark('cgAvailableSpark', 'renewable', 'purple');
 
-const CG_PLOT = { w: 660, h: 160, left: 44, right: 10, top: 18, bottom: 24 };
-let cgScheduleScale = { max: 1, n: 0 };
-function cgSelectedIndex(intervals) {
-    const target = new Date(selectedPrediction().targetAt).getTime();
-    return intervals.findIndex((i) => new Date(i.targetAt).getTime() === target);
+const CG_PLOT = { w: 660, h: 160, left: 44, right: 44, top: 18, bottom: 24 };
+let cgScheduleScale = { max: 1, evMax: 1, n: 0 };
+function cgSelectedIndex() {
+    return dayPlanIndex();
 }
 dashCharts.cgSchedule = {
     values() {
-        const toMw = 60 / (cgDay.data?.intervalMinutes || 30), d = cgDaySeries();
-        return { renewable: d.renewable.map((v) => v * toMw), charging: d.charging.map((v) => v * toMw), grid: d.grid.map((v) => v * toMw), sel: String(cgSelectedIndex(cgDayIntervals())), status: cgDay.status, reveal: d.renewable.length ? 1 : 0,
-            axisMax: String(chartNiceMax(Math.max(...d.renewable, ...d.charging, ...d.grid, 0.001) * toMw)) };
+        const toMw = 60 / (dayPlan.data?.intervalMinutes || 30), d = cgDaySeries();
+        return { renewable: d.renewable.map((v) => v * toMw), charging: d.charging.map((v) => v * toMw), sel: String(cgSelectedIndex()), status: dayPlanLoading() ? 'loading' : dayPlan.status, reveal: d.renewable.length ? 1 : 0,
+            axisMax: String(chartNiceMax(Math.max(...d.renewable, 0.001) * toMw)), evAxisMax: String(chartNiceMax(Math.max(...d.charging, 0.001) * toMw)) };
     },
     start: (t) => ({ ...t, reveal: 0 }),
-    draw({ renewable, charging, grid, sel: selText, status, reveal, axisMax }) {
+    draw({ renewable, charging, sel: selText, status, reveal, axisMax, evAxisMax }) {
         // The index travels as text so the animation engine does not interpolate it.
         const sel = Number(selText);
         const { w, h, left, right, top, bottom } = CG_PLOT;
-        if (!renewable.length) return cgChartState(status, 'Loading the replay day…', 'The replay day could not be loaded. Other figures on this page are unaffected.');
-        const max = Number(axisMax) || chartNiceMax(Math.max(...renewable, ...charging, ...grid, 0.001));
+        if (!renewable.length) return cgChartState(status, 'Planning the replay day…', 'The day plan could not be loaded. Other figures on this page are unaffected.');
+        const max = Number(axisMax) || 1, evMax = Number(evAxisMax) || 1;
         const x = (i) => left + (w - left - right) * (i / (renewable.length - 1 || 1));
-        const y = (v) => top + (h - top - bottom) * (1 - v / max);
-        const pts = (vals) => vals.map((v, i) => [x(i), y(v)]);
-        const area = (vals) => `${cgSmooth(pts(vals))}L${x(vals.length - 1)} ${h - bottom}L${x(0)} ${h - bottom}Z`;
-        // Areas fade from each line's colour to transparent (grid at the back, charging in front);
-        // every line is drawn on top with a thin white edge so none is hidden by another fill.
-        const fill = (name, vals) => `<path class="cg-area is-${name}" d="${area(vals)}" fill="url(#cg-sched-${name})"/>`;
-        const line = (name, vals) => { const d = cgSmooth(pts(vals)); return `<path class="cg-line-edge" d="${d}"/><path class="cg-line is-${name}" d="${d}"/>`; };
+        const y = (v, m = max) => top + (h - top - bottom) * (1 - v / m);
+        const pts = (vals, m) => vals.map((v, i) => [x(i), y(v, m)]);
+        const area = (vals, m) => `${cgSmooth(pts(vals, m))}L${x(vals.length - 1)} ${h - bottom}L${x(0)} ${h - bottom}Z`;
+        // Areas fade from each line's colour to transparent; every line is drawn on top with a thin white edge.
+        const fill = (name, vals, m) => `<path class="cg-area is-${name}" d="${area(vals, m)}" fill="url(#cg-sched-${name})"/>`;
+        const line = (name, vals, m) => { const d = cgSmooth(pts(vals, m)); return `<path class="cg-line-edge" d="${d}"/><path class="cg-line is-${name}" d="${d}"/>`; };
         const fade = (name, top) => `<linearGradient id="cg-sched-${name}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="cg-stop-${name}" stop-opacity="${top}"/><stop offset="1" class="cg-stop-${name}" stop-opacity=".04"/></linearGradient>`;
-        cgScheduleScale = { max, n: renewable.length };
-        const grid2 = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
-        const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<line class="cg-vgrid" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${h - bottom}"/><text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(cgDay.data.intervals[i].targetAt))}</text>`).join('');
-        const marker = sel >= 0 && Number.isFinite(charging[sel]) && reveal > 0.97 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel])}" r="5"/>` : '';
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${cgClip('cg-clip-schedule', left, top, w - left - right, h - top - bottom, reveal)}${fade('renewable', '.7')}${fade('charging', '.75')}${fade('grid', '.35')}</defs><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW</text>
-            <g clip-path="url(#cg-clip-schedule)">${fill('grid', grid)}${fill('renewable', renewable)}${fill('charging', charging)}${line('grid', grid)}${line('renewable', renewable)}${line('charging', charging)}</g>
+        cgScheduleScale = { max, evMax, n: renewable.length };
+        const grid2 = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text><text class="is-ev" x="${w - right + 8}" y="${y(max * f) + 4}">${n(evMax * f)}</text>`).join('');
+        const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<line class="cg-vgrid" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${h - bottom}"/><text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(dayPlan.data.intervals[i].targetAt))}</text>`).join('');
+        const marker = sel >= 0 && Number.isFinite(charging[sel]) && reveal > 0.97 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel], evMax)}" r="5"/>` : '';
+        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${cgClip('cg-clip-schedule', left, top, w - left - right, h - top - bottom, reveal)}${fade('renewable', '.7')}${fade('charging', '.75')}</defs><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW at risk</text><text class="cg-axis-unit is-ev" x="${w}" y="${top - 9}" text-anchor="end">kW EV charging</text>
+            <g clip-path="url(#cg-clip-schedule)">${fill('renewable', renewable, max)}${fill('charging', charging, evMax)}${line('renewable', renewable, max)}${line('charging', charging, evMax)}</g>
             ${marker}<g class="cg-hours">${hours}</g><line class="cg-hover" x1="0" x2="0" y1="${top}" y2="${h - bottom}"/><circle class="cg-hover-dot is-renewable" r="5" cx="-20" cy="-20"/><circle class="cg-hover-dot is-charging" r="5" cx="-20" cy="-20"/></svg>`;
     },
 };
@@ -254,8 +232,8 @@ function cgChartState(status, loading, failed) {
 // used read-only): renewable share in green, grid share in grey, with depth walls and a soft shadow.
 dashCharts.cgDonut = {
     values() {
-        const o = scenarioOutcome(), total = modelState.data.scenario.totalDemandMwh;
-        return { share: total > 0 ? Math.min(1, o.potentialRecoveryMwh / total) : 0, sweep: 1 };
+        const o = cgPlan();
+        return { share: o.gridKwh > 0 ? Math.min(1, o.ledger.allocatedToChargersGridKwh / o.gridKwh) : 0, sweep: 1 };
     },
     start: (t) => ({ ...t, sweep: 0 }),
     draw({ share, sweep }) {
@@ -325,10 +303,11 @@ function cgAxis(max) {
 dashCharts.cgWeek = {
     values() {
         const days = cgWeek.status === 'ready' ? [...cgWeek.data.days].sort((a, b) => a.date.localeCompare(b.date)) : [];
-        return { v: days.map((d) => d.predictedMwh), days: days.map((d) => d.date), sel: cgDay.data?.date || '', status: cgWeek.status, message: cgWeek.message, reveal: days.length ? 1 : 0, axisMax: String(days.length ? Math.max(...days.map((d) => d.predictedMwh)) : 0) };
+        const observed = days.map((d) => (d.actual?.status === 'available' ? d.actual.curtailmentMwh : -1));
+        return { v: days.map((d) => d.predictedMwh), seen: observed, days: days.map((d) => d.date), sel: dayPlan.data?.date || '', status: cgWeek.status, message: cgWeek.message, reveal: days.length ? 1 : 0, axisMax: String(days.length ? Math.max(...days.map((d) => d.predictedMwh), ...observed) : 0) };
     },
     start: (t) => ({ ...t, reveal: 0 }),
-    draw({ v, days, sel, status, message, reveal, axisMax }) {
+    draw({ v, seen = [], days, sel, status, message, reveal, axisMax }) {
         if (!v.length) {
             if (status === 'retrying') return cgChartState('loading', 'The daily model is waking up. Trying again in a few seconds…');
             if (status === 'nodata') return `<div class="cg-empty cg-nodata" role="status">${icon('calendar', 22)}<b>${escapeHtml(message)}</b><span>Pick another week with the arrows or the calendar.</span></div>`;
@@ -342,7 +321,8 @@ dashCharts.cgWeek = {
             const slotIndex = (new Date(`${days[i]}T00:00:00Z`).getUTCDay() + 6) % 7;
             const grow = cgEase(reveal * 1.6 - slotIndex * 0.09);
             const bx = left + slot * slotIndex + (slot - bw) / 2, top2 = y(val * grow);
-            return cgBar3d(bx, top2, bw, Math.max(0, h - bottom - top2), days[i] === sel ? 'orange' : 'green');
+            const obs = seen[i] >= 0 && reveal > 0.97 ? `<line class="cg-observed" x1="${(bx - 4).toFixed(1)}" x2="${(bx + bw + CG_CUBE.dx + 4).toFixed(1)}" y1="${y(seen[i]).toFixed(1)}" y2="${y(seen[i]).toFixed(1)}"><title>Observed: ${n(seen[i])} MWh</title></line>` : '';
+            return cgBar3d(bx, top2, bw, Math.max(0, h - bottom - top2), days[i] === sel ? 'orange' : 'green') + obs;
         }).join('');
         const filled = new Set(days.map((d) => (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
         const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => `<text class="cg-bar-label" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle">${d}</text>${filled.has(i) ? '' : `<text class="cg-bar-nodata" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - bottom - 6}" text-anchor="middle">no data</text>`}`).join('');
@@ -378,33 +358,36 @@ function cgPill(change, share) {
     return `<span class="cg-pill is-${dir}">${dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→'} ${n(Math.round(Math.abs(change) * 100))}%</span>`;
 }
 function cgKpi(tone, iconName, label, figure, pill, note, spark, sparkLabel) {
-    const value = dashCharts[figure].values().v;
-    return `<article class="dash-card cg-kpi is-${tone}"><span class="cg-kpi-icon" aria-hidden="true">${icon(iconName, 22)}</span><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${label}: ${n(value)} MWh`)}"><strong>0<small>MWh</small></strong></div></div><div class="cg-kpi-visual" title="${escapeHtml(sparkLabel)}">${chartSlot(spark, sparkLabel)}</div><p class="cg-kpi-foot">${pill}<em>${note}</em></p></article>`;
+    const chart = dashCharts[figure], [num, unit] = chart.format(chart.values().v);
+    return `<article class="dash-card cg-kpi is-${tone}"><span class="cg-kpi-icon" aria-hidden="true">${icon(iconName, 22)}</span><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${label}: ${num} ${unit}`)}"><strong>0<small>${escapeHtml(unit)}</small></strong></div></div><div class="cg-kpi-visual" title="${escapeHtml(sparkLabel)}">${chartSlot(spark, sparkLabel)}</div><p class="cg-kpi-foot">${pill}<em>${note}</em></p></article>`;
 }
 function cgKpis() {
-    const s = modelState.data.scenario, p = selectedPrediction(), o = scenarioOutcome();
+    const p = selectedPrediction(), o = cgPlan(), L = o.ledger, cars = cgCarCount(o), total = o.vehiclesMet + o.vehiclesMissed;
+    const whatIf = 'if each half-hour of the replay day were planned like this one';
     return `<section class="cg-kpis" aria-label="${escapeHtml(`Selected ${modelTime(p.targetAt)} forecast half-hour`)}">
-        ${cgKpi('green', 'bolt', 'Total charging demand', 'cgTotal', cgPill(null, s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null), 'could use renewables', 'cgTotalSpark', 'Line: charging from the grid in each half-hour of the replay day')}
-        ${cgKpi('green', 'leaf', 'Flexible charging demand', 'cgFlexible', cgPill(null, s.totalDemandMwh ? s.flexibleDemandMwh / s.totalDemandMwh : null), 'can be moved in time', 'cgFlexibleSpark', 'Line: charging covered by renewable energy at risk in each half-hour of the replay day')}
-        ${cgKpi('orange', 'charge', 'Charging on renewables', 'cgProposed', cgPill(cgVsDay(o.potentialRecoveryMwh, 'charging')), 'vs average for the day', 'cgProposedSpark', 'Line: charging on renewables in each half-hour of the replay day')}
-        ${cgKpi('purple', 'tower', 'Renewable energy at risk', 'cgAvailable', cgPill(cgVsDay(p.atRiskMwh, 'renewable')), 'vs average for the day', 'cgAvailableSpark', 'Line: renewable energy at risk in each half-hour of the replay day')}
+        ${cgKpi('green', 'bolt', 'Fleet charging need', 'cgNeed', cgPill(null, o.requiredKwh ? L.batteryDeliveredKwh / o.requiredKwh : null), 'met by renewables at risk', 'cgNeedSpark', `Line: energy into EV batteries, ${whatIf}`)}
+        ${cgKpi('green', 'car', 'Cars charging on renewables', 'cgCars', cgPill(null, total ? cars / total : null), 'of the simulated fleet', 'cgCarsSpark', `Line: cars charging on renewables, ${whatIf}`)}
+        ${cgKpi('orange', 'charge', 'EV charging on renewables', 'cgEv', cgPill(cgVsDay(L.allocatedToChargersGridKwh, 'charging')), "vs the day's average half-hour", 'cgEvSpark', `Line: EV charging on renewables, ${whatIf}`)}
+        ${cgKpi('purple', 'tower', 'Renewable energy at risk', 'cgAvailable', cgPill(cgVsDay(p.atRiskMwh, 'renewable')), "vs the day's average half-hour", 'cgAvailableSpark', 'Line: renewable energy at risk in each half-hour of the replay day')}
     </section>`;
 }
 function cgScheduleCard() {
-    const day = cgDay.data;
-    const sub = day ? `Each half-hour of ${escapeHtml(cgDayLabel(day.date))} (a past day replayed): renewable energy at risk of being wasted vs EV charging · MW` : 'Each half-hour: renewable energy at risk of being wasted vs EV charging · MW';
-    const note = day && cgSelectedIndex(day.intervals) < 0 ? '<p class="cg-note">The selected forecast half-hour is not on this replay day, so no marker is shown.</p>' : '';
-    return `<section class="dash-card cg-card cg-schedule">${cgHead('green', 'calendar', 'When charging can run on renewables', sub)}<ul class="cg-legend"><li><i class="is-renewable"></i>Renewable energy at risk of being wasted</li><li><i class="is-charging"></i>Charging on that renewable energy</li><li><i class="is-grid"></i>Charging still on the grid</li><li><i class="is-sel"></i>Selected forecast half-hour</li></ul>
-        <div class="cg-plot" data-cg-plot>${chartSlot('cgSchedule', 'Renewable energy at risk and charging demand split between renewables and the grid for each half-hour of the replay day', 'cg-chart')}<div class="cg-tooltip" role="status" hidden></div></div>${note}</section>`;
+    const day = dayPlanReady() ? dayPlan.data : null;
+    const sub = day
+        ? `Each half-hour of ${escapeHtml(cgDayLabel(day.date))} (a past day replayed, 00:30 to 00:00 the next day): energy at risk (MW, left) and the fleet's charging on it if that half-hour were planned (kW, right) · ${n(day.totals.atRiskMwh)} MWh at risk over the day`
+        : 'Each half-hour: energy at risk (MW, left) and the fleet\'s charging on it (kW, right)';
+    const note = day && cgSelectedIndex() < 0 ? '<p class="cg-note">The selected forecast half-hour is not on this replay day, so no marker is shown.</p>' : '';
+    return `<section class="dash-card cg-card cg-schedule">${cgHead('green', 'calendar', 'When charging can run on renewables', sub)}<ul class="cg-legend"><li><i class="is-renewable"></i>Renewable energy at risk of being wasted (MW)</li><li><i class="is-charging"></i>Simulated fleet charging on it (kW)</li><li><i class="is-sel"></i>Selected forecast half-hour</li></ul>
+        <div class="cg-plot" data-cg-plot>${chartSlot('cgSchedule', 'Renewable energy at risk and the simulated fleet charging on it for each half-hour of the replay day', 'cg-chart')}<div class="cg-tooltip" role="status" hidden></div></div>${note}</section>`;
 }
 function cgMixCard() {
-    const s = modelState.data.scenario, o = scenarioOutcome(), ev = s.evAssumptions;
-    const grid = Math.max(0, s.totalDemandMwh - o.potentialRecoveryMwh);
-    return `<section class="dash-card cg-card cg-mix">${cgHead('green', 'pie', 'Renewable vs grid', cgTarget(), cgAssumptions())}
-        <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null)} of charging could use renewable energy`, 'cg-donut')}
-            <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>Renewable energy</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-grid"></i><span>Grid energy</span><b>${n(grid)} MWh</b></li></ul></div>
-        <div class="cg-ev"><strong>In EV terms</strong><p><b>≈ ${n(Math.round(o.evChargesEquivalent * 10) / 10)}</b> × ${n(ev.kwhPerCharge)} kWh charges' worth of energy <small>(a comparison, not a count of cars)</small></p>
-            <p><b>≥ ${n(o.minConcurrentPorts)}</b> × ${n(ev.chargerKw)} kW chargers running at once <small>(≤ ${n(o.portKwhLimit)} kWh each in 30 min, if enough EVs are plugged in)</small></p></div></section>`;
+    const o = cgPlan(), L = o.ledger, S = L.storage, m = planImpact(L), cars = cgCarCount(o), total = o.vehiclesMet + o.vehiclesMissed;
+    const renewable = L.allocatedToChargersGridKwh, grid = Math.max(0, o.gridKwh - renewable);
+    return `<section class="dash-card cg-card cg-mix">${cgHead('green', 'pie', 'Renewable vs grid', `The fleet's charging · ${cgTarget()}`, presetPicker())}
+        <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(o.gridKwh ? renewable / o.gridKwh : null)} of the fleet's charging runs on renewable energy at risk`, 'cg-donut')}
+            <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>In this half-hour, on renewables</span><b>${n(renewable)} kWh</b></li><li><i class="is-grid"></i><span>Other half-hours, from the grid</span><b>${n(grid)} kWh</b></li></ul></div>
+        <div class="cg-ev"><strong>In EV terms</strong><p><b>${cars} of ${total}</b> simulated cars charge in this half-hour: <b>${n(L.batteryDeliveredKwh)} kWh</b> into their batteries ≈ <b>${n(Math.round(m.rangeKm))} km</b> <small>(${n(o.vehiclesMet)} of ${total} fully charged before they leave)</small></p>
+            ${S ? `<p>The grid battery takes <b>${n(S.gridKwh)} kWh</b> more that the cars cannot <small>(${n(S.startFraction * 100)}% → ${n(S.endFraction * 100)}% full)</small></p>` : ''}</div></section>`;
 }
 function cgWeekPicker() {
     const monday = cgSelectedMonday();
@@ -427,38 +410,20 @@ function cgCalendar(selected) {
     return `<div class="cg-cal" role="dialog" aria-label="Choose a week"><div class="cg-cal-head"><button type="button" data-cg-cal-month="-1" aria-label="Previous month">‹</button><b>${escapeHtml(title)}</b><button type="button" data-cg-cal-month="1" aria-label="Next month">›</button></div><div class="cg-cal-days">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => `<span>${d}</span>`).join('')}</div>${rows.join('')}${range}</div>`;
 }
 function cgWeekCard() {
-    return `<section class="dash-card cg-card cg-week">${cgHead('green', 'bolt', 'Renewables likely wasted each day', 'Forecast energy switched off per day · MWh', cgWeekPicker())}${chartSlot('cgWeek', 'Predicted curtailment for each day of the chosen week, Monday to Sunday', 'cg-chart')}</section>`;
+    return `<section class="dash-card cg-card cg-week">${cgHead('green', 'bolt', 'Renewables likely wasted each day', 'Experimental daily model (a different model from the half-hour forecasts) · MWh per day · line: observed', cgWeekPicker())}${chartSlot('cgWeek', 'Daily model forecast of curtailment for each day of the chosen week, Monday to Sunday, with the observed value where available', 'cg-chart')}</section>`;
 }
 function cgBestCard() {
-    const sub = cgDay.status === 'ready' ? `${escapeHtml(cgDayLabel(cgDay.data.date))} (a past day replayed) · ranked by MWh at risk × how likely it is` : 'Replayed past day · ranked by MWh at risk × how likely it is';
+    const sub = dayPlanReady() ? `${escapeHtml(cgDayLabel(dayPlan.data.date))} (a past day replayed) · ranked by MWh at risk × how likely it is` : 'Replayed past day · ranked by MWh at risk × how likely it is';
     let body;
-    if (cgDay.status !== 'ready') {
-        body = cgChartState(cgDay.status, 'Loading the replay day…', 'The replay day could not be loaded.');
+    if (!dayPlanReady()) {
+        body = cgChartState(dayPlanLoading() ? 'loading' : 'error', 'Planning the replay day…', 'The day plan could not be loaded.');
     } else {
-        const best = cgBestHalfHours(cgDay.data.intervals), max = Math.max(...best.map((i) => i.atRiskMwh), 0.001);
+        const best = cgBestHalfHours(dayPlan.data.intervals), max = Math.max(...best.map((i) => i.atRiskMwh), 0.001);
         body = best.length
-            ? `<ol class="cg-rank${cgDrawIn('rank', `${cgDay.data.date}|${best.map((i) => i.targetAt).join(',')}`)}">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}" style="--i:${k}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${escapeHtml(modelTime(i.targetAt))}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${n(i.atRiskMwh)} MWh</span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}</span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
+            ? `<ol class="cg-rank${cgDrawIn('rank', `${dayPlan.data.date}|${best.map((i) => i.targetAt).join(',')}`)}">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}" style="--i:${k}" title="${escapeHtml(`${n(i.evGridKwh)} kWh to the simulated EVs in this half-hour`)}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${escapeHtml(dayPlanTime(i.targetAt))}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${n(i.atRiskMwh)} MWh</span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}<span class="visually-hidden"> · ${n(i.evGridKwh)} kWh to EVs</span></span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
             : '<div class="cg-empty" role="status">No renewable energy is predicted at risk on this day, so there is no good time to shift charging.</div>';
     }
     return `<section class="dash-card cg-card cg-best-card">${cgHead('green', 'clock', 'Best half-hours to charge', sub)}${body}</section>`;
-}
-function cgAssumptions() {
-    const s = modelState.data.scenario;
-    const field = (id, label, unit, value, min, max, hint) => `<div class="cg-field"><label for="${id}">${label} <span>${unit}</span></label><input id="${id}" type="number" min="${min}" max="${max}" step="any" required value="${value}" aria-describedby="${id}-hint scenario-validation"><small id="${id}-hint">${hint}</small></div>`;
-    return `<details class="cg-assumptions"${cgAssumptionsOpen ? ' open' : ''}><summary>${icon('settings', 17)} Assumptions</summary>
-        <div class="cg-assume-panel"><form id="charging-scenario-form" novalidate>
-            <fieldset><legend>Charging demand per half-hour</legend>
-                ${field('scenario-total', 'Total demand', 'kWh', modelState.totalDemandKwh, 0, 1e9, `= ${n(s.totalDemandMwh)} MWh`)}
-                ${field('scenario-flexible', 'Flexible demand', 'kWh', modelState.flexibleDemandKwh, 0, 1e9, 'Part that can move in time')}
-            </fieldset>
-            <fieldset><legend>EV assumptions</legend>
-                ${field('scenario-kwh-per-charge', 'Energy per charge', 'kWh', modelState.kwhPerCharge, 1, 200, 'Typical top-up: 30 kWh')}
-                ${field('scenario-charger-kw', 'Charger power', 'kW', modelState.chargerKw, 1, 400, 'Home 7 kW · public 22 kW')}
-            </fieldset>
-            <p id="scenario-validation" role="alert"></p>
-            <button class="studio-button" type="submit">Apply ${icon('arrow', 17)}</button>
-        </form>
-        <details class="cg-method"><summary>How this is calculated</summary><ul>${s.methodology.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul></details></div></details>`;
 }
 function renderCharging() {
     const title = 'Charging EVs on renewable energy that would be wasted · historical data, not live control.';
@@ -473,19 +438,17 @@ function cgPage() {
     {
         cgEnsureData();
         const d = modelState.data;
-        const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Charging on renewables = min(renewable energy at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
+        if (!planAlternative()) return planPlaceholder('Fleet plan');
+        const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · The Dashboard's simulated fleet and grid battery plan: the same optimizer, charger and site power limits and ${n(cgPlan().ledger.chargingEfficiency * 100)}% charging efficiency. The day chart repeats that plan for each half-hour as separate what-ifs; they are never added up. Simulated fleet, not measured charging.</p>`;
         return `${cgDefs()}${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}${dwCard()}</div>${foot}`;
     }
 }
 
 // ---------- interactions ----------
-document.addEventListener('toggle', (event) => {
-    if (event.target.classList?.contains('cg-assumptions')) cgAssumptionsOpen = event.target.open;
-}, true);
 document.addEventListener('pointermove', (event) => {
     const plot = event.target.closest?.('[data-cg-plot]');
-    if (!plot || cgDay.status !== 'ready') return;
-    const list = cgDay.data.intervals, svg = plot.querySelector('svg'), tip = plot.querySelector('.cg-tooltip');
+    if (!plot || !dayPlanReady()) return;
+    const list = dayPlan.data.intervals, svg = plot.querySelector('svg'), tip = plot.querySelector('.cg-tooltip');
     if (!svg || !tip) return;
     const box = svg.getBoundingClientRect(), { w, left, right } = CG_PLOT;
     const vx = ((event.clientX - box.left) / box.width) * w;
@@ -494,16 +457,15 @@ document.addEventListener('pointermove', (event) => {
     const row = list[i], sx = left + (w - left - right) * (i / (list.length - 1));
     svg.querySelector('.cg-hover')?.setAttribute('x1', sx);
     svg.querySelector('.cg-hover')?.setAttribute('x2', sx);
-    const toMwDot = 60 / (cgDay.data.intervalMinutes || 30), { top, bottom, h } = CG_PLOT;
-    const yOf = (mwh) => top + (h - top - bottom) * (1 - (mwh * toMwDot) / (cgScheduleScale.max || 1));
-    for (const [cls, mwh] of [['is-renewable', row.atRiskMwh], ['is-charging', row.potentialRecoveryMwh]]) {
+    const perHour = 60 / (dayPlan.data.intervalMinutes || 30), { top, bottom, h } = CG_PLOT;
+    const yOf = (value, max) => top + (h - top - bottom) * (1 - (value * perHour) / (max || 1));
+    for (const [cls, cy] of [['is-renewable', yOf(row.atRiskMwh, cgScheduleScale.max)], ['is-charging', yOf(row.evGridKwh, cgScheduleScale.evMax)]]) {
         const dot = svg.querySelector(`.cg-hover-dot.${cls}`);
-        if (dot) { dot.setAttribute('cx', sx); dot.setAttribute('cy', yOf(mwh)); }
+        if (dot) { dot.setAttribute('cx', sx); dot.setAttribute('cy', cy); }
     }
     plot.classList.add('is-hovering');
     tip.hidden = false;
-    const toMw = 60 / (cgDay.data.intervalMinutes || 30), total = (cgDay.data.totalDemandKwh || 0) / 1000;
-    tip.innerHTML = `<b>${escapeHtml(modelTime(row.targetAt))} half-hour</b><span><i class="is-renewable"></i>${n(row.atRiskMwh * toMw)} MW renewable energy at risk</span><span><i class="is-charging"></i>${n(row.potentialRecoveryMwh * toMw)} MW charging on renewables</span><span><i class="is-grid"></i>${n(Math.max(0, total - row.potentialRecoveryMwh) * toMw)} MW charging on the grid</span>${row.probability != null ? `<span>${pct(row.probability)} event probability</span>` : ''}`;
+    tip.innerHTML = `<b>${escapeHtml(dayPlanTime(row.targetAt))} half-hour</b><span><i class="is-renewable"></i>${n(row.atRiskMwh * perHour)} MW renewable energy at risk</span><span><i class="is-charging"></i>${n(row.evGridKwh * perHour)} kW fleet charging on it (${row.carsCharged} cars)</span><span><i class="is-grid"></i>${n(row.storageGridKwh * perHour)} kW grid battery charging</span>${row.probability != null ? `<span>${pct(row.probability)} event probability</span>` : ''}`;
     // Beside the hovered half-hour (like the mockup) so the dots on the lines stay visible.
     const pos = (sx / w) * 100;
     tip.style.left = `${pos}%`;
@@ -516,41 +478,6 @@ document.addEventListener('pointerleave', (event) => {
     plot.classList.remove('is-hovering');
     const tip = plot.querySelector('.cg-tooltip');
     if (tip) tip.hidden = true;
-}, true);
-
-function chargingFieldError(total, flexible, kwh, kw) {
-    const bad = (value, min, max) => !Number.isFinite(value) || value < min || value > max;
-    if (bad(total, 0, 1e9)) return ['scenario-total', 'Total demand must be between 0 and 1,000,000,000 kWh.'];
-    if (bad(flexible, 0, 1e9)) return ['scenario-flexible', 'Flexible demand must be between 0 and 1,000,000,000 kWh.'];
-    if (flexible > total) return ['scenario-flexible', 'Flexible demand cannot be larger than total demand.'];
-    if (bad(kwh, 1, 200)) return ['scenario-kwh-per-charge', 'Energy per charge must be between 1 and 200 kWh.'];
-    if (bad(kw, 1, 400)) return ['scenario-charger-kw', 'Charger power must be between 1 and 400 kW.'];
-    return null;
-}
-// Capture on window so the older scenario.js submit handler never sees this form.
-window.addEventListener('submit', (event) => {
-    if (event.target.id !== 'charging-scenario-form') return;
-    event.preventDefault();
-    event.stopPropagation();
-    const value = (id) => {
-        const raw = document.getElementById(id).value;
-        return raw.trim() === '' ? NaN : Number(raw);
-    };
-    const total = value('scenario-total'), flexible = value('scenario-flexible');
-    const kwh = value('scenario-kwh-per-charge'), kw = value('scenario-charger-kw');
-    event.target.querySelectorAll('[aria-invalid]').forEach((input) => input.removeAttribute('aria-invalid'));
-    const error = chargingFieldError(total, flexible, kwh, kw);
-    if (error) {
-        const input = document.getElementById(error[0]);
-        input.setAttribute('aria-invalid', 'true');
-        input.focus();
-        document.getElementById('scenario-validation').textContent = error[1];
-        return;
-    }
-    Object.assign(modelState, { totalDemandKwh: total, flexibleDemandKwh: flexible, kwhPerCharge: kwh, chargerKw: kw });
-    // Close the drawer so the charts can be watched gliding to the new figures.
-    cgAssumptionsOpen = false;
-    loadModelForecast();
 }, true);
 
 document.addEventListener('click', (event) => {
