@@ -21,6 +21,7 @@ from config import load_env
 import business
 import chat
 import explorer
+import sources
 import fleet as fleets
 import offers
 import optimizer
@@ -810,6 +811,41 @@ class Handler(SimpleHTTPRequestHandler):
             diagnosis = diagnose(error)
             self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
 
+    def sources(self, route):
+        """Wind & Solar page (issue #65): recorded wind/solar curtailment plus the experimental split forecast."""
+        query = {k: v[0] for k, v in parse_qs(route.query).items()}
+        try:
+            name = route.path.removeprefix('/api/v1/sources/')
+            if name == 'coverage':
+                action = sources.page_coverage
+            elif name == 'info':
+                action = sources.split_info
+            elif name == 'day':
+                capacity = float(query.get('capacityMw', '100'))
+                number(capacity, 'capacity', minimum=0.001, maximum=10000)
+                action = partial(sources.recorded_view, date.fromisoformat(query.get('date', '')).isoformat(), capacity)
+            elif name == 'forecast':
+                action = partial(sources.forecast_view, date.fromisoformat(query.get('date', '')).isoformat())
+            elif name == 'month':
+                month = query.get('month', '')
+                date.fromisoformat(f'{month}-01')
+                if len(month) != 7:
+                    raise ValueError('Month must be YYYY-MM')
+                action = partial(sources.month, month)
+            else:
+                self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
+                return
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a date (YYYY-MM-DD), a month (YYYY-MM) and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, action())
+        except sources.OutOfRange as error:
+            self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_GET(self):
         route = urlsplit(self.path)
         if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
@@ -860,6 +896,9 @@ class Handler(SimpleHTTPRequestHandler):
 
         if route.path == '/api/v1/about/example':
             self.send_json(200, worked_example())  # About page: the real formulas on fixed example inputs
+            return
+        if route.path.startswith('/api/v1/sources/'):
+            self.sources(route)
             return
         if route.path.startswith('/api/v1/explorer/'):
             self.explorer(route)

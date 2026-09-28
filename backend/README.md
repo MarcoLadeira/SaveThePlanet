@@ -288,6 +288,32 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
 
+## Wind & Solar page (issue #65)
+
+Opened from the Forecast header (`#sources`). `sources.py` wraps GridToEv's wind/solar routes;
+the API key stays on the server and every derived number (peak, best charging window, errors,
+EV equivalents) is computed here, once.
+
+| Route | Model call(s) | Cache |
+| --- | --- | --- |
+| `GET /api/v1/sources/coverage` | `/actuals/curtailment/sources/coverage`, plus up to 14 recorded days to find the latest day with curtailment (`suggestedDay`) | 10 min |
+| `GET /api/v1/sources/day?date=YYYY-MM-DD&capacityMw=100` | `/actuals/curtailment/sources?include_half_hours=true`: the recorded day, its peak, solar hours, best charging window and EV equivalent | published days forever, `pending`/`missing` 10 min |
+| `GET /api/v1/sources/forecast?date=YYYY-MM-DD` | `POST /predict/curtailment/sources/day` (experimental split) + the recorded day + model info: the split, forecast minus recorded, and the formula worked backwards to the wind:solar potential ratio | successes forever, failures never |
+| `GET /api/v1/sources/info` | `/model-info/curtailment/sources`: formula, fitted `a`/`b`, constants, capacity rule, fresh-confirmation progress, provisional accuracy, limitations | 10 min |
+| `GET /api/v1/sources/month?month=YYYY-MM` | the recorded route for each day of the month, 6 at a time, sharing the per-day cache | per day |
+
+- Days run from the archive start (2021-01-01; wind only before April 2023) to today (UTC).
+  Days after the archive have no recorded figures yet but can still have a forecast.
+- The forecast is optional: it answers 200 with `status` `ok`, `not_forecastable` (the model's 422
+  reason, e.g. before 2024-04-01) or `unavailable` (503/timeout). It is a separate route because a
+  cold forecast takes ~7 s upstream against ~0.6 s for a recorded day.
+- A `null` from the API stays `null` (unknown), never 0. A published day without 48 half-hours is
+  a 502; a date outside the range is a 404 `NOT_IN_DATASET`; bad input is a 400.
+- Best charging window: up to 8 consecutive half-hours maximising Σ min(curtailed, capacity × 0.5 h);
+  ties go to the most curtailed energy, then the shortest run, then the earliest. An upper bound,
+  not energy saved.
+- Tests (`tests/test_sources.py`) run on real responses saved in `tests/fixtures/sources`.
+
 ## Impact page: business and environmental impact
 
 `GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`), plus the discount-window

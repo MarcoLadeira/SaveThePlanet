@@ -1,0 +1,11 @@
+{
+ "source": "EirGrid half-hourly dispatch-down workbooks, Ireland (IE), Wind and Solar rows",
+ "unit": "MWh",
+ "first_half_hour_utc": "2021-01-01T00:00:00+00:00",
+ "last_half_hour_utc": "2026-08-31T22:30:00+00:00",
+ "solar_first_published_utc": "2023-03-31T23:00:00+00:00",
+ "complete_day_min_utc": "2023-04-01",
+ "complete_day_max_utc": "2026-08-30",
+ "complete_day_count": 1248,
+ "notice": "Recorded outcomes only, not predictions. Before solar was first published, days return wind only with solar unknown. Later days are pending until the archive is refreshed."
+}
