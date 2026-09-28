@@ -163,13 +163,19 @@ class ImpactDayHttpTests(unittest.TestCase):
     def setUp(self):
         reset_state(self)
 
-    def test_endpoint_returns_day(self):
+    def test_endpoint_returns_the_fleet_plan_for_each_half_hour(self):
         with patch('server.model_request', FakeModel([1] * 48)):
-            status, body = self.get('/api/v1/impact/day?date=2026-01-10&capacityMw=100&totalDemandKwh=1000&flexibleDemandKwh=500')
+            status, body = self.get('/api/v1/impact/day?date=2026-01-10&capacityMw=100&preset=constrained-site')
         self.assertEqual(status, 200)
         self.assertEqual(body['date'], '2026-01-10')
         self.assertEqual(len(body['intervals']), 48)
-        self.assertEqual(body['dataMode'], 'derived-scenario')
+        self.assertEqual(body['dataMode'], 'simulated-fleet-on-historical-forecast')
+        self.assertEqual(body['fleet']['preset'], 'constrained-site')
+        self.assertFalse(body['additive'], 'each half-hour is a separate what-if')
+        for key in ('capturedKwh', 'capturedShare', 'evGridKwh', 'storageGridKwh', 'co2AvoidedKg'):
+            self.assertIn(key, body['intervals'][0])
+        with patch('server.model_request', FakeModel([1] * 48)):
+            self.assertEqual(self.get('/api/v1/impact/day?date=2026-01-10')[1]['fleet']['preset'], server.DAY_PLAN_PRESET)
 
     def test_default_day_is_the_fixed_dataset_target_day(self):
         # The page normally sends the day of the dashboard's random target; without one the
@@ -186,7 +192,7 @@ class ImpactDayHttpTests(unittest.TestCase):
 
     def test_invalid_and_out_of_range_requests(self):
         with patch('server.model_request', FakeModel([1] * 48)):
-            for query in ('date=10-01-2026', 'capacityMw=0', 'flexibleDemandKwh=2000'):
+            for query in ('date=10-01-2026', 'capacityMw=0', 'preset=no-such-fleet'):
                 self.assertEqual(self.get('/api/v1/impact/day?' + query)[0], 400)
             status, body = self.get('/api/v1/impact/day?date=2025-12-01')
         self.assertEqual(status, 400)
@@ -206,7 +212,7 @@ class ImpactDayHttpTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual((body['dataMode'], body['source'], body['date']), ('simulated', 'local-demo-fixture', '2026-01-10'))
             self.assertEqual(len(body['intervals']), 48)
-            self.assertTrue(all(i['atRiskMwh'] >= i['potentialRecoveryMwh'] >= 0 for i in body['intervals']))
+            self.assertTrue(all(i['atRiskKwh'] >= 0 and i['capturedKwh'] >= 0 and i['notCapturedKwh'] >= 0 for i in body['intervals']))
 
 
 if __name__ == '__main__':

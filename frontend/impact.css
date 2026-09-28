@@ -242,4 +242,9 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 .impact-sel-dot{stroke:var(--surface);stroke-width:2}
 .impact-sel-dot.is-green{fill:var(--green)}.impact-sel-dot.is-blue{fill:var(--imp-charge)}.impact-sel-dot.is-amber{fill:var(--amber)}
 .impact-where{display:flex;flex-direction:column;gap:12px}
-.impact-where .bridge-preset{font-size:11px}
+/* The fleet picker shares the title line, compact: its label is read out (the select is labelled
+   too) rather than shown, so it never runs past the card's edge. */
+.impact-where .impact-card-head>div{min-width:0}
+.impact-where .bridge-preset{flex:0 1 150px;min-width:0;margin-left:auto;font-size:11px}
+.impact-where .bridge-preset>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.impact-where .bridge-preset select{width:100%;max-width:150px;min-width:0}

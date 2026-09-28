@@ -233,6 +233,13 @@
 [data-current-page="charging"] .cg-rank-track i::after{content:"";position:absolute;left:6px;right:6px;top:3px;height:4px;border-radius:99px;background:rgba(255,255,255,.45)}
 [data-current-page="charging"] .cg-tooltip{transform:translateX(14px)}[data-current-page="charging"] .cg-tooltip.is-left{transform:translateX(calc(-100% - 14px))}
 
+/* The fleet picker shares the title line, compact like the button it replaced: its label is read
+   out (the select is labelled too) rather than shown, so the title keeps its room. */
+[data-current-page="charging"] .cg-mix .dash-head-copy{min-width:0}
+[data-current-page="charging"] .cg-mix .dash-head-copy h2{white-space:nowrap}
+[data-current-page="charging"] .cg-mix .bridge-preset{flex:0 1 136px;min-width:0;margin-left:auto}
+[data-current-page="charging"] .cg-mix .bridge-preset>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[data-current-page="charging"] .cg-mix .bridge-preset select{width:100%;max-width:136px;min-width:0;height:34px;border-radius:12px;background:var(--surface-2)}
 /* Right-hand axis for fleet charging (kW), beside energy at risk (MW) on the left. */
 [data-current-page="charging"] .cg-grid text.is-ev,[data-current-page="charging"] .cg-axis-unit.is-ev{fill:var(--cg-rec)}
 /* Observed curtailment beside the daily model's bar. */
