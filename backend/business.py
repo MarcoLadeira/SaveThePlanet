@@ -443,7 +443,8 @@ def build_result(nights, meta, seasonal, fleet=FLEET, tariff=TARIFF, costs=COSTS
         })
     kwh_ev = grid_kwh_per_ev_day(fleet)
     # Calculator defaults that reproduce the depot's savings before costs: the share as shown (one
-    # decimal), then the price difference that makes EVs x kWh x share x price x days match.
+    # decimal), then the price difference that makes EVs x kWh x share x price x days match. Five
+    # decimals keep the calculator within a euro of the waterfall (four were ~EUR 10 out).
     share = round(ev['shiftedKwh'] / totals['normal']['gridKwh'] * 100, 1) if totals['normal']['gridKwh'] > 0 else 0.0
     shifted_year = fleet['vehicles'] * kwh_ev * share / 100 * days
     price_diff = max(0.0, expected['grossSavingsEur'] / shifted_year) if shifted_year > 0 else 0.0
@@ -480,7 +481,7 @@ def build_result(nights, meta, seasonal, fleet=FLEET, tariff=TARIFF, costs=COSTS
                      'implementationEur': n * expected['implementationEur']} for n in SCALING_SITES],
         'calculator': {'kwhPerEvDay': round(kwh_ev, 1), 'illustrative': True,
                        'defaults': {'evs': fleet['vehicles'], 'shiftablePct': share,
-                                    'priceDiffEurPerKwh': round(price_diff, 4), 'operatingDays': days,
+                                    'priceDiffEurPerKwh': round(price_diff, 5), 'operatingDays': days,
                                     'implementationEur': costs['implementationEur'], 'annualEur': costs['annualEur']}},
         'emissions': {'gridIntensityKgPerKwh': GRID_KG_PER_KWH, 'status': 'estimated',
                       'method': ('Grid electricity at an average of 0.25 kg CO2 per kWh. Charging that coincided with observed '
@@ -727,7 +728,7 @@ def compute(progress=lambda done, total, stage: None, urgent=lambda: False):
             'provenance': PROVENANCE, 'fallback': {'active': False, 'reason': None}}
     if len(days) < 2:
         return empty_result(meta, 'The forecast dataset has no two consecutive days with forecasts to evaluate.')
-    total = len(days) + 1
+    total = len(days) + 2  # one step per day replayed, then the observed year, then the scoring
     data, failures, model_error = {}, [], None
     for n, day in enumerate(days):
         progress(n, total, 'Replaying historical forecasts')
@@ -746,6 +747,7 @@ def compute(progress=lambda done, total, stage: None, urgent=lambda: False):
     meta['coverage'] = coverage(nights, failures)
     progress(len(days), total, 'Checking a full year of observed curtailment')
     seasonal = model_seasonal(days) if nights else {'available': False, 'factor': None, 'reason': None}
+    progress(len(days) + 1, total, 'Scoring three charging strategies')
     return build_result(nights, meta, seasonal)
 
 

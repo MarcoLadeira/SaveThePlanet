@@ -6,6 +6,7 @@
 const bz = {
   status: 'idle', // idle | loading | preparing | ready | empty | failed
   result: null, progress: null, error: '', token: 0, timer: null, inFlight: false,
+  progressSince: null, // {at, done}: when this page first saw the build's progress, for the time-left estimate
   metric: 'money', // comparison chart: money | co2 | renewable
   details: false, // investment details open
   // advanced: the optional costs are part of the estimate; view: which inputs show (fleet | costs)
@@ -23,6 +24,7 @@ const bzGlyphs = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.2"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
+  tick: '<path d="m5.5 12.5 4.2 4.2L18.5 8" stroke-width="3"/>',
   cross: '<circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="m8.6 8.6 6.8 6.8m0-6.8-6.8 6.8" stroke="#fff"/>',
 };
 function bzIcon(name, size = 20) {
@@ -76,10 +78,16 @@ async function bzFetch(path, timeout = 20000) {
   } finally { clearTimeout(timer); }
 }
 // Loads (or polls) the result. A newer call replaces an older one: late answers are ignored.
+// While the server prepares, each poll only updates the loading card, so its animations keep running.
 async function bzLoad(refresh = false) {
   const token = ++bz.token;
   clearTimeout(bz.timer); bz.timer = null;
-  if (!bz.result || refresh) { bz.status = bz.status === 'preparing' ? 'preparing' : 'loading'; if (refresh) bz.result = null; bzRender(); }
+  if (!bz.result || refresh) {
+    const polling = bz.status === 'preparing';
+    bz.status = polling ? 'preparing' : 'loading';
+    if (refresh) bz.result = null;
+    if (!polling || !bzProgressPaint()) bzRender();
+  }
   bz.inFlight = true;
   let next;
   try {
@@ -95,10 +103,20 @@ async function bzLoad(refresh = false) {
     next = { status: 'failed', error: error.name === 'AbortError' ? 'The server took too long to answer.' : 'Could not reach the SaveThePlanet server.' };
   }
   bz.inFlight = false;
+  const polled = bz.status === 'preparing' && next.status === 'preparing';
   Object.assign(bz, next);
+  bzTrackProgress(Date.now());
   if (bz.status === 'preparing') bz.timer = setTimeout(() => { bz.timer = null; if (pageFromHash() === 'business') bzLoad(); }, 1500);
   if (bz.status === 'ready' && bz.calc.values === null) bzCalcReset();
+  if (polled && bzProgressPaint()) return;
   bzRender();
+}
+// The first progress this page saw, so the time left can be estimated from the steps done since.
+// A build that starts again (a retry) starts the estimate again.
+function bzTrackProgress(now) {
+  const p = bz.progress, since = bz.progressSince;
+  if (bz.status !== 'preparing' || !p) bz.progressSince = null;
+  else if (!since || p.done < since.done || p.total !== since.total) bz.progressSince = { at: now, done: p.done, total: p.total };
 }
 
 // Re-render and put keyboard focus back where it was, since render() rebuilds <main>.
@@ -134,7 +152,8 @@ function bzFigure(name, get) {
   });
 }
 bzFigure('bzSavings', () => bzR() && { v: bzR().kpis.annualSavingsEur, kind: 'eur' });
-bzFigure('bzCo2', () => bzR() && { v: bzR().kpis.co2ReductionT, kind: 'co2' });
+// A negative reduction is an increase: say so in words rather than print a "−0.7 t" reduction.
+bzFigure('bzCo2', () => bzR() && (bzR().kpis.co2ReductionT < 0 ? { kind: 'text', text: 'No reduction' } : { v: bzR().kpis.co2ReductionT, kind: 'co2' }));
 bzFigure('bzAi', () => bzR() && { v: bzR().kpis.aiSavingsEur, kind: 'eur' });
 bzFigure('bzPayback', () => {
   const k = bzR()?.kpis;
@@ -197,14 +216,16 @@ const BZ_METRICS = {
   co2: { label: 'CO₂', unit: 'Estimated t CO₂ per year', better: 'lower', get: (s) => s.annual.co2T, fmt: (v) => `${bzT(v)} t` },
   renewable: { label: 'Renewable energy', unit: 'Charging from surplus renewables', better: 'higher', get: (s) => (bzHas(s.annual.renewableShare) ? s.annual.renewableShare * 100 : null), fmt: (v) => (bzHas(v) ? `${Math.round(v)}%` : '—') },
 };
-// The AI's change against normal charging, and whether that change is an improvement.
-function bzDelta(metric, ai, normal) {
-  if (!bzHas(ai) || !bzHas(normal)) return { text: '', tone: '' };
+// A strategy's change against the one it builds on (basic against normal, our AI against basic), and
+// whether that change is an improvement. Changes under 1 keep a decimal, so a small gain never reads as "same".
+function bzDelta(metric, value, reference, name) {
+  if (!bzHas(value) || !bzHas(reference)) return { text: '', tone: '' };
   const better = BZ_METRICS[metric].better === 'lower' ? -1 : 1;
-  const d = metric === 'renewable' ? Math.round(ai - normal) : normal ? Math.round(((ai - normal) / normal) * 100) : null;
-  if (d === null) return { text: '', tone: '' };
-  if (!d) return { text: 'same as normal', tone: 'same' };
-  return { text: `${d > 0 ? '+' : '−'}${Math.abs(d)}${metric === 'renewable' ? ' pts' : '%'} vs normal`, tone: Math.sign(d) === better ? 'good' : 'bad' };
+  const raw = metric === 'renewable' ? value - reference : reference ? ((value - reference) / reference) * 100 : null;
+  if (raw === null) return { text: '', tone: '' };
+  const d = Math.abs(raw) < 1 ? Math.round(raw * 10) / 10 : Math.round(raw);
+  if (!d) return { text: `same as ${name}`, tone: 'same' };
+  return { text: `${d > 0 ? '+' : '−'}${n(Math.abs(d))}${metric === 'renewable' ? ' pts' : '%'} vs ${name}`, tone: Math.sign(d) === better ? 'good' : 'bad' };
 }
 function bzRequirement(req) {
   if (req.allMet) return `<span class="bz-req is-met" title="Every van reached its required charge before it left">${icon('check', 14)}${n(req.met)}/${n(req.total)} van-nights on time</span>`;
@@ -215,24 +236,25 @@ function bzRequirement(req) {
 bzChart('bzCompare', {
   values() {
     const r = bzR(), m = BZ_METRICS[bz.metric];
-    if (!r) return { rows: [], delta: '', reveal: 0 };
+    if (!r) return { rows: [], deltas: {}, reveal: 0 };
     const vals = r.strategies.map((s) => m.get(s)), peak = Math.max(0, ...vals.filter(bzHas));
     const max = bz.metric === 'renewable' ? 100 : bzScale(peak).max; // a share is always drawn out of 100%
     const of = (id) => vals[r.strategies.findIndex((s) => s.id === id)];
-    const delta = bzDelta(bz.metric, of('ai'), of('normal'));
     return {
       rows: r.strategies.map((s, i) => ({ id: s.id, w: bzHas(vals[i]) ? Math.min(1, Math.max(0, vals[i] / max)) : 0, text: bzHas(vals[i]) ? m.fmt(vals[i]) : '—' })),
-      delta: delta.text, tone: delta.tone, reveal: 1,
+      deltas: { basic: bzDelta(bz.metric, of('basic'), of('normal'), 'normal'), ai: bzDelta(bz.metric, of('ai'), of('basic'), 'basic') },
+      reveal: 1,
     };
   },
   start: (t) => ({ ...t, rows: t.rows.map((row) => ({ ...row, w: 0 })), reveal: 0 }),
-  draw({ rows, delta, tone, reveal }) {
+  draw({ rows, deltas, reveal }) {
     const r = bzR();
     if (!r || !rows.length) return '';
     const byId = Object.fromEntries(r.strategies.map((s) => [s.id, s]));
+    const fade = Math.min(1, Math.max(0, (reveal - 0.55) / 0.4)).toFixed(2); // chips fade in as the bars land
     return rows.map((row) => {
-      const s = byId[row.id], w = (row.w * 100).toFixed(2);
-      const chip = row.id === 'ai' && delta ? `<span class="bz-cmp-delta is-${tone}">${delta}</span>` : '';
+      const s = byId[row.id], w = (row.w * 100).toFixed(2), d = deltas?.[row.id];
+      const chip = d?.text ? `<span class="bz-cmp-delta is-${row.id} is-${d.tone}" style="opacity:${fade}">${d.text}</span>` : '';
       return `<div class="bz-cmp-row is-${row.id}">
         <div class="bz-cmp-name"><b>${escapeHtml(s.label)}</b>${chip}${bzRequirement(s.requirements)}</div>
         <div class="bz-cmp-track"><i style="width:${w}%"></i><strong style="left:${w}%;opacity:${reveal > 0.85 ? 1 : 0}">${row.text}</strong></div>
@@ -409,17 +431,18 @@ function bzKpi(tone, glyph, label, figure, figureLabel, foot) {
     <span class="bz-kpi-label">${label}</span>${chartSlot(figure, figureLabel, 'bz-kpi-figure')}
     <p class="bz-kpi-foot">${foot}</p></article>`;
 }
-function bzScenario() {
+function bzScenario(intro = false) {
   const r = bz.result;
   if (!r || bz.status !== 'ready') {
-    const chip = bz.status === 'failed' ? '<span class="bz-chip is-error">Unavailable</span>' : bz.status === 'empty' ? '<span class="bz-chip">No data</span>' : `<span class="bz-chip is-busy"><i></i>${bz.progress?.total ? `Preparing · ${bz.progress.done + 1} of ${bz.progress.total}` : 'Preparing'}</span>`;
+    const chip = bz.status === 'failed' ? '<span class="bz-chip is-error">Unavailable</span>' : bz.status === 'empty' ? '<span class="bz-chip">No data</span>'
+      : `<span class="bz-chip is-busy"><i></i><span>${bz.status === 'preparing' ? bzPreparing(bz.progress) : 'Loading'}</span></span>`;
     return `<div class="bz-scenario" aria-label="Scenario">${chip}</div>`;
   }
   const sim = r.dataMode === 'simulated';
   const mode = sim
     ? `<button type="button" class="bz-chip is-sim" data-bz-retry="model" title="GridToEv is unavailable (${escapeHtml(r.fallback?.reason || '')}); this is a fixed simulated example. Click to try the model again.">${bzIcon('alert', 14)}Simulated data · retry model</button>`
     : `<span class="bz-chip is-replay" title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">Historical replay</span>`;
-  return `<div class="bz-scenario" aria-label="Scenario">
+  return `<div class="bz-scenario${intro ? ' is-intro' : ''}" aria-label="Scenario">
     <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>${escapeHtml(r.company.name)}</b><small>${n(r.company.vehicles)} EVs · simulated company</small></span></span>
     <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small>${n(r.period.nights)} nights simulated</small>`}</span></span>
     ${mode}</div>`;
@@ -432,11 +455,16 @@ function bzKpiRow(r) {
   const co2Pct = normalCo2 > 0 ? Math.round((k.co2ReductionT / normalCo2) * 100) : null;
   const savingsFoot = `${saved !== null && saved > 0 ? `−${saved}% vs normal · ` : ''}net of ${bzEur(f.annualCostsEur)} software`;
   const aiFoot = k.aiSavingsEur < 0 ? 'costs more than basic smart charging here' : k.aiSavingsEur === 0 ? 'no gain over basic smart charging here' : 'on top of basic smart charging';
-  const co2Foot = k.co2ReductionT < 0 ? 'estimated · more than normal charging' : `estimated · ${co2Pct ? `−${co2Pct}% ` : ''}vs normal charging`;
+  // No strategy draws more grid energy than normal charging, so more CO2 than normal always means
+  // normal charging, which starts on arrival, caught more surplus renewable energy.
+  const co2Up = k.co2ReductionT < 0;
+  const co2Foot = co2Up ? `estimated · ${bzT(-k.co2ReductionT)} t more than normal charging`
+    : k.co2ReductionT === 0 ? 'estimated · same as normal charging' : `estimated · ${co2Pct ? `−${co2Pct}% ` : ''}vs normal charging`;
+  const co2Label = co2Up ? `Estimated CO2: no reduction, ${bzT(-k.co2ReductionT)} tonnes a year more than normal charging` : `Estimated CO2 reduction ${bzT(k.co2ReductionT)} tonnes a year`;
   const payFoot = k.paybackStatus === 'months' ? `${bzEur(f.implementationEur)} example setup cost` : 'net savings are not positive';
   return `<section class="bz-kpis" aria-label="Headline results">
     ${bzKpi('green', 'euro', 'Projected annual savings', 'bzSavings', `Projected annual savings ${bzEur(k.annualSavingsEur)} a year`, `<em>${savingsFoot}</em>`)}
-    ${bzKpi('teal', 'leaf', 'Estimated CO₂ reduction', 'bzCo2', `Estimated CO2 reduction ${bzT(k.co2ReductionT)} tonnes a year`, `<em>${co2Foot}</em>`)}
+    ${bzKpi('teal', 'leaf', 'Estimated CO₂ reduction', 'bzCo2', co2Label, `<em title="${co2Up ? 'Our AI waits for the cheapest hours; here normal charging, which starts on arrival, used more surplus renewable energy.' : ''}">${co2Foot}</em>`)}
     ${bzKpi('blue', 'spark', 'Additional AI savings', 'bzAi', `Additional AI savings ${bzEur(k.aiSavingsEur)} a year versus rule-based charging`, `<em>${aiFoot}</em>`)}
     ${bzKpi('amber', 'hourglass', 'Investment payback', 'bzPayback', k.paybackStatus === 'months' ? `Investment payback ${bzMonths(k.paybackMonths)}` : 'Investment payback not achieved', `<em>${payFoot}</em>`)}
   </section>`;
@@ -482,7 +510,7 @@ function bzCalcCard(r) {
     `<span class="bz-chip is-illustrative" title="EVs × ${n(r.company.kwhPerEvDay)} kWh a day × share shifted × price difference × days. Every input changes the result. The energy bridge plans your EVs on the example site (${n(r.company.chargers)} × ${n(r.company.chargerKw)} kW chargers, ${n(r.company.sitePowerKw)} kW connection): charging it cannot fit overnight is not counted. The share and price difference are your assumptions.">Site checked · illustrative prices</span>`)}
     <form class="bz-form" novalidate onsubmit="return false">
       <div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div>
-      <div class="bz-out" aria-live="polite"><span class="bz-out-label">Estimated yearly savings <small class="bz-out-basis">${bzCalcBasis()}</small></span>
+      <div class="bz-out" aria-live="polite"><span class="bz-out-label">Estimated yearly savings<i class="bz-out-spin" aria-hidden="true"></i><small class="bz-out-basis">${bzCalcBasis()}</small></span>
         ${chartSlot('bzCalcOut', 'Estimated yearly savings', 'bz-out-figure')}
         <div class="bz-out-detail">${bzCalcDetail()}</div>
         <button type="button" class="bz-link is-reset" data-bz-reset>Reset to the example depot</button></div>
@@ -524,25 +552,87 @@ function bzInvestCard(r) {
   </section>`;
 }
 
-function bzProvenance(r) {
+function bzProvenance(r, intro = false) {
   const cov = r.coverage || {};
   const gaps = (cov.missingForecasts || cov.missingObservations) ? ` · ${n(cov.missingForecasts || 0)} forecasts and ${n(cov.missingObservations || 0)} observations missing (not filled in)` : '';
   const how = r.dataMode === 'simulated'
     ? 'Simulated example (GridToEv unavailable): fixed weather, same fleet and prices'
     : `GridToEv ${escapeHtml(r.modelVersion || '')} +30 min historical forecasts scored against observed EirGrid curtailment`;
-  return `<p class="bz-provenance" title="${escapeHtml([...(r.methodology || []), ...(r.limitations || [])].join('\n'))}">${bzIcon('info', 13)}<span>${how} · simulated fleet · illustrative prices · CO₂ estimated at ${n(r.emissions.gridIntensityKgPerKwh)} kg/kWh · network deliverability not verified${gaps}</span></p>`;
+  return `<p class="bz-provenance${intro ? ' is-intro' : ''}" title="${escapeHtml([...(r.methodology || []), ...(r.limitations || [])].join('\n'))}">${bzIcon('info', 13)}<span>${how} · simulated fleet · illustrative prices · CO₂ estimated at ${n(r.emissions.gridIntensityKgPerKwh)} kg/kWh · network deliverability not verified${gaps}</span></p>`;
 }
 
 // ---------------------------------------------------------------- states
+// The build's stages (business.compute): one step per day replayed, then the observed year, then the
+// scoring. `total` counts every step, so the days replayed are total - 2.
+const bzDays = (p) => (p?.total > 2 ? p.total - 2 : 0);
+function bzLoadingSteps(p, now = Date.now()) {
+  const days = bzDays(p), done = p?.done ?? 0;
+  const at = !days || done < days ? 0 : done === days ? 1 : 2;
+  const eta = bzEta(p, bz.progressSince, now);
+  const replay = !days ? 'starting' : done < days ? `day ${n(done + 1)} of ${n(days)}${eta ? ` · ${eta}` : ''}` : `${n(days)} days replayed`;
+  return [
+    ['Replay a week of GridToEv forecasts', replay],
+    ['Read a year of observed curtailment', 'for the seasonal adjustment'],
+    ['Charge the fleet three ways and score it', 'normal, basic smart and our AI'],
+  ].map(([label, detail], i) => ({ label, detail, state: i < at ? 'done' : i === at ? 'active' : 'pending' }));
+}
+const bzShare = (p) => (p?.total ? Math.min(1, (p.done + 0.5) / p.total) : 0.04);
+// Time left for the replay, at the pace of the days this page has seen finish. Only the replay: its
+// days take alike, while the observed year and the scoring take their own time.
+function bzEta(p, since, now) {
+  const days = bzDays(p);
+  if (!days || !since || p.done >= days || p.done <= since.done) return '';
+  const left = (((now - since.at) / (p.done - since.done)) * (days - p.done)) / 1000;
+  if (left < 5) return 'a few seconds left';
+  return left < 60 ? `about ${Math.ceil(left / 5) * 5} s left` : `about ${Math.round(left / 60)} min left`;
+}
+const bzProgressMeta = (p) => `${Math.round(bzShare(p) * 100)}%`;
+const bzPreparing = (p) => (p?.total ? `Preparing · ${n(Math.min(p.done + 1, p.total))} of ${n(p.total)}` : 'Preparing');
+function bzStep(s) {
+  const mark = s.state === 'done' ? bzIcon('tick', 14) : s.state === 'active' ? '<i class="bz-spin"></i>' : '<i class="bz-dot"></i>';
+  return `<li class="is-${s.state}" data-state="${s.state}"><span class="bz-step-mark">${mark}</span><span class="bz-step-copy"><b>${s.label}</b><small>${s.detail}</small></span></li>`;
+}
+function bzProgressCard(p) {
+  const share = bzShare(p);
+  return `<section class="dash-card bz-card bz-money bz-progress" role="status">
+    <div class="bz-progress-head"><span class="bz-progress-icon">${bzIcon('spark', 22)}</span>
+      <div><h2>Simulating three ways to charge</h2><p>The first run replays a week of GridToEv forecasts; after that the page opens instantly.</p></div></div>
+    <ol class="bz-steps">${bzLoadingSteps(p).map(bzStep).join('')}</ol>
+    <div class="bz-progress-foot"><span class="bz-bar" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"></i></span>
+      <span class="bz-progress-meta" aria-hidden="true">${bzProgressMeta(p)}</span></div>
+  </section>`;
+}
+// Updates the loading card in place between polls, so its spinner, shimmer and bar keep moving
+// instead of restarting with every re-render. False when there is no card to update.
+function bzProgressPaint() {
+  const main = document.querySelector('main[data-current-page="business"]'), card = main?.querySelector('.bz-progress');
+  if (!card) return false;
+  const p = bz.progress, items = card.querySelectorAll('.bz-steps li'), share = bzShare(p);
+  bzLoadingSteps(p).forEach((s, i) => {
+    if (!items[i]) return;
+    if (items[i].dataset.state !== s.state) items[i].outerHTML = bzStep(s); // a finished step's check pops in
+    else items[i].querySelector('small').textContent = s.detail;
+  });
+  const bar = card.querySelector('.bz-bar');
+  bar.firstElementChild.style.width = `${(share * 100).toFixed(1)}%`;
+  bar.setAttribute('aria-valuenow', String(Math.round(share * 100)));
+  card.querySelector('.bz-progress-meta').textContent = bzProgressMeta(p);
+  const chip = main.querySelector('.bz-chip.is-busy span');
+  if (chip) chip.textContent = bzPreparing(p);
+  return true;
+}
+// Placeholders shaped like the cards they stand for, so the results replace them without a jump.
+// A quick answer never shows them: they fade in only after a moment (.is-waiting).
 function bzSkeleton() {
-  const p = bz.progress, share = p?.total ? Math.min(1, (p.done + 0.5) / p.total) : 0.06;
-  const kpi = '<article class="dash-card bz-kpi is-skeleton"><span class="bz-skel is-block"></span><span class="bz-skel"></span><span class="bz-skel is-short"></span></article>';
-  const card = (cls) => `<section class="dash-card bz-card ${cls} is-skeleton"><span class="bz-skel is-short"></span><span class="bz-skel is-fill"></span></section>`;
-  return `<div class="bz-layout is-loading" aria-busy="true"><section class="bz-kpis">${kpi.repeat(4)}</section>
-    <section class="dash-card bz-card bz-money bz-progress" role="status"><span class="bz-progress-icon">${bzIcon('spark', 22)}</span>
-      <h2>Simulating three ways to charge</h2><p>${escapeHtml(p?.stage || 'Starting')}${p?.total ? ` · step ${n(Math.min(p.done + 1, p.total))} of ${n(p.total)}` : ''}. The first run replays a week of GridToEv forecasts; after that it is instant.</p>
-      <span class="bz-bar"><i style="width:${(share * 100).toFixed(1)}%"></i></span></section>
-    ${card('bz-compare')}${card('bz-calc')}${card('bz-invest')}</div>`;
+  const line = (cls, style = '') => `<span class="bz-skel ${cls}"${style ? ` style="${style}"` : ''}></span>`;
+  const head = `<div class="bz-skel-head">${line('is-icon')}<span class="bz-skel-copy">${line('is-title')}${line('is-sub')}</span></div>`;
+  const kpi = `<article class="dash-card bz-kpi is-skeleton">${line('is-kpi-icon')}<span class="bz-skel-copy">${line('is-label')}${line('is-figure')}</span>${line('is-foot')}</article>`;
+  const money = bz.status === 'preparing' ? bzProgressCard(bz.progress)
+    : `<section class="dash-card bz-card bz-money is-skeleton">${head}<div class="bz-skel-bars">${[84, 44, 10, 7, 42].map((h) => line('', `height:${h}%`)).join('')}</div></section>`;
+  const compare = `<section class="dash-card bz-card bz-compare is-skeleton">${head}${line('is-seg')}<div class="bz-skel-rows">${[88, 46, 42].map((w) => `<div class="bz-skel-row">${line('is-row-label')}${line('is-row-bar', `width:${w}%`)}</div>`).join('')}</div></section>`;
+  const calc = `<section class="dash-card bz-card bz-calc is-skeleton">${head}<div class="bz-skel-calc"><div class="bz-skel-fields">${line('is-field').repeat(4)}</div>${line('is-out')}</div></section>`;
+  const invest = `<section class="dash-card bz-card bz-invest is-skeleton">${head}${line('is-track')}<div class="bz-skel-values">${line('is-value').repeat(3)}</div>${line('is-button')}</section>`;
+  return `<div class="bz-layout is-loading${bz.status === 'preparing' ? '' : ' is-waiting'}" aria-busy="true"><section class="bz-kpis">${kpi.repeat(4)}</section>${money}${compare}${calc}${invest}</div>`;
 }
 function bzMessage(kind, title, text, action = '') {
   return `<section class="dash-card bz-message is-${kind}" role="${kind === 'error' ? 'alert' : 'status'}"><span class="bz-message-icon">${bzIcon(kind === 'error' ? 'alert' : 'info', 26)}</span><h2>${title}</h2><p>${text}</p>${action}</section>`;
@@ -551,14 +641,19 @@ function bzMessage(kind, title, text, action = '') {
 function renderBusiness() {
   // First visit, or back on the page while the result was still being prepared (polling pauses off-page).
   if (bz.status === 'idle' || (bz.status === 'preparing' && !bz.timer && !bz.inFlight)) queueMicrotask(() => bzLoad());
-  const top = studioHeader('Impact', 'See what smarter EV charging could save.', bzScenario());
-  const r = bz.result;
+  const r = bz.result, shown = bz.status === 'ready' && Boolean(r?.kpis);
+  // The results rise in card by card when they first appear (after loading, or on arriving at the
+  // page). render() builds the new page while the old one is still there, so a re-render of the
+  // results (a metric switch, the calculator) finds them and leaves the cards still.
+  const live = typeof liveRender !== 'undefined' && liveRender;
+  const intro = shown && !live && !document.querySelector('#app .bz-layout.is-ready');
+  const top = studioHeader('Impact', 'See what smarter EV charging could save.', bzScenario(intro));
   if (bz.status === 'failed' && !r) {
     return top + bzMessage('error', 'The impact figures are unavailable', escapeHtml(bz.error || 'Something went wrong.'), `<button type="button" class="studio-button" data-bz-retry="load">Try again ${icon('arrow', 17)}</button>`);
   }
   if (bz.status === 'empty' && r) return top + bzMessage('empty', 'Nothing to evaluate yet', escapeHtml(r.message || 'No complete night of forecasts was available.'), '<button type="button" class="studio-button" data-bz-retry="model">Check again</button>');
-  if (bz.status !== 'ready' || !r?.kpis) return top + bzSkeleton();
-  return `${top}<div class="bz-layout${bz.details ? ' is-details' : ''}">${bzKpiRow(r)}${bzMoneyCard(r)}${bz.details ? '' : bzCompareCard(r)}${bzCalcCard(r)}${bzInvestCard(r)}</div>${bzProvenance(r)}`;
+  if (!shown) return top + bzSkeleton();
+  return `${top}<div class="bz-layout is-ready${intro ? ' is-intro' : ''}${bz.details ? ' is-details' : ''}">${bzKpiRow(r)}${bzMoneyCard(r)}${bz.details ? '' : bzCompareCard(r)}${bzCalcCard(r)}${bzInvestCard(r)}</div>${bzProvenance(r, intro)}`;
 }
 // Optional costs: open (and include them), done (back to the fleet inputs), remove.
 function bzCosts(action) {
