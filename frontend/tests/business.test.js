@@ -183,6 +183,17 @@ test('server field errors are shown on the calculator', async () => {
   assert.match(run('bzField("evs")'), /Check value<\/em>/, 'long server messages are shortened in the field');
 });
 
+test('the calculator shows the energy bridge site check, and warns when EVs do not fit', () => {
+  const run = load();
+  const site = { chargers: 20, chargerKw: 11, sitePowerKw: 180 };
+  const answer = (feasibility) => ({ shiftedKwhPerYear: 1000, grossSavingsEur: 100, annualCostsEur: 0, implementationEur: 0, paybackStatus: 'no-investment', feasibility });
+  run.set('bz.calc.result', answer({ evs: 20, vehiclesMet: 20, limitedBy: null, site }));
+  assert.match(run('bzCalcDetail()'), /Site check<\/span><b>all 20 EVs fit/);
+  run.set('bz.calc.result', answer({ evs: 100, vehiclesMet: 54, limitedBy: 'site-power', site }));
+  const warn = run('bzCalcDetail()');
+  assert.match(warn, /class="is-warn"[^>]*180 kW connection is full overnight[^>]*><span>Site check<\/span><b>54 of 100 EVs fit/);
+});
+
 test('preparing, failed, empty and ready states render the right content', async () => {
   const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: 3, total: 9, stage: 'Replaying historical forecasts' } }) });
   await run('bzLoad()');

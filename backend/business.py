@@ -21,8 +21,12 @@ What this module guarantees (tests in tests/test_business.py check each point):
   observed year (GridToEv's daily dataset) compared with the evaluation week.
 - The fleet, prices and investment costs are illustrative assumptions and are labelled as such.
   Nothing here is a measured saving.
+- Jerry's energy bridge (optimizer.py, issue #50) is the team's single definition of a feasible plan:
+  every strategy's plan must pass its check_plan(), and the calculator's EV count is planned by it on
+  the example site, so extra EVs only count while the site's chargers and connection can take them.
 """
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from http.client import HTTPException
 import hashlib
 import json
@@ -32,6 +36,8 @@ import time
 from urllib.error import URLError
 
 import explorer
+import fleet as fleets
+import optimizer
 from gate import FOREGROUND, PREFETCH, Busy
 from scenario import GRID_INTENSITY_T_PER_MWH
 
@@ -111,16 +117,42 @@ def band_at(minute, tariff=TARIFF):
     raise ValueError('Tariff bands must cover the whole day')
 
 
+def van_hours(i):
+    """(arrive, depart) of the i-th van, in minutes from 00:00 UTC on the night's date."""
+    return 17 * 60 + (i % 6) * 30, 24 * 60 + 6 * 60 + (i % 4) * 30  # plugs in 17:00-19:30, leaves 06:00-07:30
+
+
 def fleet_vehicles(night_index, fleet=FLEET):
     """The simulated depot's vans for one night; times are minutes from 00:00 UTC on the night's date.
 
     Deterministic, so every strategy and every run sees exactly the same fleet."""
-    return [{'id': f'EV-{i + 1:02d}',
-             'arriveMin': 17 * 60 + (i % 6) * 30,  # 17:00-19:30
-             'departMin': 24 * 60 + 6 * 60 + (i % 4) * 30,  # 06:00-07:30 the next morning
+    return [{'id': f'EV-{i + 1:02d}', 'arriveMin': van_hours(i)[0], 'departMin': van_hours(i)[1],
              'requiredKwh': float(28 + (i * 7 + night_index * 5) % 18),  # battery side, 28-45 kWh
              'maxKw': fleet['vehicleMaxKw']}
             for i in range(fleet['vehicles'])]
+
+
+def example_site(fleet=FLEET):
+    """The simulated depot as an energy-bridge site (fleet/v1)."""
+    return {'id': 'depot', 'name': fleet['name'], 'region': 'IE', 'chargers': fleet['chargers'],
+            'chargerKw': fleet['chargerKw'], 'sitePowerKw': fleet['sitePowerKw']}
+
+
+def bridge_fleet(vehicles, start_minute, fleet=FLEET):
+    """Vans as a validated fleet/v1 for the energy bridge, with times counted from `start_minute`."""
+    return fleets.validate({'chargingEfficiency': fleet['chargingEfficiency'], 'sites': [example_site(fleet)],
+                            'vehicles': [{'id': v['id'], 'site': 'depot', 'arriveMin': v['arriveMin'] - start_minute,
+                                          'departMin': v['departMin'] - start_minute, 'requiredKwh': v['requiredKwh'],
+                                          'maxKw': v['maxKw']} for v in vehicles]})
+
+
+def bridge_check(plan, slots, vehicles, fleet=FLEET):
+    """Every hard-constraint problem in a night plan, found by the energy bridge's own checker
+    (optimizer.check_plan): plug-in hours, charger rate, charger count, site power, no overfilling."""
+    checked = optimizer.Plan(bridge_fleet(vehicles, slots[0]['minute'], fleet), len(slots))
+    for vid, row in plan.items():
+        checked.alloc[vid] = {i: kwh for i, kwh in enumerate(row) if kwh > 0}
+    return optimizer.check_plan(checked)
 
 
 def grid_kwh_per_ev_day(fleet=FLEET):
@@ -271,6 +303,9 @@ def evaluate(nights, fleet=FLEET, tariff=TARIFF):
         scores = {}
         for sid in STRATEGY_IDS:
             plan, decisions = plan_night(sid, night['slots'], vehicles, known, fleet, tariff)
+            problems = bridge_check(plan, night['slots'], vehicles, fleet)
+            if problems:  # a bug, never data: refuse rather than show an infeasible plan
+                raise RuntimeError(f'{sid} plan for {night["date"]} failed the energy bridge check: {problems[0]}')
             plans[sid] = plan
             scores[sid] = score_night(plan, night['slots'], vehicles, night['observed'], fleet, tariff)
             per[sid].append(scores[sid])
@@ -463,6 +498,7 @@ def methodology(fleet, tariff, days):
         f"departures and energy needs, {fleet['chargers']} x {fleet['chargerKw']:g} kW chargers and a {fleet['sitePowerKw']:g} kW site limit.",
         'Our AI sees only the GridToEv forecast issued 30 minutes before each half-hour; it never sees later forecasts or what actually happened.',
         f"Grid energy includes charging losses: battery energy / {fleet['chargingEfficiency']:g} efficiency.",
+        'Every plan passes the energy bridge\'s constraint checker (plug-in hours, charger rate and count, site power).',
         f"Money: illustrative tariff (night EUR {night:g}, day EUR {day:g}, peak EUR {peak:g} per kWh) minus EUR "
         f"{tariff['surplusDiscountEurPerKwh']:g} per kWh used during observed curtailment.",
         'Surplus renewable energy: charging that coincided with observed curtailment, capped by that charging. It is not verified '
@@ -479,7 +515,8 @@ LIMITATIONS = [
     'Forecasts are historical replays of GridToEv, not live predictions; outcomes are observed EirGrid values from the same dataset.',
     'Whether a real site could absorb curtailed energy depends on its grid location and is not verified.',
     'Emissions use a flat grid average, not a marginal emission factor per half-hour.',
-    "The charging rules here are the Impact page's own simulation; the energy bridge optimiser (issue #50) is not merged yet.",
+    ('The three strategies are this page\'s own week-long simulation; the energy bridge (issue #50) plans one forecast '
+     'window at a time. Every plan here passes the bridge\'s constraint checker.'),
 ]
 
 
@@ -526,13 +563,52 @@ def parse_estimate(query):
     return values, errors
 
 
-def estimate(evs, shiftablePct, priceDiffEurPerKwh, operatingDays, implementationEur=0.0, annualEur=0.0, fleet=FLEET):
-    """Yearly savings for another fleet: EVs x daily grid kWh per EV x shiftable share x price difference x days.
+FEASIBILITY_START_MINUTE = 17 * 60  # overnight plans start at 17:00, when the first vans plug in
 
-    Illustrative: the energy per EV comes from the simulated depot, and charger or site limits are not
-    checked, so savings scale linearly with the number of EVs."""
+
+@lru_cache(maxsize=256)
+def _feasibility(evs):
+    fleet = FLEET
+    n = max(1, min(evs, fleets.MAX_VEHICLES))
+    need = grid_kwh_per_ev_day(fleet) * fleet['chargingEfficiency']  # the depot's average battery kWh per van
+    vans = [{'id': f'EV-{i + 1:03d}', 'arriveMin': van_hours(i)[0], 'departMin': van_hours(i)[1],
+             'requiredKwh': need, 'maxKw': fleet['vehicleMaxKw']} for i in range(n)]
+    planned = bridge_fleet(vans, FEASIBILITY_START_MINUTE, fleet)
+    plan = optimizer.run_policy(planned, fleets.slot_count(planned), optimizer.OPTIMIZED)
+    problems = optimizer.check_plan(plan)
+    if problems:
+        raise RuntimeError(f'Energy bridge plan is infeasible: {problems[0]}')
+    eff = fleet['chargingEfficiency']
+    delivered = sum(sum(row.values()) for row in plan.alloc.values())
+    met = sum(1 for v in vans if sum(plan.alloc[v['id']].values()) * eff >= v['requiredKwh'] - 1e-6)
+    blocked = {code: sum(b.get(key, 0) for b in plan.blocked.values())
+               for code, key in (('site-power', 'sitePower'), ('chargers', 'chargers'))}
+    limited = None if met == evs else max(blocked, key=blocked.get) if any(blocked.values()) else 'plug-in-hours'
+    return (('checkedBy', optimizer.SOLVER_ID), ('evsPlanned', n), ('vehiclesMet', met),
+            ('deliverableKwhPerDay', delivered), ('limitedBy', limited))
+
+
+def feasibility(evs, fleet=FLEET):
+    """What the example site can really charge overnight for `evs` vans, planned by the energy bridge.
+
+    optimizer.run_policy plans every van at the depot's average need on its 20 chargers and 180 kW
+    connection within each van's plug-in hours, and check_plan() proves the plan. Above the bridge's
+    200-vehicle limit the site is long full, so 200 are planned and the rest add nothing."""
+    result = dict(_feasibility(int(evs)))
+    result['site'] = example_site(fleet)
+    return result
+
+
+def estimate(evs, shiftablePct, priceDiffEurPerKwh, operatingDays, implementationEur=0.0, annualEur=0.0, fleet=FLEET):
+    """Yearly savings for another fleet, at the example site.
+
+    energy = what the energy bridge can deliver overnight to these EVs at the example site (their
+    need, capped by its chargers and connection); savings = energy x share shifted x price difference
+    x days. The share and price difference are the user's assumptions, so the result is illustrative."""
     kwh = grid_kwh_per_ev_day(fleet)
-    shifted = evs * kwh * shiftablePct / 100 * operatingDays
+    site = feasibility(evs, fleet)
+    energy = min(evs * kwh, site['deliverableKwhPerDay'])
+    shifted = energy * shiftablePct / 100 * operatingDays
     gross = round(shifted * priceDiffEurPerKwh)
     running, implementation = round(annualEur), round(implementationEur)
     net = gross - running
@@ -545,11 +621,14 @@ def estimate(evs, shiftablePct, priceDiffEurPerKwh, operatingDays, implementatio
     return {'version': VERSION, 'illustrative': True, 'kwhPerEvDay': round(kwh, 1), 'shiftedKwhPerYear': round(shifted),
             'grossSavingsEur': gross, 'annualCostsEur': running, 'yearlySavingsEur': net,
             'implementationEur': implementation, 'paybackMonths': payback, 'paybackStatus': status,
-            'effects': {'evs': 'Scales the result in proportion: charger and site limits are not checked here.',
+            'feasibility': {**site, 'evs': int(evs), 'deliverableKwhPerDay': round(energy, 1),
+                            'requiredKwhPerDay': round(evs * kwh, 1), 'deliverableShare': round(energy / (evs * kwh), 4)},
+            'effects': {'evs': 'Planned by the energy bridge on the example site: once its chargers and connection are full, more EVs add nothing.',
                         'shiftablePct': 'Share of each EV\'s daily charging that can move to cheaper hours.',
                         'priceDiffEurPerKwh': 'Average saving on each shifted kWh.',
                         'operatingDays': 'Days a year the fleet charges.'},
-            'note': (f'Illustrative estimate: {kwh:.1f} kWh per EV per day from the simulated depot. Not a feasibility check.')}
+            'note': (f'{kwh:.1f} kWh per EV per day from the simulated depot, checked against the example site\'s '
+                     f'{fleet["chargers"]} chargers and {fleet["sitePowerKw"]:g} kW connection. Prices are your assumptions.')}
 
 
 # ---------------------------------------------------------------- data

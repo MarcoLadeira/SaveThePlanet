@@ -296,8 +296,10 @@ V1 +30 minute replays, with no look-ahead, and are scored against observed curta
 (illustrative tariff), estimated CO2 and surplus renewable energy. The year is scaled by how often
 curtailment happened over a full observed year (V2 daily dataset). The first request returns HTTP 202
 with progress while the week is replayed (the server also starts this at launch, at prefetch priority);
-the result is then cached. A model outage gives a labelled simulated example. Full contract,
-methodology and limitations: [docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
+the result is then cached. A model outage gives a labelled simulated example. Every plan passes the
+energy bridge's `optimizer.check_plan`, and the calculator plans its EVs on the example site with
+`optimizer.run_policy`. Full contract, methodology and limitations:
+[docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
 
 ## Dashboard V1 target and synthetic scenarios
 

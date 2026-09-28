@@ -461,6 +461,7 @@
   "Each night, 20 simulated vans are charged three ways on identical conditions: the same arrivals, departures and energy needs, 20 x 11 kW chargers and a 180 kW site limit.",
   "Our AI sees only the GridToEv forecast issued 30 minutes before each half-hour; it never sees later forecasts or what actually happened.",
   "Grid energy includes charging losses: battery energy / 0.9 efficiency.",
+  "Every plan passes the energy bridge's constraint checker (plug-in hours, charger rate and count, site power).",
   "Money: illustrative tariff (night EUR 0.16, day EUR 0.26, peak EUR 0.34 per kWh) minus EUR 0.08 per kWh used during observed curtailment.",
   "Surplus renewable energy: charging that coincided with observed curtailment, capped by that charging. It is not verified that a real site could absorb it (network deliverability).",
   "Year: the average night x 260 operating days. The surplus part is scaled by how often curtailment happened over a full observed year compared with the evaluation week, so one windy winter week is not taken as typical.",
@@ -471,6 +472,6 @@
   "Forecasts are historical replays of GridToEv, not live predictions; outcomes are observed EirGrid values from the same dataset.",
   "Whether a real site could absorb curtailed energy depends on its grid location and is not verified.",
   "Emissions use a flat grid average, not a marginal emission factor per half-hour.",
-  "The charging rules here are the Impact page's own simulation; the energy bridge optimiser (issue #50) is not merged yet."
+  "The three strategies are this page's own week-long simulation; the energy bridge (issue #50) plans one forecast window at a time. Every plan here passes the bridge's constraint checker."
  ]
 }

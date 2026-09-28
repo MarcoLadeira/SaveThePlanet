@@ -273,7 +273,7 @@ bzChart('bzRange', {
 // ---------------------------------------------------------------- calculator
 const BZ_FIELDS = {
   // name: [label, min, max, whole number, unit, explanation]
-  evs: ['Number of EVs', 1, 10000, true, 'EVs', 'Savings grow in proportion: charger and site limits are not checked here.'],
+  evs: ['Number of EVs', 1, 10000, true, 'EVs', 'Planned by the energy bridge on the example site: once its chargers and connection are full, more EVs add nothing.'],
   shiftablePct: ['Electricity that can feasibly be shifted', 0, 100, false, '% of charging', 'Share of each EV\'s daily charging that can move to cheaper or cleaner hours.'],
   priceDiffEurPerKwh: ['Achievable electricity price difference', 0, 1, false, '€/kWh', 'Average saving on each kWh that moves.'],
   operatingDays: ['Operating days per year', 1, 366, true, 'days', 'Days a year the fleet charges.'],
@@ -357,8 +357,20 @@ function bzCalcDetail() {
   const payback = !c.advanced || r.paybackStatus === 'no-investment' ? ''
     : r.paybackStatus === 'months' ? `<li><span>Pays back in</span><b>${bzMonths(r.paybackMonths)}</b></li>`
       : '<li class="is-warn"><span>Payback</span><b>Not achieved</b></li>';
-  return `<ul class="bz-out-list"><li><span>Shifted</span><b>${n(r.shiftedKwhPerYear)} kWh/yr</b></li>
+  return `<ul class="bz-out-list">${bzSiteCheck(r.feasibility)}<li><span>Shifted</span><b>${n(r.shiftedKwhPerYear)} kWh/yr</b></li>
     ${costs ? `<li><span>Before costs</span><b>${bzEur(r.grossSavingsEur)}</b></li>` : ''}${payback}</ul>`;
+}
+// The energy bridge's verdict for these EVs on the example site (chargers, connection, plug-in hours).
+const BZ_LIMITS = {
+  'site-power': (site) => `the site's ${n(site.sitePowerKw)} kW connection is full overnight`,
+  chargers: (site) => `all ${n(site.chargers)} chargers are busy`,
+  'plug-in-hours': () => 'there is not enough plug-in time',
+};
+function bzSiteCheck(f) {
+  if (!f) return '';
+  if (f.vehiclesMet >= f.evs) return `<li title="Planned by the energy bridge on the example site: ${n(f.site.chargers)} × ${n(f.site.chargerKw)} kW chargers, ${n(f.site.sitePowerKw)} kW connection."><span>Site check</span><b>all ${n(f.evs)} EVs fit</b></li>`;
+  const why = (BZ_LIMITS[f.limitedBy] || (() => 'the site is full'))(f.site);
+  return `<li class="is-warn" title="Only energy the example site can deliver overnight is counted: ${escapeHtml(why)}. More EVs need more charging capacity."><span>Site check</span><b>${n(f.vehiclesMet)} of ${n(f.evs)} EVs fit</b></li>`;
 }
 // Whether the figure shown includes costs: taken from the answer on screen, not the toggle.
 function bzCalcBasis() {
@@ -467,7 +479,7 @@ function bzCalcCard(r) {
   }
   return `<section class="dash-card bz-card bz-calc${c.pending ? ' is-pending' : ''}">
     ${bzHead('calc', 'amber', 'What if my company used this?', `Starts from the example depot: ${n(r.company.kwhPerEvDay)} kWh per EV per day`,
-    `<span class="bz-chip is-illustrative" title="An illustrative formula: EVs × ${n(r.company.kwhPerEvDay)} kWh a day × share shifted × price difference × days. Every input changes the result, but charger and site limits are not checked, so savings grow in proportion to the number of EVs.">Illustrative · limits not checked</span>`)}
+    `<span class="bz-chip is-illustrative" title="EVs × ${n(r.company.kwhPerEvDay)} kWh a day × share shifted × price difference × days. Every input changes the result. The energy bridge plans your EVs on the example site (${n(r.company.chargers)} × ${n(r.company.chargerKw)} kW chargers, ${n(r.company.sitePowerKw)} kW connection): charging it cannot fit overnight is not counted. The share and price difference are your assumptions.">Site checked · illustrative prices</span>`)}
     <form class="bz-form" novalidate onsubmit="return false">
       <div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div>
       <div class="bz-out" aria-live="polite"><span class="bz-out-label">Estimated yearly savings <small class="bz-out-basis">${bzCalcBasis()}</small></span>

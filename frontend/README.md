@@ -129,9 +129,10 @@ all draw the backend's figures, so they agree to the euro. Contract and methodol
   negative and positive steps and a tooltip on each bar (hover or keyboard focus).
 - **Is our AI making a difference?**: normal, basic smart and AI charging on one metric (Money, CO₂ or
   Renewable energy), whether each met every van's requirement, and how often the forecast was right.
-- **What if my company used this?**: an illustrative calculator (EVs, share shifted, price difference,
-  operating days, optional costs) answered by `/api/v1/business/estimate`. Typing only repaints the
-  output, so focus is never lost, and only the newest answer is shown.
+- **What if my company used this?**: a calculator (EVs, share shifted, price difference, operating days,
+  optional costs) answered by `/api/v1/business/estimate`. The EVs are planned by the energy bridge on
+  the example site, so a site check shows how many fit; prices stay illustrative. Typing only repaints
+  the output, so focus is never lost, and only the newest answer is shown.
 - **View investment details**: payback, 5-year return, conservative/expected/optimistic scenarios and
   multi-site scaling, over the right-hand column (Escape closes it).
 

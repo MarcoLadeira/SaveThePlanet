@@ -150,6 +150,23 @@ class StrategyTests(unittest.TestCase):
             self.assertGreater(s['unmetKwh'], 0, sid)
             self.assertLessEqual(s['peakKw'], 40 + 1e-9)
 
+    def test_every_plan_passes_the_energy_bridge_checker(self):
+        for n in (night(surplus=NIGHT_SURPLUS), night(surplus=list(range(slot_of(23), slot_of(1))), forecast=[]), night()):
+            made, vehicles = plans(n)
+            for sid, plan in made.items():
+                self.assertEqual(business.bridge_check(plan, n['slots'], vehicles), [], sid)
+
+    def test_the_energy_bridge_checker_catches_an_infeasible_plan(self):
+        n = night()
+        made, vehicles = plans(n)
+        plan = {vid: list(row) for vid, row in made['normal'].items()}
+        plan['EV-01'][0] = 5.0  # charging at 12:00, hours before the van arrives
+        problems = business.bridge_check(plan, n['slots'], vehicles)
+        self.assertTrue(any('not plugged in' in p for p in problems), problems)
+        with patch('business.plan_night', return_value=(plan, [])):
+            with self.assertRaises(RuntimeError):
+                business.evaluate([n])
+
     def test_unknown_strategy_is_rejected(self):
         n = night()
         with self.assertRaises(ValueError):
@@ -423,6 +440,21 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(r['yearlySavingsEur'], r['grossSavingsEur'])
         self.assertEqual(r['paybackStatus'], 'no-investment')
         self.assertTrue(r['illustrative'])
+
+    def test_ev_count_is_checked_against_the_example_site_by_the_energy_bridge(self):
+        small, crowded, huge = (business.estimate(n, 50, 0.1, 200) for n in (20, 100, 10000))
+        self.assertEqual((small['feasibility']['vehiclesMet'], small['feasibility']['deliverableShare']), (20, 1.0))
+        self.assertIsNone(small['feasibility']['limitedBy'])
+        self.assertLess(crowded['feasibility']['vehiclesMet'], 100)
+        self.assertLess(crowded['feasibility']['deliverableShare'], 1)
+        self.assertEqual(crowded['feasibility']['limitedBy'], 'site-power')  # 180 kW binds before 20 chargers
+        self.assertLess(crowded['grossSavingsEur'], 5 * small['grossSavingsEur'], 'extra EVs beyond the site add less')
+        self.assertEqual(huge['grossSavingsEur'], business.estimate(200, 50, 0.1, 200)['grossSavingsEur'], 'a full site adds nothing')
+        self.assertEqual(huge['feasibility']['evsPlanned'], 200)
+        self.assertEqual(small['feasibility']['checkedBy'], business.optimizer.SOLVER_ID)
+        # The site can deliver no more than its connection allows over the night.
+        night_hours = (business.van_hours(3)[1] - business.FEASIBILITY_START_MINUTE) / 60
+        self.assertLessEqual(crowded['feasibility']['deliverableKwhPerDay'], business.FLEET['sitePowerKw'] * night_hours + 1e-6)
 
     def test_every_input_changes_the_result(self):
         base = business.estimate(20, 50, 0.1, 200)['yearlySavingsEur']

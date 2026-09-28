@@ -21,14 +21,22 @@ measured saving, and the page says so in its header chip, card footnotes and foo
 | What actually happened | Observed EirGrid curtailment for the same half-hours (`/actuals/v1/window`) | historical observation |
 | How often surplus happens over a year | GridToEv's daily curtailment dataset: observed curtailment days over the latest 365 days | historical observation |
 | Fleet, chargers, site limit | Simulated depot (below) | simulated |
-| Charging plan | Three rule sets in `business.plan_night` (below) | simulation |
+| Charging plan | Three rule sets in `business.plan_night` (below), each plan verified by the energy bridge's `optimizer.check_plan` | simulation |
+| Calculator feasibility | Jerry's energy bridge (`optimizer.run_policy`) plans the EVs on the example site | simulation |
 | Prices, software and setup costs | Example values (below) | illustrative |
 | CO2 | Flat grid average, `scenario.GRID_INTENSITY_T_PER_MWH` (0.25 t/MWh), the same factor the Battery page uses | estimated |
 
-Jerry's energy-bridge optimiser (issue #50, PRs #52 and #54) is not merged yet, so this page does not
-use it. `business.py` keeps the same physical rules (whole plugged-in half-hours, charger count, site
-power limit, 90% charging efficiency with the loss counted, never overfilling a van) and is written so
-its AI strategy can be replaced by the bridge's allocation once that lands.
+Jerry's energy bridge (`backend/optimizer.py`, issue #50) is the team's single definition of a feasible
+plan, and this page uses it twice:
+
+- **Every strategy's plan must pass the bridge's `check_plan()`** (plug-in hours, charger rate and count,
+  site power, never overfilling a van). A plan that fails is a bug: the calculation stops and the page
+  shows its error state rather than an infeasible plan.
+- **The calculator's EV count is planned by the bridge** (`run_policy`, below), so extra EVs only count
+  while the example site's chargers and connection can take them.
+
+The three strategies themselves are this page's own week-long simulation: the bridge plans one forecast
+half-hour at a time and has no no-look-ahead week to replay.
 
 ## Evaluation period
 
@@ -123,14 +131,22 @@ Multi-site scaling multiplies one site's figures; each site still needs its own 
 
 ## What-if calculator
 
-`yearly savings = EVs × grid kWh per EV per day × share shifted × price difference × operating days`,
-minus the optional yearly cost, with payback from the optional one-off cost. Grid kWh per EV per day
-(40.6) comes from the simulated depot. The defaults reproduce the depot (the price difference is derived
-from the simulation), so the calculator starts where the page does.
+```
+energy per day  = what the energy bridge can deliver overnight to N EVs at the example site
+                  (each needs the depot's average 40.6 kWh from the grid; 20 × 11 kW chargers, 180 kW)
+yearly savings  = energy per day × share shifted × price difference × operating days − yearly cost
+payback         = one-off cost ÷ yearly savings × 12
+```
 
-It is **illustrative**: charger and site limits are not checked, so savings grow in proportion to the
-number of EVs. Every input changes the result (tested). Inputs are validated in the browser for
-feedback and again on the server, which is authoritative.
+The EV count therefore **genuinely affects feasibility**: up to about 56 EVs everything fits; beyond
+that the 180 kW connection is full overnight, fewer EVs charge fully and the savings stop growing. The
+answer's `feasibility` says how many EVs fit and what limited them, and the page shows it as a site
+check. The bridge plans at most 200 vehicles; by then the site is long full, so more EVs add nothing.
+
+The share shifted and the price difference are the user's assumptions, so the result stays
+**illustrative**. The defaults reproduce the depot (the price difference is derived from the simulation),
+so the calculator starts where the page does. Every input changes the result (tested). Inputs are
+validated in the browser for feedback and again on the server, which is authoritative.
 
 ## API
 
@@ -193,7 +209,7 @@ Example strategy (historical replay against a local mock of GridToEv, not hosted
 | `operatingDays` | whole number, 1-366 |
 | `implementationEur`, `annualEur` (optional) | 0-10,000,000 and 0-1,000,000 |
 
-`200 {"illustrative": true, "kwhPerEvDay", "shiftedKwhPerYear", "grossSavingsEur", "annualCostsEur", "yearlySavingsEur", "implementationEur", "paybackMonths", "paybackStatus": "months" | "not-achieved" | "no-investment", "effects", "note"}`,
+`200 {"illustrative": true, "kwhPerEvDay", "shiftedKwhPerYear", "grossSavingsEur", "annualCostsEur", "yearlySavingsEur", "implementationEur", "paybackMonths", "paybackStatus": "months" | "not-achieved" | "no-investment", "feasibility": {"checkedBy", "site", "evs", "evsPlanned", "vehiclesMet", "deliverableKwhPerDay", "requiredKwhPerDay", "deliverableShare", "limitedBy": null | "site-power" | "chargers" | "plug-in-hours"}, "effects", "note"}`,
 or `400 {"error": {"code": "INVALID_REQUEST", "fields": {"evs": "Number of EVs must be between 1 and 10,000."}}}`.
 
 The page only lets the newest request update the screen, for both routes.
@@ -207,4 +223,5 @@ The page only lets the newest request update the screen, for both routes.
 - Emissions use a flat grid average, not a marginal emission factor per half-hour.
 - The AI strategy is a transparent rule set on one forecast horizon, not a proven optimum; it can do no
   better than the basic rule when surplus lasts all night, and worse when the forecast misses surplus.
-- The calculator does not check charger or site limits.
+- The calculator checks feasibility on the example site only (20 chargers, 180 kW); a real site needs its
+  own chargers and connection entered or planned.
