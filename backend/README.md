@@ -290,7 +290,9 @@ calling it, and pairs each prediction with the observed EirGrid actual.
 
 ## Impact page: business and environmental impact
 
-`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`). Three charging
+`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`), plus the discount-window
+business case in `offers.py` (`GET /api/v1/business/offers[/estimate]`, `POST /api/v1/business/offers`; see
+docs/BUSINESS_IMPACT.md). Three charging
 strategies (normal, basic smart and AI) charge the same simulated depot fleet over the latest week of
 V1 +30 minute replays, with no look-ahead, and are scored against observed curtailment for money
 (illustrative tariff), estimated CO2 and surplus renewable energy. The year is scaled by how often

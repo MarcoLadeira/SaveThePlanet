@@ -1,6 +1,7 @@
 // Energy bridge on the Dashboard: energy at risk (left) -> battery (middle) -> flexible charging (right).
-// The "battery" is the backend optimizer's energy router and ledger (POST /api/v1/charging/optimize),
-// not a physical storage battery. Every figure here comes from that response; nothing is recomputed.
+// The card is the backend optimizer's energy router and ledger (POST /api/v1/charging/optimize). Its battery is
+// a simulated grid battery (backend/storage.py, ledger.storage) that takes what the EVs could not; no real
+// storage asset is claimed. Every figure here comes from that response; nothing is recomputed.
 const FLEET_PRESETS = [['depot-and-retail', 'Depot and retail car park'], ['constrained-site', 'Constrained site']];
 Object.assign(modelState, {
   plan: null,
@@ -72,23 +73,31 @@ function dashboardBattery() {
   const L = alt.optimized.ledger;
   const notEligible = L.notEligibleKwh > 0
     ? `<p class="bridge-note">${kwh(L.notEligibleKwh)} of the ${kwh(L.predictedAtRiskKwh)} at risk cannot be claimed by this fleet: ${escapeHtml(L.notEligibleReasons.map((r) => r.message).join(' '))}</p>` : '';
-  const why = L.unallocatedReasons[0]?.message;
+  const why = L.unallocatedReasons[0]?.message, S = L.storage;
+  const storageRows = S
+    ? `<div class="is-storage"><dt>To grid battery (simulated)</dt><dd>${kwh(L.allocatedToRealStorageKwh)}</dd></div>
+      <div class="is-sub"><dt>stored</dt><dd>${kwh(S.storedKwh)}</dd></div>
+      <div class="is-sub"><dt>conversion loss (${n((1 - S.chargeEfficiency) * 100)}%)</dt><dd>${kwh(S.lossKwh)}</dd></div>`
+    : `<div><dt>To storage</dt><dd>${kwh(L.allocatedToRealStorageKwh)}</dd></div>`;
+  const label = S
+    ? `Simulated grid battery: ${n(S.gridKwh)} kWh taken, ${n(S.storedKwh)} kWh stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
+    : `${n(L.allocatedToChargersGridKwh)} kWh routed to EV chargers: ${n(L.batteryDeliveredKwh)} kWh into EV batteries and ${n(L.chargingLossKwh)} kWh charging loss`;
   const balanced = Math.abs(L.eligibleOpportunityKwh - L.allocatedToChargersGridKwh - L.allocatedToRealStorageKwh - L.unallocatedOpportunityKwh) < 1e-6;
   return `<section class="dash-card dash-battery">${head}
     <div class="bridge-in"><span>In · eligible forecast energy</span><strong>${kwh(L.eligibleOpportunityKwh)}</strong></div>
     ${notEligible}
-    ${chartSlot('bridgeBattery', `${n(L.allocatedToChargersGridKwh)} kWh routed to EV chargers: ${n(L.batteryDeliveredKwh)} kWh into EV batteries and ${n(L.chargingLossKwh)} kWh charging loss`, 'bridge-battery')}
-    ${chartSlot('bridgeUsed', `${n((L.utilizationFraction || 0) * 100)}% of the eligible energy is used`, 'bridge-used')}
+    ${chartSlot('bridgeBattery', label, 'bridge-battery')}
+    ${chartSlot('bridgeUsed', `${n((L.usedWithStorageFraction ?? L.utilizationFraction ?? 0) * 100)}% of the eligible energy is used`, 'bridge-used')}
     <dl class="bridge-ledger">
       <div class="is-charger"><dt>To EV chargers</dt><dd>${kwh(L.allocatedToChargersGridKwh)}</dd></div>
       <div class="is-sub"><dt>into EV batteries</dt><dd>${kwh(L.batteryDeliveredKwh)}</dd></div>
       <div class="is-sub"><dt>charging loss (${n((1 - L.chargingEfficiency) * 100)}%)</dt><dd>${kwh(L.chargingLossKwh)}</dd></div>
-      <div><dt>To storage</dt><dd>${kwh(L.allocatedToRealStorageKwh)}</dd></div>
+      ${storageRows}
       <div class="is-left"><dt>Left unallocated</dt><dd>${kwh(L.unallocatedOpportunityKwh)}</dd></div>
     </dl>
     ${why ? `<p class="bridge-note"><b>Why not more:</b> ${escapeHtml(why)}</p>` : ''}
     <p class="bridge-check ${balanced ? 'is-ok' : 'is-bad'}">${balanced ? icon('check', 14) : ''} ${n(L.eligibleOpportunityKwh)} = ${n(L.allocatedToChargersGridKwh)} + ${n(L.allocatedToRealStorageKwh)} + ${n(L.unallocatedOpportunityKwh)} kWh · every kWh accounted for</p>
-    <p class="bridge-foot">Simulated fleet · network eligibility unverified · grid-side kWh · a plan, not measured charging</p>
+    <p class="bridge-foot">Simulated fleet${S ? ' and grid battery (charging only; release not modelled)' : ''} · network eligibility unverified · grid-side kWh · a plan, not measured charging</p>
   </section>`;
 }
 
@@ -109,7 +118,7 @@ function dashboardNextMove() {
   if (!alt) return `<section class="dash-card dash-plan">${head}${planPlaceholder('Plan')}</section>`;
   return `<section class="dash-card dash-plan">${head}
     ${chartSlot('planHeadline', 'Recommendation', 'plan-headline-slot', 'group')}
-    <p class="plan-units">Bars in kWh (1 MWh = 1,000 kWh): ${kwh(alt.optimized.ledger.unallocatedOpportunityKwh)} more is at risk than this fleet can take.</p>
+    <p class="plan-units">Bars in kWh (1 MWh = 1,000 kWh): ${kwh(alt.optimized.ledger.unallocatedOpportunityKwh)} more is at risk than this fleet${alt.optimized.ledger.storage ? ' and the grid battery' : ''} can take.</p>
     ${chartSlot('planBars', `Charging on arrival ${n(alt.baseline.window.claimedKwh)} kWh, equal share ${n(alt.optimized.window.claimedKwh)} kWh, into batteries ${n(alt.optimized.ledger.batteryDeliveredKwh)} kWh`, 'plan-chart')}
     <p class="plan-caveat">Simulated fleet, no charger is controlled; network eligibility unverified.</p>
     <button class="plan-cta" type="button" data-page="charging">Review EV charging ${icon('arrow', 20)}</button>
@@ -119,23 +128,44 @@ function dashboardNextMove() {
 // Charts drawn by the shared engine in charts3d.js, so they grow in and glide between plans.
 dashCharts.bridgeBattery = {
   values() {
-    const L = planAlternative().optimized.ledger;
-    return { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
+    const L = planAlternative().optimized.ledger, S = L.storage;
+    const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
+    if (!S) return base;
+    return { ...base, grid: S.gridKwh, stored: S.storedKwh, start: S.startFraction, end: S.endFraction,
+             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy };
   },
-  start: (target) => ({ ...target, rise: 0 }),
-  draw({ routed, eligible, battery, loss, rise }) {
-    return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"><span>Illustrative energy routing</span></div>
-    <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong><span class="bridge-of">of ${n(eligible)} kWh eligible</span>
-      <em><i class="is-battery"></i>${n(battery)} kWh into EV batteries</em><em><i class="is-loss"></i>${n(loss)} kWh charging loss</em></div>`;
+  // The battery fills from its starting charge.
+  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  draw(v) {
+    if (v.end === undefined) return bridgeRoutingCopy(v);
+    const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
+    const limit = { 'power-limit': `held to its ${n(v.power)} kW power limit`, full: 'now full', 'took-everything': 'took all that was left' }[v.limitedBy] || 'nothing left to take';
+    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><span>Simulated grid battery · ${n(v.capacity / 1000)} MWh / ${n(v.power / 1000)} MW</span></div>
+    <div class="bridge-battery-copy is-grid"><span>Stored in the grid battery</span><strong>${n(v.stored)}<small>kWh</small></strong><span class="bridge-of">${n(v.grid)} kWh taken from the grid, ${escapeHtml(limit)}</span>
+      <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
+      <em><i class="is-battery"></i>${n(v.start * 100)}% → ${n(v.end * 100)}% full · EV chargers took ${n(v.routed)} kWh first</em></div>`;
   },
 };
 
+function bridgeRoutingCopy({ routed, eligible, battery, loss }) {
+  return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"><span>Illustrative energy routing</span></div>
+    <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong><span class="bridge-of">of ${n(eligible)} kWh eligible</span>
+      <em><i class="is-battery"></i>${n(battery)} kWh into EV batteries</em><em><i class="is-loss"></i>${n(loss)} kWh charging loss</em></div>`;
+}
+
 dashCharts.bridgeUsed = {
-  values: () => ({ used: planAlternative().optimized.ledger.utilizationFraction || 0 }),
-  start: () => ({ used: 0 }),
+  values() {
+    const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
+    return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
+  },
+  start: () => ({ used: 0, stored: 0 }),
   // Drawn to scale: a small share stays a small sliver (with a marker so it is findable), never rounded up.
-  draw: ({ used }) => `<div class="bridge-used-head"><span>Share of eligible energy used</span><b>${n(used * 100)}%</b></div>
-    <div class="bridge-used-track"><i style="width:${Math.min(100, used * 100)}%"></i><b style="left:${Math.min(100, used * 100)}%"></b></div>`,
+  // EV chargers first, then the grid battery's share stacked after it.
+  draw: ({ used, stored = 0 }) => {
+    const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
+    return `<div class="bridge-used-head"><span>Share of eligible energy used${stored > 0 ? ' <i class="is-battery"></i>EVs <i class="is-storage"></i>grid battery' : ''}</span><b>${n((used + stored) * 100)}%</b></div>
+    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<b style="left:${total}%"></b></div>`;
+  },
 };
 
 // Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
@@ -210,7 +240,7 @@ dashCharts.planBars = {
     return { rise: 1, bars: [
       { key: 'flex', label: 'On arrival', value: alt.baseline.window.claimedKwh },
       { key: 'recovery', label: 'Equal share', value: alt.optimized.window.claimedKwh },
-      { key: 'risk', label: 'Into batteries', value: alt.optimized.ledger.batteryDeliveredKwh },
+      { key: 'risk', label: 'Into EV batteries', value: alt.optimized.ledger.batteryDeliveredKwh },
     ] };
   },
   start: (target) => ({ ...target, rise: 0 }),

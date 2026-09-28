@@ -552,3 +552,33 @@ def daily_week(day):
             if start + timedelta(days=i) <= last]
     actuals, *predictions = parallel(lambda: _daily_actuals(days), *[lambda d=d: _daily_prediction(d) for d in days])
     return {'selected': day, 'days': [{**p, 'actual': actuals[p['date']]} for p in predictions]}
+
+
+# ---------- About page: the models' fitted formulas ----------
+FORMULA_ROUTES = {'shortTerm': '/model-info/v1', 'daily': '/model-info/daily-curtailment'}
+
+
+def _estimator(item):
+    return {'id': item['id'], 'kind': item.get('estimator_class'), 'trainedOn': item.get('training_target'),
+            'output': item.get('output_unit'), 'formula': item.get('formula'), 'trees': item.get('tree_count'),
+            'start': item.get('baseline_raw_score'), 'combine': item.get('aggregation'),
+            'link': item.get('inverse_link'), 'weights': item.get('serving_weight_by_horizon')}
+
+
+def _formula_model(fitted, serving):
+    return {'version': fitted.get('model_version'), 'target': fitted.get('target'),
+            'inputs': len(fitted.get('input_features') or []),
+            'estimators': [_estimator(item) for item in fitted.get('estimators') or []],
+            'parameters': serving.get('fitted_parameters') or {},
+            'steps': [{'id': s.get('id'), 'expression': s.get('expression')} for s in serving.get('steps') or []],
+            'limitation': fitted.get('limitation')}
+
+
+def model_formulas():
+    """Both models' fitted formulas (/fitted-formulas) and serving arithmetic (/formulas), trimmed
+    to what the About page explains. The per-tree splits are left out: they are thousands of numbers."""
+    def build():
+        paths = [f'{base}/{part}' for base in FORMULA_ROUTES.values() for part in ('fitted-formulas', 'formulas')]
+        s_fit, s_serve, d_fit, d_serve = parallel(*[lambda p=p: call(p) for p in paths])
+        return {'shortTerm': _formula_model(s_fit, s_serve), 'daily': _formula_model(d_fit, d_serve)}
+    return cached('model-formulas', INFO_CACHE_SECONDS, build)

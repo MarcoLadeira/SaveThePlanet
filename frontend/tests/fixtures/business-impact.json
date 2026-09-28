@@ -473,5 +473,1125 @@
   "Whether a real site could absorb curtailed energy depends on its grid location and is not verified.",
   "Emissions use a flat grid average, not a marginal emission factor per half-hour.",
   "The three strategies are this page's own week-long simulation; the energy bridge (issue #50) plans one forecast window at a time. Every plan here passes the bridge's constraint checker."
- ]
+ ],
+ "discountWindows": {
+  "version": "discount-windows/v1",
+  "status": "projected",
+  "label": "Illustrative replay · projected revenue · simulated profit",
+  "hub": {
+   "id": "hub",
+   "name": "Example charging hub",
+   "provenance": "simulated",
+   "region": "IE",
+   "public": true,
+   "chargers": 20,
+   "chargerKw": 11,
+   "sitePowerKw": 180,
+   "hypotheticalConstraintZone": false,
+   "sessionCap": 16,
+   "maxSessionKwh": 22.0
+  },
+  "battery": {
+   "name": "Hypothetical site battery",
+   "provenance": "hypothetical",
+   "capacityKwh": 700.0,
+   "powerKw": 180.0,
+   "chargeEfficiency": 0.92,
+   "dischargeEfficiency": 0.92,
+   "wearEurPerKwh": 0.08,
+   "note": "Not built and not claimed as real storage: an illustrative extension to show what stored surplus would cost."
+  },
+  "prices": {
+   "provenance": "illustrative",
+   "vat": "All amounts exclude VAT; the driver's receipt adds VAT at the applicable rate to both prices.",
+   "publicEurPerKwh": 0.49,
+   "networkEurPerKwh": 0.04,
+   "sessionEurPerKwh": 0.025
+  },
+  "costs": {
+   "provenance": "illustrative",
+   "operatorFixedEurPerMonth": 100.0,
+   "platformVariableEurPerSession": 0.1,
+   "platformFixedEurPerMonth": 120.0
+  },
+  "demand": {
+   "morning": 10,
+   "evening": 20,
+   "provenance": "assumed"
+  },
+  "split": {
+   "driver": 50,
+   "operator": 25,
+   "platform": 25
+  },
+  "windows": [
+   {
+    "id": "morning",
+    "label": "07:00–09:00"
+   },
+   {
+    "id": "evening",
+    "label": "17:00–19:00"
+   }
+  ],
+  "sessionKwh": 20.0,
+  "daysPerMonth": 30,
+  "seasonal": {
+   "applied": false,
+   "factor": null
+  },
+  "kpis": {
+   "aiExtraSavingsEur": 810.03,
+   "driversSavedEur": 407.03,
+   "operatorProfitEur": 101.5,
+   "platformProfitEur": 41.2,
+   "platformGrossEur": 201.5,
+   "sessions": 403
+  },
+  "month": {
+   "sessions": 403,
+   "kwh": 8060.0,
+   "perSession": {
+    "poolEur": 2.01,
+    "driverEur": 1.01,
+    "operatorEur": 0.5,
+    "platformEur": 0.5
+   },
+   "poolEur": 810.03,
+   "driversEur": 407.03,
+   "operator": {
+    "retainedEur": 201.5,
+    "fixedEur": 100.0,
+    "profitEur": 101.5,
+    "breakEvenSessions": 200
+   },
+   "platform": {
+    "grossEur": 201.5,
+    "variableEur": 40.3,
+    "fixedEur": 120.0,
+    "profitEur": 41.2,
+    "unitContributionEur": 0.4,
+    "breakEvenSessions": 300
+   },
+   "yearly": {
+    "poolEur": 9720.36,
+    "driversEur": 4884.36,
+    "operatorProfitEur": 1218.0,
+    "platformGrossEur": 2418.0,
+    "platformProfitEur": 494.4
+   }
+  },
+  "scenarios": {
+   "expected": {
+    "basis": "evaluation-week",
+    "inputs": {
+     "sessions": 403,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1005
+    },
+    "month": {
+     "sessions": 403,
+     "kwh": 8060.0,
+     "perSession": {
+      "poolEur": 2.01,
+      "driverEur": 1.01,
+      "operatorEur": 0.5,
+      "platformEur": 0.5
+     },
+     "poolEur": 810.03,
+     "driversEur": 407.03,
+     "operator": {
+      "retainedEur": 201.5,
+      "fixedEur": 100.0,
+      "profitEur": 101.5,
+      "breakEvenSessions": 200
+     },
+     "platform": {
+      "grossEur": 201.5,
+      "variableEur": 40.3,
+      "fixedEur": 120.0,
+      "profitEur": 41.2,
+      "unitContributionEur": 0.4,
+      "breakEvenSessions": 300
+     },
+     "yearly": {
+      "poolEur": 9720.36,
+      "driversEur": 4884.36,
+      "operatorProfitEur": 1218.0,
+      "platformGrossEur": 2418.0,
+      "platformProfitEur": 494.4
+     }
+    }
+   },
+   "evaluationWeek": {
+    "basis": "evaluation-week",
+    "inputs": {
+     "sessions": 403,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1005
+    },
+    "month": {
+     "sessions": 403,
+     "kwh": 8060.0,
+     "perSession": {
+      "poolEur": 2.01,
+      "driverEur": 1.01,
+      "operatorEur": 0.5,
+      "platformEur": 0.5
+     },
+     "poolEur": 810.03,
+     "driversEur": 407.03,
+     "operator": {
+      "retainedEur": 201.5,
+      "fixedEur": 100.0,
+      "profitEur": 101.5,
+      "breakEvenSessions": 200
+     },
+     "platform": {
+      "grossEur": 201.5,
+      "variableEur": 40.3,
+      "fixedEur": 120.0,
+      "profitEur": 41.2,
+      "unitContributionEur": 0.4,
+      "breakEvenSessions": 300
+     },
+     "yearly": {
+      "poolEur": 9720.36,
+      "driversEur": 4884.36,
+      "operatorProfitEur": 1218.0,
+      "platformGrossEur": 2418.0,
+      "platformProfitEur": 494.4
+     }
+    }
+   },
+   "noSurplus": {
+    "basis": "no-surplus",
+    "inputs": {
+     "sessions": 0,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.0
+    },
+    "month": {
+     "sessions": 0,
+     "kwh": 0.0,
+     "perSession": {
+      "poolEur": 0.0,
+      "driverEur": 0.0,
+      "operatorEur": 0.0,
+      "platformEur": 0.0
+     },
+     "poolEur": 0.0,
+     "driversEur": 0.0,
+     "operator": {
+      "retainedEur": 0.0,
+      "fixedEur": 100.0,
+      "profitEur": -100.0,
+      "breakEvenSessions": null
+     },
+     "platform": {
+      "grossEur": 0.0,
+      "variableEur": 0.0,
+      "fixedEur": 120.0,
+      "profitEur": -120.0,
+      "unitContributionEur": -0.1,
+      "breakEvenSessions": null
+     },
+     "yearly": {
+      "poolEur": 0.0,
+      "driversEur": 0.0,
+      "operatorProfitEur": -1200.0,
+      "platformGrossEur": 0.0,
+      "platformProfitEur": -1440.0
+     }
+    }
+   },
+   "example": {
+    "basis": "worked-example",
+    "inputs": {
+     "sessions": 400,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1
+    },
+    "month": {
+     "sessions": 400,
+     "kwh": 8000.0,
+     "perSession": {
+      "poolEur": 2.0,
+      "driverEur": 1.0,
+      "operatorEur": 0.5,
+      "platformEur": 0.5
+     },
+     "poolEur": 800.0,
+     "driversEur": 400.0,
+     "operator": {
+      "retainedEur": 200.0,
+      "fixedEur": 100.0,
+      "profitEur": 100.0,
+      "breakEvenSessions": 200
+     },
+     "platform": {
+      "grossEur": 200.0,
+      "variableEur": 40.0,
+      "fixedEur": 120.0,
+      "profitEur": 40.0,
+      "unitContributionEur": 0.4,
+      "breakEvenSessions": 300
+     },
+     "yearly": {
+      "poolEur": 9600.0,
+      "driversEur": 4800.0,
+      "operatorProfitEur": 1200.0,
+      "platformGrossEur": 2400.0,
+      "platformProfitEur": 480.0
+     }
+    }
+   }
+  },
+  "calculator": {
+   "defaults": {
+    "sessions": 403,
+    "kwhPerSession": 20.0,
+    "savingEurPerKwh": 0.1005,
+    "operatorFixedEur": 100.0,
+    "platformVariableEur": 0.1,
+    "platformFixedEur": 120.0
+   },
+   "capacity": {
+    "sessionsPerWindow": 16,
+    "windowsPerDay": 2,
+    "maxPerMonth": 960,
+    "eligibleWindowsPerMonth": 26
+   }
+  },
+  "offers": [
+   {
+    "id": "0c7e5b839571:2026-01-24:evening",
+    "date": "2026-01-24",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-24T16:30:00Z",
+    "status": "none",
+    "reason": "no-stored-surplus",
+    "reasonText": "No surplus renewable energy is stored for this window.",
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": null,
+    "storedSurplusKwh": 0.0,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 0,
+     "demand": 20
+    },
+    "next": {
+     "date": "2026-01-25",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-25:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-25:morning",
+    "date": "2026-01-25",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-25T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 662.4,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 30,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-25",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-25:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-25:evening",
+    "date": "2026-01-25",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-25T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 662.4,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 30,
+     "demand": 20
+    },
+    "sessions": 16,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 16,
+     "kwh": 320.0,
+     "poolEur": 32.16,
+     "driverEur": 16.0,
+     "operatorEur": 8.16,
+     "platformEur": 8.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-26:morning",
+    "date": "2026-01-26",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-26T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 314.6,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 14,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-26",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-26:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-26:evening",
+    "date": "2026-01-26",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-26T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 314.6,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 14,
+     "demand": 20
+    },
+    "sessions": 14,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 14,
+     "kwh": 280.0,
+     "poolEur": 28.14,
+     "driverEur": 14.0,
+     "operatorEur": 7.14,
+     "platformEur": 7.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-27:morning",
+    "date": "2026-01-27",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-27T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 507.0,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 23,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-27",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-27:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-27:evening",
+    "date": "2026-01-27",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-27T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 507.0,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 23,
+     "demand": 20
+    },
+    "sessions": 16,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 16,
+     "kwh": 320.0,
+     "poolEur": 32.16,
+     "driverEur": 16.0,
+     "operatorEur": 8.16,
+     "platformEur": 8.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-28:morning",
+    "date": "2026-01-28",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-28T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 700.0,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 32,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-28",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-28:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-28:evening",
+    "date": "2026-01-28",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-28T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 700.0,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 32,
+     "demand": 20
+    },
+    "sessions": 16,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 16,
+     "kwh": 320.0,
+     "poolEur": 32.16,
+     "driverEur": 16.0,
+     "operatorEur": 8.16,
+     "platformEur": 8.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-29:morning",
+    "date": "2026-01-29",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-29T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 352.2,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 16,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-29",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-29:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-29:evening",
+    "date": "2026-01-29",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-29T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 352.2,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 16,
+     "demand": 20
+    },
+    "sessions": 16,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 16,
+     "kwh": 320.0,
+     "poolEur": 32.16,
+     "driverEur": 16.0,
+     "operatorEur": 8.16,
+     "platformEur": 8.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-30:morning",
+    "date": "2026-01-30",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-30T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 501.1,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 23,
+     "demand": 10
+    },
+    "next": {
+     "date": "2026-01-30",
+     "label": "17:00–19:00",
+     "id": "0c7e5b839571:2026-01-30:evening"
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-30:evening",
+    "date": "2026-01-30",
+    "window": "evening",
+    "label": "17:00–19:00",
+    "lockedAt": "2026-01-30T16:30:00Z",
+    "status": "offer",
+    "reason": null,
+    "reasonText": null,
+    "baselineEurPerKwh": 0.34,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 501.1,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 23,
+     "demand": 20
+    },
+    "sessions": 16,
+    "kwhPerSession": 20.0,
+    "source": "stored-surplus",
+    "savingEurPerKwh": 0.1,
+    "publicEurPerKwh": 0.49,
+    "discountEurPerKwh": 0.05,
+    "memberEurPerKwh": 0.44,
+    "expected": {
+     "poolEur": 2.0,
+     "driverEur": 1.0,
+     "operatorEur": 0.5,
+     "platformEur": 0.5
+    },
+    "quotes": [
+     {
+      "kwh": 10.0,
+      "publicEur": 4.9,
+      "discountEur": 0.5,
+      "priceEur": 4.4,
+      "split": {
+       "poolEur": 1.0,
+       "driverEur": 0.5,
+       "operatorEur": 0.25,
+       "platformEur": 0.25
+      }
+     },
+     {
+      "kwh": 15.0,
+      "publicEur": 7.35,
+      "discountEur": 0.75,
+      "priceEur": 6.6,
+      "split": {
+       "poolEur": 1.5,
+       "driverEur": 0.75,
+       "operatorEur": 0.38,
+       "platformEur": 0.37
+      }
+     },
+     {
+      "kwh": 20.0,
+      "publicEur": 9.8,
+      "discountEur": 1.0,
+      "priceEur": 8.8,
+      "split": {
+       "poolEur": 2.0,
+       "driverEur": 1.0,
+       "operatorEur": 0.5,
+       "platformEur": 0.5
+      }
+     },
+     {
+      "kwh": 22.0,
+      "publicEur": 10.78,
+      "discountEur": 1.1,
+      "priceEur": 9.68,
+      "split": {
+       "poolEur": 2.2,
+       "driverEur": 1.1,
+       "operatorEur": 0.55,
+       "platformEur": 0.55
+      }
+     }
+    ],
+    "settled": {
+     "baselineEurPerKwh": 0.34,
+     "sessions": 16,
+     "kwh": 320.0,
+     "poolEur": 32.16,
+     "driverEur": 16.0,
+     "operatorEur": 8.16,
+     "platformEur": 8.0,
+     "shortfallEur": 0.0
+    }
+   },
+   {
+    "id": "0c7e5b839571:2026-01-31:morning",
+    "date": "2026-01-31",
+    "window": "morning",
+    "label": "07:00–09:00",
+    "lockedAt": "2026-01-31T06:30:00Z",
+    "status": "none",
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.205,
+    "surplusForecastInWindow": false,
+    "aiCostEurPerKwh": 0.2395,
+    "storedSurplusKwh": 484.5,
+    "capacity": {
+     "site": 16,
+     "batteryPower": 18,
+     "storedEnergy": 22,
+     "demand": 10
+    },
+    "next": null
+   }
+  ],
+  "ledger": {
+   "sessions": 94,
+   "kwh": 1880.0,
+   "poolEur": 188.94,
+   "driverEur": 94.0,
+   "operatorEur": 47.94,
+   "platformEur": 47.0,
+   "shortfallEur": 0.0,
+   "balanced": true,
+   "nights": 7,
+   "offers": 6,
+   "byWindow": {
+    "morning": {
+     "offers": 0,
+     "windows": 7
+    },
+    "evening": {
+     "offers": 6,
+     "windows": 7
+    }
+   },
+   "forecastHorizonMinutes": 30
+  },
+  "energy": {
+   "qualifyingKwh": 1880.0,
+   "sources": {
+    "directSurplusKwh": 0.0,
+    "storedSurplusKwh": 1880.0,
+    "conventionalKwh": 0.0
+   },
+   "battery": {
+    "gridChargedKwh": 2927.8,
+    "surplusChargedKwh": 2747.8,
+    "falseAlarmKwh": 180.0,
+    "chargeLossKwh": 234.2,
+    "dischargedKwh": 1960.0,
+    "dischargeLossKwh": 170.4,
+    "roundTripEfficiency": 0.8464,
+    "conventionalReleasedKwh": 80.0,
+    "unallocatedSurplusKwh": 484.5,
+    "unallocatedConventionalKwh": 78.6,
+    "storedSurplusUsedKwh": 2043.5
+   },
+   "calls": {
+    "charged": 33,
+    "right": 31,
+    "falseAlarms": 2,
+    "unknown": 0
+   },
+   "network": {
+    "status": "conditional",
+    "reason": "Curtailment is system-wide, so extra demand anywhere on the Irish grid could in principle absorb it. Not confirmed with the system operator."
+   },
+   "notes": [
+    "Cheaper energy is not verified avoided curtailment: the credit is conditional on the grid being able to deliver it.",
+    "Stored kWh are not all recovered kWh: charging and discharging lose energy, shown separately.",
+    "Surplus during a window lowers normal charging too, so it adds no extra saving to share: offers are served from stored surplus."
+   ]
+  },
+  "methodology": [
+   "Eligible pool per session = max(0, basic smart cost - AI all-in cost) x kWh, pre-VAT, avoidable costs only.",
+   "Basic smart cost: the cheapest half-hours inside the same window that still deliver the session, at the charger rate.",
+   "AI all-in cost: stored energy price / discharge efficiency + battery wear + network charges + session costs.",
+   "Split: driver 50% (discount on the public price), operator 25%, our commission 25%. Our commission pays our per-session cost and monthly overhead before any profit; the operator's share pays its remaining programme costs.",
+   "An offer is locked 30 minutes before its window from surplus already stored and settled, sized by the energy bridge (chargers, connection), battery power and stored energy, and only if both businesses have a non-negative unit contribution.",
+   "Month: sessions per replayed day x 30 days, scaled by how often curtailment happens over a full year when that is known."
+  ],
+  "limitations": [
+   "Simulation on historical data: the hub, battery, prices, costs and demand are illustrative, not a customer, a quote or a booking.",
+   "The battery is hypothetical: no real storage is deployed or claimed.",
+   "Surplus credit is conditional: curtailment is system-wide and network deliverability for a real site is not verified.",
+   "Without real settlement data these are projected revenue and simulated profit, never money earned.",
+   "Public chargers stay open to everyone at the normal price: joining is optional and never a condition for charging."
+  ]
+ }
 }

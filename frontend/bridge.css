@@ -11,6 +11,7 @@
   --bridge-empty: #f5f9f8;
   --bridge-loss: #b9c7c3;
   --bridge-green: #169b62;
+  --bridge-storage: #1f78c8;
 }
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dashboard-redesign.bridge-layout {
   --bridge-ink: #eef9f2;
@@ -22,6 +23,7 @@
   --bridge-empty: #152c25;
   --bridge-loss: #5d7a71;
   --bridge-green: #4fd99b;
+  --bridge-storage: #6ab8f5;
 }
 .bridge-layout > .dash-hero { grid-column: 1; grid-row: 1; }
 .bridge-layout > .dash-confidence { grid-column: 1; grid-row: 2; }
@@ -177,3 +179,14 @@
   .bridge-layout .dash-flexible .fleet-body { flex-direction: row; align-items: center; }
   .bridge-layout .dash-flexible .fleet-scene { position: absolute; right: -18px; bottom: -10px; width: 64cqw; height: auto; margin: 0; }
 }
+
+/* Simulated grid battery (backend/storage.py): charge bar from its starting level, plus its share of the used energy. */
+.bridge-battery-copy.is-grid .bridge-soc { grid-column: 1 / -1; position: relative; height: 10px; margin: 4px 0 2px; border-radius: 99px; background: var(--bridge-track); overflow: hidden; }
+.bridge-soc i { position: absolute; top: 0; bottom: 0; left: 0; }
+.bridge-soc i.is-start { background: color-mix(in srgb, var(--bridge-storage) 45%, transparent); }
+.bridge-soc i.is-added { background: var(--bridge-storage); }
+.bridge-used-track i.is-storage { inset: 0 auto 0 auto; border-radius: 0 99px 99px 0; background: var(--bridge-storage); }
+.bridge-used-head i { display: inline-block; width: 8px; height: 8px; margin: 0 2px 0 6px; border-radius: 2px; background: var(--bridge-green); }
+.dash-battery i.is-storage, .bridge-used-head i.is-storage { background: var(--bridge-storage); }
+.bridge-ledger .is-storage dd { color: var(--bridge-storage); }
+.bridge-cabinet-art.is-yard img { padding: 14px 10px 4px; }

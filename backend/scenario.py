@@ -114,6 +114,39 @@ def build_scenario(forecast, total_kwh, flexible_kwh, kwh_per_charge=DEFAULT_KWH
     )
 
 
+# Illustrative inputs for the About page's worked example. The figures are computed by the
+# same functions the pages use, so the example always matches the backend calculations.
+EXAMPLE_INPUTS = dict(atRiskMwh=42.0, curtailmentMwh=12.0, constraintMwh=30.0, flexibleCapacityMw=100.0,
+                      totalDemandKwh=1000.0, flexibleDemandKwh=500.0, intervalMinutes=30)
+
+
+def worked_example():
+    """One half-hour run through the real formulas, plus the assumptions they use."""
+    x = EXAMPLE_INPUTS
+    hours = x['intervalMinutes'] / 60
+    capacity_mwh = x['flexibleCapacityMw'] * hours
+    prediction = dict(horizonMinutes=30, targetAt='example', atRiskMwh=x['atRiskMwh'])
+    outcome = interval_outcome(prediction, capacity_mwh, hours, x['totalDemandKwh'] / 1000, x['flexibleDemandKwh'] / 1000)
+    ev = ev_translation(outcome, x['intervalMinutes'], DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW)
+    return dict(
+        inputs=x,
+        steps=dict(
+            atRiskMwh=x['curtailmentMwh'] + x['constraintMwh'],
+            flexibleDemandMwh=x['flexibleDemandKwh'] / 1000,
+            capacityEnergyMwh=capacity_mwh,
+            potentialRecoveryMwh=outcome['potentialRecoveryMwh'],
+            potentialKwh=outcome['potentialRecoveryMwh'] * 1000,
+            chargingSessionsEquivalent=ev['evChargesEquivalent'],
+            avoidedEmissionsTco2=outcome['avoidedEmissionsTco2'],
+            evRangeKm=outcome['evRangeKm'],
+            remainingAtRiskMwh=outcome['remainingWasteMwh'],
+        ),
+        assumptions=dict(kwhPerCharge=DEFAULT_KWH_PER_CHARGE, chargerKw=DEFAULT_CHARGER_KW,
+                         gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM,
+                         chargingEfficiency=1.0, intervalMinutes=x['intervalMinutes']),
+    )
+
+
 DAY_FIELDS = ('targetAt', 'atRiskMwh', 'potentialRecoveryMwh', 'remainingWasteMwh', 'avoidedEmissionsTco2', 'evRangeKm')
 
 

@@ -35,10 +35,36 @@ let settings={...defaults};
 try{settings={...defaults,...JSON.parse(localStorage.getItem('planner-preferences')||'{}')}}catch{}
 let dashboardTheme='light';
 try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'}catch{}
+let navDocked=false;
+try{navDocked=localStorage.getItem('planner-nav-docked')==='1'}catch{}
 let saved=true;
-function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings'].includes(p)?p:'overview'}
+function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings','about'].includes(p)?p:'overview'}
+// About opens from Settings and has no navigation item of its own, so Settings stays highlighted.
+function navPage(page){return page==='about'?'settings':page}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function sidebar(page){page=navPage(page);return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><button class="nav-dock" type="button" data-nav-dock><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path class="dock-chevron" d="m16 10-2 2 2 2"/></svg></button><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+// Docking folds the sidebar to an icon rail; pages follow through --nav-w. Labels stay in the DOM
+// (faded out) so the buttons keep their accessible names, and tooltips stand in for them.
+function applyDock(shell){
+  shell.classList.toggle('is-docked',navDocked);
+  const button=shell.querySelector('[data-nav-dock]'),label=navDocked?'Expand navigation':'Dock navigation';
+  button.setAttribute('aria-label',label);button.title=label;button.setAttribute('aria-pressed',navDocked);
+  shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{if(navDocked)item.title=item.textContent.trim();else item.removeAttribute('title')});
+}
+const DOCK_MS=320;
+let dockTimer;
+function toggleDock(){
+  const shell=document.querySelector('.app-shell');
+  if(!shell)return;
+  navDocked=!navDocked;
+  try{localStorage.setItem('planner-nav-docked',navDocked?'1':'0')}catch{}
+  // The width only animates while toggling, never on first paint or a window resize.
+  shell.classList.add('is-docking');
+  applyDock(shell);
+  clearTimeout(dockTimer);
+  // Once the rail has settled, re-fit the canvas and let charts and the nav pill re-measure.
+  dockTimer=setTimeout(()=>{shell.classList.remove('is-docking');dispatchEvent(new Event('resize'))},DOCK_MS);
+}
 // Pages with their own phone layout; every other page keeps the scaled desktop canvas on phones.
 const PHONE_PAGES=['business'];
 function fitDesktop(){
@@ -48,6 +74,8 @@ function fitDesktop(){
   // The layout viewport (clientWidth), not innerWidth: on phones innerWidth can grow to the width of a
   // scaled canvas shown just before, which would keep this page scaled down after navigating back.
   const vw=document.documentElement.clientWidth||innerWidth,vh=document.documentElement.clientHeight||innerHeight;
+  // About on a narrow screen is a normal full-width page (about.css), not a scaled-down desktop.
+  if(pageFromHash()==='about'&&vw<=760){shell.classList.remove('is-phone');shell.style.width=shell.style.height=shell.style.transform='';return}
   const phone=vw<=700&&PHONE_PAGES.includes(main?.dataset.currentPage);
   shell.classList.toggle('is-phone',phone);
   if(phone){
@@ -69,7 +97,7 @@ function fitDesktop(){
 // moments after navigation, so rebuilding the sidebar used to reset the highlight to the top.
 function syncSidebar(shell,page){
   shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{
-    const active=item.dataset.page===page;
+    const active=item.dataset.page===navPage(page);
     item.classList.toggle('active',active);
     if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
   });
@@ -150,7 +178,7 @@ function render(){
   const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
   const charts=chartsCollect(app);
-  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings}[page];
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout}[page];
   // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
   const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
   let shell=app.querySelector(':scope>.app-shell');
@@ -162,8 +190,10 @@ function render(){
   }else{
     app.innerHTML=`<div class="app-shell">${sidebar(page)}${html}</div>`;
     shell=app.firstElementChild;
+    applyDock(shell);
   }
   shell.classList.toggle('is-live',liveRender);
+  shell.classList.toggle('is-about',page==='about');
   const main=shell.querySelector(':scope>main');
   if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
   // Once the entrance has played, drop it so finished animations don't keep content on separate
@@ -178,6 +208,7 @@ function render(){
 document.addEventListener('click',event=>{
   const horizon=event.target.closest('[data-horizon]');
   if(horizon){modelState.horizon=Number(horizon.dataset.horizon);renderLive();return}
+  if(event.target.closest('[data-nav-dock]')){toggleDock();return}
   const page=event.target.closest('[data-page]');
   if(page){navigate(page.dataset.page);return}
   if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}
