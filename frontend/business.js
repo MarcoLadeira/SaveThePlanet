@@ -445,18 +445,19 @@ function bzKpi(tone, glyph, label, figure, figureLabel, foot) {
     <span class="bz-kpi-label">${label}</span>${chartSlot(figure, figureLabel, 'bz-kpi-figure')}
     <p class="bz-kpi-foot">${foot}</p></article>`;
 }
-function bzScenario(intro = false) {
+// `intro`: '' after the entrance, else the entrance is playing (with its elapsed time as a style).
+function bzScenario(intro = '') {
   const r = bz.result;
   if (!r || bz.status !== 'ready') {
     const chip = bz.status === 'failed' ? '<span class="bz-chip is-error">Unavailable</span>' : bz.status === 'empty' ? '<span class="bz-chip">No data</span>'
-      : `<span class="bz-chip is-busy"><i></i><span>${bz.status === 'preparing' ? bzPreparing(bz.progress) : 'Loading'}</span></span>`;
+      : `<span class="bz-chip is-busy"><i class="motion-loop"></i><span>${bz.status === 'preparing' ? bzPreparing(bz.progress) : 'Loading'}</span></span>`;
     return `<div class="bz-scenario" aria-label="Scenario">${chip}</div>`;
   }
   const sim = r.dataMode === 'simulated', d = r.discountWindows;
   const mode = sim
     ? `<button type="button" class="bz-chip is-sim" data-bz-retry="model" title="GridToEv is unavailable (${escapeHtml(r.fallback?.reason || '')}); this is a fixed simulated example. Click to try the model again.">${bzIcon('alert', 14)}Simulated data · retry model</button>`
     : `<span class="bz-chip is-replay" title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">Historical replay</span>`;
-  return `<div class="bz-scenario${intro ? ' is-intro' : ''}" aria-label="Scenario">
+  return `<div class="bz-scenario${intro ? ' is-intro' : ''}"${intro} aria-label="Scenario">
     <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>Example site</b><small>${n(d.hub.chargers)} × ${n(d.hub.chargerKw)} kW · simulated</small></span></span>
     <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small>${n(r.period.nights)} nights replayed</small>`}</span></span>
     <span class="bz-chip is-projected" title="${escapeHtml(`${d.label}. No real customers, bookings, payments or battery: without real settlement data these are projections, never money earned.`)}">Projected</span>
@@ -538,7 +539,7 @@ function bzCalcCard(r) {
     ${bzHead('calc', 'amber', 'What if…?', `One site, one month · the site fits ${n(cap.sessionsPerWindow)} sessions per window, ${n(cap.maxPerMonth)} a month`, presets)}
     <form class="bz-form" novalidate onsubmit="return false">
       <div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div>
-      <div class="bz-out" aria-live="polite"><span class="bz-out-label">Our operating profit<i class="bz-out-spin" aria-hidden="true"></i><small>projected · after our costs</small></span>
+      <div class="bz-out" aria-live="polite"><span class="bz-out-label">Our operating profit<i class="bz-out-spin motion-loop" aria-hidden="true"></i><small>projected · after our costs</small></span>
         ${chartSlot('bzCalcOut', 'Our operating profit per month', 'bz-out-figure')}
         <div class="bz-out-detail">${bzCalcDetail()}</div></div>
     </form>
@@ -594,7 +595,7 @@ function bzInvestCard(r) {
   </section>`;
 }
 
-function bzProvenance(r, intro = false) {
+function bzProvenance(r, intro = '') {
   const cov = r.coverage || {};
   const gaps = (cov.missingForecasts || cov.missingObservations) ? ` · ${n(cov.missingForecasts || 0)} forecasts and ${n(cov.missingObservations || 0)} observations missing (not filled in)` : '';
   const how = r.dataMode === 'simulated'
@@ -602,7 +603,7 @@ function bzProvenance(r, intro = false) {
     : `GridToEv ${escapeHtml(r.modelVersion || '')} +30 min historical forecasts scored against observed EirGrid curtailment`;
   const d = r.discountWindows;
   const tip = [...(d.methodology || []), ...(d.limitations || []), d.prices.vat, ...(r.methodology || []), ...(r.limitations || [])].join('\n');
-  return `<p class="bz-provenance${intro ? ' is-intro' : ''}" title="${escapeHtml(tip)}">${bzIcon('info', 13)}<span>${how} · hypothetical battery · illustrative prices, costs and demand · amounts ex VAT · projected revenue, simulated profit, not money earned · network deliverability not verified${gaps}</span></p>`;
+  return `<p class="bz-provenance${intro ? ' is-intro' : ''}"${intro} title="${escapeHtml(tip)}">${bzIcon('info', 13)}<span>${how} · hypothetical battery · illustrative prices, costs and demand · amounts ex VAT · projected revenue, simulated profit, not money earned · network deliverability not verified${gaps}</span></p>`;
 }
 
 // ---------------------------------------------------------------- states
@@ -634,16 +635,16 @@ function bzEta(p, since, now) {
 const bzProgressMeta = (p) => `${Math.round(bzShare(p) * 100)}%`;
 const bzPreparing = (p) => (p?.total ? `Preparing · ${n(Math.min(p.done + 1, p.total))} of ${n(p.total)}` : 'Preparing');
 function bzStep(s) {
-  const mark = s.state === 'done' ? bzIcon('tick', 14) : s.state === 'active' ? '<i class="bz-spin"></i>' : '<i class="bz-dot"></i>';
+  const mark = s.state === 'done' ? bzIcon('tick', 14) : s.state === 'active' ? '<i class="bz-spin motion-loop"></i>' : '<i class="bz-dot"></i>';
   return `<li class="is-${s.state}" data-state="${s.state}"><span class="bz-step-mark">${mark}</span><span class="bz-step-copy"><b>${s.label}</b><small>${s.detail}</small></span></li>`;
 }
 function bzProgressCard(p) {
   const share = bzShare(p);
   return `<section class="dash-card bz-card bz-split-card bz-progress" role="status">
-    <div class="bz-progress-head"><span class="bz-progress-icon">${bzIcon('spark', 22)}</span>
+    <div class="bz-progress-head"><span class="bz-progress-icon motion-loop">${bzIcon('spark', 22)}</span>
       <div><h2>Replaying a week of charging</h2><p>The first run replays GridToEv's forecasts; after that the page opens instantly.</p></div></div>
     <ol class="bz-steps">${bzLoadingSteps(p).map(bzStep).join('')}</ol>
-    <div class="bz-progress-foot"><span class="bz-bar" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"></i></span>
+    <div class="bz-progress-foot"><span class="bz-bar" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"><b class="motion-loop"></b></i></span>
       <span class="bz-progress-meta" aria-hidden="true">${bzProgressMeta(p)}</span></div>
   </section>`;
 }
@@ -667,9 +668,10 @@ function bzProgressPaint() {
   return true;
 }
 // Placeholders shaped like the cards they stand for, so the results replace them without a jump.
-// A quick answer never shows them: they fade in only after a moment (.is-waiting).
+// A quick answer never shows them: they fade in only after a moment (.is-waiting). Loading motion is
+// .motion-loop, so it keeps running through the app's live model refreshes (studio.css).
 function bzSkeleton() {
-  const line = (cls, style = '') => `<span class="bz-skel ${cls}"${style ? ` style="${style}"` : ''}></span>`;
+  const line = (cls, style = '') => `<span class="bz-skel motion-loop ${cls}"${style ? ` style="${style}"` : ''}></span>`;
   const head = `<div class="bz-skel-head">${line('is-icon')}<span class="bz-skel-copy">${line('is-title')}${line('is-sub')}</span></div>`;
   const kpi = `<article class="dash-card bz-kpi is-skeleton">${line('is-kpi-icon')}<span class="bz-skel-copy">${line('is-label')}${line('is-figure')}</span>${line('is-foot')}</article>`;
   const card = (cls, body) => `<section class="dash-card bz-card ${cls} is-skeleton">${head}${body}</section>`;
@@ -690,10 +692,13 @@ function renderBusiness() {
   if (bz.status === 'idle' || (bz.status === 'preparing' && !bz.timer && !bz.inFlight)) queueMicrotask(() => bzLoad());
   const r = bz.result, shown = bz.status === 'ready' && Boolean(r?.kpis);
   // The results rise in card by card when they first appear (after loading, or on arriving at the
-  // page). render() builds the new page while the old one is still there, so a re-render of the
-  // results (a metric switch, the calculator) finds them and leaves the cards still.
-  const live = typeof liveRender !== 'undefined' && liveRender;
-  const intro = shown && !live && !document.querySelector('#app .bz-layout.is-ready');
+  // page). render() builds the new page while the old one is still there, so a re-render finds the
+  // results already shown: while the entrance still plays (a live model update, say) it continues
+  // from the same point; after that the cards stay still.
+  const live = typeof liveRender !== 'undefined' && liveRender, now = Date.now();
+  if (shown && !live && !document.querySelector('#app .bz-layout.is-ready')) bz.introAt = now;
+  const since = shown && bz.introAt !== undefined ? now - bz.introAt : Infinity;
+  const intro = since < BZ_INTRO_MS ? (since > 0 ? ` style="--bz-t:-${since}ms"` : ' ') : '';
   const top = studioHeader('Impact', 'Who saves and who earns from our AI.', bzScenario(intro));
   if (bz.status === 'failed' && !r) {
     return top + bzMessage('error', 'The impact figures are unavailable', escapeHtml(bz.error || 'Something went wrong.'), `<button type="button" class="studio-button" data-bz-retry="load">Try again ${icon('arrow', 17)}</button>`);
@@ -701,8 +706,9 @@ function renderBusiness() {
   if (bz.status === 'empty' && r) return top + bzMessage('empty', 'Nothing to evaluate yet', escapeHtml(r.message || 'No complete night of forecasts was available.'), '<button type="button" class="studio-button" data-bz-retry="model">Check again</button>');
   if (!shown) return top + bzSkeleton();
   const cards = bz.details ? bzInvestCard(r) : `${bzMoneyCard(r)}${bzCompareCard(r)}`;
-  return `${top}<div class="bz-layout is-ready${intro ? ' is-intro' : ''}${bz.details ? ' is-details' : ''}">${bzKpiRow(r)}${bzSplitCard(r)}${cards}${bzCalcCard(r)}${bzEnergyCard(r)}</div>${bzProvenance(r, intro)}`;
+  return `${top}<div class="bz-layout is-ready${intro ? ' is-intro' : ''}${bz.details ? ' is-details' : ''}"${intro}>${bzKpiRow(r)}${bzSplitCard(r)}${cards}${bzCalcCard(r)}${bzEnergyCard(r)}</div>${bzProvenance(r, intro)}`;
 }
+const BZ_INTRO_MS = 1000; // the entrance's longest delay plus its animation
 // Cost inputs: open, or done (back to the main inputs once they are valid).
 function bzCosts(action) {
   const c = bz.calc;

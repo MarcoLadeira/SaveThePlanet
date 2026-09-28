@@ -358,18 +358,30 @@ test('polls while preparing update the loading card in place instead of re-rende
   assert.ok(run.renders.length > before, 'without a card on screen the page renders');
 });
 
-test('the entrance plays once: a re-render of the results leaves the cards still', () => {
+test('the entrance plays once, and a re-render while it plays continues it', () => {
   const run = load(); ready(run);
-  assert.match(run('renderBusiness()'), /bz-scenario is-intro[\s\S]*bz-layout is-ready is-intro[\s\S]*bz-provenance is-intro/);
+  assert.match(run('renderBusiness()'), /bz-scenario is-intro"\s[\s\S]*bz-layout is-ready is-intro"\s>[\s\S]*bz-provenance is-intro"/);
   run('document.querySelector = (selector) => (selector.includes(".bz-layout.is-ready") ? {} : null)');
-  assert.doesNotMatch(run('renderBusiness()'), /is-intro/);
+  run('bz.introAt = Date.now() - 300');
+  assert.match(run('renderBusiness()'), /bz-layout is-ready is-intro" style="--bz-t:-3\d\dms">/, 'resumed 300 ms in');
+  run('bz.introAt = Date.now() - 2000');
+  assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'after the entrance the cards stay still');
   run('document.querySelector = () => null; var liveRender = true');
-  assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'live model updates never replay it');
+  assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'a live model update never starts it');
 });
 
 test('the calculator shows a spinner while a new estimate is on its way', () => {
   const run = load(); ready(run);
-  assert.match(run('bzCalcCard(bz.result)'), /Our operating profit<i class="bz-out-spin" aria-hidden="true"><\/i>/);
+  assert.match(run('bzCalcCard(bz.result)'), /Our operating profit<i class="bz-out-spin motion-loop" aria-hidden="true"><\/i>/);
+});
+
+test('loading motion keeps running through live model refreshes', () => {
+  const run = load();
+  run('bz.status = "preparing"');
+  run.set('bz.progress', { done: 3, total: 10 });
+  const html = run('renderBusiness()');
+  for (const loop of ['bz-spin motion-loop', 'bz-progress-icon motion-loop', '<b class="motion-loop"></b>', 'bz-skel motion-loop']) assert.ok(html.includes(loop), loop);
+  assert.match(run('bzScenario()'), /bz-chip is-busy"><i class="motion-loop"><\/i>/);
 });
 
 test('simulated data and projections are labelled everywhere they could be mistaken for real data', () => {

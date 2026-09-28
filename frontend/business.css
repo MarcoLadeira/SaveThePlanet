@@ -329,13 +329,17 @@
 .bz-progress-foot{display:flex;align-items:center;gap:14px}
 .bz-bar{display:block;flex:1;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
 .bz-bar i{position:relative;display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green));overflow:hidden;transition:width .7s cubic-bezier(.2,.8,.2,1)}
-.bz-bar i:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:bz-sweep 1.6s ease-in-out infinite}
+.bz-bar b{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:bz-sweep 1.6s ease-in-out infinite}
 @keyframes bz-sweep{to{transform:translateX(100%)}}
 .bz-progress-meta{flex:0 0 auto;font-size:12px;font-weight:750;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
 
-/* ---------- Entrance: the results rise in card by card when they first appear ---------- */
-.bz-layout.is-intro .bz-kpi,.bz-layout.is-intro>.dash-card{animation:bz-card-in .6s cubic-bezier(.16,.84,.38,1) var(--d,0s) backwards}
-.bz-layout.is-intro .bz-kpi-icon,.bz-layout.is-intro .bz-head-icon{animation:bz-pop .45s cubic-bezier(.3,1.5,.5,1) calc(var(--d,0s) + .18s) backwards}
+/* ---------- Entrance: the results rise in card by card when they first appear ----------
+   --d staggers the cards; --bz-t (negative, set by business.js) is how far the entrance has already
+   played, so a re-render while it plays continues it instead of cutting it short. That includes a
+   live model refresh (a first load, typically): those switch animations off (studio.css) so as not
+   to replay them, and this one is only continued, hence the !important. */
+.app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card{animation:bz-card-in .6s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.app-shell .bz-layout.is-intro .bz-kpi-icon,.app-shell .bz-layout.is-intro .bz-head-icon{animation:bz-pop .45s cubic-bezier(.3,1.5,.5,1) calc(var(--d,0s) + .18s + var(--bz-t,0s)) backwards!important}
 .bz-layout.is-intro .bz-kpi:nth-child(2){--d:.06s}
 .bz-layout.is-intro .bz-kpi:nth-child(3){--d:.12s}
 .bz-layout.is-intro .bz-kpi:nth-child(4){--d:.18s}
@@ -345,12 +349,12 @@
 .bz-layout.is-intro>.bz-calc{--d:.3s}
 .bz-layout.is-intro>.bz-energy{--d:.36s}
 @keyframes bz-card-in{from{opacity:0;transform:translateY(16px) scale(.985)}}
-.bz-scenario.is-intro>*{animation:bz-rise .5s cubic-bezier(.16,.84,.38,1) backwards}
-.bz-scenario.is-intro>:nth-child(2){animation-delay:.08s}
-.bz-scenario.is-intro>:nth-child(3){animation-delay:.16s}
-.bz-scenario.is-intro>:nth-child(4){animation-delay:.24s}
+.app-shell .bz-scenario.is-intro>*{animation:bz-rise .5s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.bz-scenario.is-intro>:nth-child(2){--d:.08s}
+.bz-scenario.is-intro>:nth-child(3){--d:.16s}
+.bz-scenario.is-intro>:nth-child(4){--d:.24s}
 @keyframes bz-rise{from{opacity:0;transform:translateY(6px)}}
-.bz-provenance.is-intro{animation:bz-fade-in .6s ease .45s backwards}
+.app-shell .bz-provenance.is-intro{animation:bz-fade-in .6s ease calc(.45s + var(--bz-t,0s)) backwards!important}
 .bz-message{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;flex:1;padding:30px;border-radius:22px;text-align:center;animation:bz-card-in .5s cubic-bezier(.16,.84,.38,1) backwards}
 .bz-message-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:var(--amber-soft);color:var(--amber-deep)}
 .bz-message.is-error .bz-message-icon{background:var(--bz-bad-soft);color:var(--bz-bad)}
@@ -411,9 +415,10 @@
 .app-shell.is-phone .bz-layout.is-loading .bz-card{min-height:160px}
 
 @media (prefers-reduced-motion:reduce){
-  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open,.bz-spin,.bz-out-spin,.bz-bar i:after,.bz-step-mark,.bz-message,
-  .bz-layout.is-waiting>*,.bz-layout.is-intro .bz-kpi,.bz-layout.is-intro>.dash-card,.bz-layout.is-intro .bz-kpi-icon,.bz-layout.is-intro .bz-head-icon,
-  .bz-scenario.is-intro>*,.bz-provenance.is-intro,.bz-calc.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
+  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open,.bz-spin,.bz-out-spin,.bz-bar b,.bz-step-mark,.bz-message,
+  .bz-layout.is-waiting>*,.bz-calc.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
+  .app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card,.app-shell .bz-layout.is-intro .bz-kpi-icon,
+  .app-shell .bz-layout.is-intro .bz-head-icon,.app-shell .bz-scenario.is-intro>*,.app-shell .bz-provenance.is-intro{animation:none!important}
   .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-out-figure strong,.bz-details-btn,.bz-split b,.bz-steps li,.bz-out-spin{transition:none}
   .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:none}
 }
