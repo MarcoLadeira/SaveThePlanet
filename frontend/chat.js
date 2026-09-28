@@ -1,7 +1,7 @@
 // Volt: floating in-app assistant. Lives outside #app so re-renders never wipe it.
 // Every figure, badge and button is rendered from structured server fields; model text is shown as plain text only.
 const chatState = { open: false, busy: false, messages: [] };
-const chatPageNames = { overview: 'Dashboard', forecast: 'Forecast', charging: 'Charging', impact: 'Impact', settings: 'Settings' };
+const chatPageNames = { overview: 'Dashboard', forecast: 'Forecast', charging: 'EV', impact: 'Battery', settings: 'Settings' };
 const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Explain curtailment'];
 
 function voltSourceBadge() {

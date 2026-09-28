@@ -17,6 +17,7 @@ from scenario import build_day, build_scenario, validate_demand, validate_ev, DE
 from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
+import business
 import chat
 import explorer
 import synthetic
@@ -475,12 +476,14 @@ def dashboard_target(value):
 
 def keep_model_warm():
     """Wake the hosted model at startup, cache a first forecast and its day replay, start the
-    background prediction index used to mix risk levels, then ping the model so it never sleeps."""
+    Impact page's week of replays and the background prediction index used to mix risk levels,
+    then ping the model so it never sleeps."""
     try:
         model_request('/health', timeout=60)
         targets.dataset_targets()  # the population the dashboard's target is sampled from
         forecast = cached_forecast(100.0)
         fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0, prefetch=True)
+        business.start_prefetch()  # Impact page: ~8 day replays at prefetch priority
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
     targets.start_index_build()  # ~30 day replays at prefetch priority, or loaded from disk
@@ -578,6 +581,24 @@ class Handler(SimpleHTTPRequestHandler):
         forecast = cached_forecast(selectors['capacityMw'], selectors['target'])
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
         self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
+
+    def business_impact(self, query):
+        """Impact page: 202 with progress while the week is replayed, then the full result."""
+        body = business.current(refresh=query.get('refresh', ['0'])[0] == '1')
+        if body['status'] == 'preparing':
+            self.send_json(202, body, {'Retry-After': '2'})
+        elif body['status'] == 'failed':
+            self.send_json(500, {'error': {'code': 'IMPACT_FAILED', 'message': body['message']}})
+        else:
+            self.send_json(200, body)
+
+    def business_estimate(self, query):
+        """Impact page calculator: an illustrative yearly saving for another fleet."""
+        values, errors = business.parse_estimate({key: value[0] for key, value in query.items()})
+        if errors:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
+            return
+        self.send_json(200, business.estimate(**values))
 
     def impact_day(self, query):
         try:
@@ -696,6 +717,12 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if route.path == '/api/v1/impact/day':
             self.impact_day(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/impact':
+            self.business_impact(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/estimate':
+            self.business_estimate(parse_qs(route.query))
             return
 
         if route.path.startswith('/api/v1/explorer/'):

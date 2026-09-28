@@ -1,6 +1,6 @@
 # Frontend
 
-Desktop UI for the renewable energy and EV charging planner. Dashboard, Forecast, Charging, Impact, and Settings share the same navigation, typography, 3D visual language, horizon controls, and light/dark appearance.
+Desktop UI for the renewable energy and EV charging planner. Dashboard, Forecast, Battery (`#impact`), EV (`#charging`), Impact (`#business`) and Settings share the same navigation, typography, 3D visual language, horizon controls, and light/dark appearance.
 
 ![Dashboard preview](../docs/screenshots/dashboard.png)
 
@@ -110,3 +110,34 @@ week bars grow one after another and the ranked rows slide in, all through the s
 `charts3d.js` or once-only CSS entrances. Live refreshes do not replay them, "Apply" keeps the
 current figures dimmed with an "Updating…" note until the new ones glide in, and everything is
 instant when the viewer prefers reduced motion.
+
+## Impact page
+
+`business.js` and `business.css` hold the page (route `#business`, labelled **Impact**, after EV in the
+navigation). It answers "what could smarter EV charging save?" from `/api/v1/business/impact`, and never
+recomputes money in the browser: the KPI cards, the waterfall, the comparison and the investment details
+all draw the backend's figures, so they agree to the euro. Contract and methodology:
+[docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
+
+![Impact page](../docs/screenshots/impact/impact-desktop.png)
+
+- **Header**: title, subtitle and a scenario indicator (simulated company, the evaluation week, and
+  "Historical replay" or an amber "Simulated data · retry model" chip).
+- **KPI row**: projected annual savings, estimated CO₂ reduction, additional AI savings (vs the basic
+  rule) and investment payback ("Not achieved" when net savings are not positive).
+- **Where does the money come from?**: a waterfall from normal charging to the cost with our AI, with
+  negative and positive steps and a tooltip on each bar (hover or keyboard focus).
+- **Is our AI making a difference?**: normal, basic smart and AI charging on one metric (Money, CO₂ or
+  Renewable energy), whether each met every van's requirement, and how often the forecast was right.
+- **What if my company used this?**: an illustrative calculator (EVs, share shifted, price difference,
+  operating days, optional costs) answered by `/api/v1/business/estimate`. Typing only repaints the
+  output, so focus is never lost, and only the newest answer is shown.
+- **View investment details**: payback, 5-year return, conservative/expected/optimistic scenarios and
+  multi-site scaling, over the right-hand column (Escape closes it).
+
+States: a progress card while the week is replayed (the first run replays ~8 days through the replay
+gate; the server starts it at launch), an error card with retry, an empty state, and the simulated
+fallback. The page fits one 1440×900 screen. On phones (≤700px wide) it is the one page with its own
+layout: `app.js` does not scale it down, the cards stack in one column and the sidebar becomes a bottom
+tab bar; other pages keep the scaled desktop canvas. Everything is instant under reduced motion.
+

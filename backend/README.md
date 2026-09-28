@@ -288,6 +288,17 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
 
+## Impact page: business and environmental impact
+
+`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`). Three charging
+strategies (normal, basic smart and AI) charge the same simulated depot fleet over the latest week of
+V1 +30 minute replays, with no look-ahead, and are scored against observed curtailment for money
+(illustrative tariff), estimated CO2 and surplus renewable energy. The year is scaled by how often
+curtailment happened over a full observed year (V2 daily dataset). The first request returns HTTP 202
+with progress while the week is replayed (the server also starts this at launch, at prefetch priority);
+the result is then cached. A model outage gives a labelled simulated example. Full contract,
+methodology and limitations: [docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
+
 ## Dashboard V1 target and synthetic scenarios
 
 **Historical dataset prediction.** The shared forecast (Dashboard, Charging, Impact, Volt)
