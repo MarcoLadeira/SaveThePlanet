@@ -139,6 +139,54 @@ class EvTranslationTests(unittest.TestCase):
         self.assertEqual([i['probability'] for i in day['intervals']], [.8, .8])
         self.assertNotIn('probability', day['totals'])
 
+    def day(self, **rows):
+        """A day plan for one +30 min forecast of 2026-01-31 23:00 with the given prediction fields."""
+        forecast = self.forecast()
+        prediction = {**forecast['predictions'][0], **rows}
+        replay = dict(date='2026-01-31', range={}, source='test', modelVersion='test', intervalMinutes=30,
+                      horizonMinutes=30, flexibleCapacityMw=100, predictions=[prediction])
+        return dayplan.build(replay, fleets.preset('depot-and-retail'), 'depot-and-retail')['intervals'][0]
+
+    def test_expected_is_the_probability_weighted_swanson_mean_of_the_quantile_plans(self):
+        at = dict(atRiskMwh=.4, curtailmentMwh=.1, constraintMwh=.3, lowerMwh=.1, medianMwh=.4, upperMwh=9, probability=.8)
+        interval = self.day(**at)
+        fleet = fleets.validate(fleets.preset('depot-and-retail'))
+        plans = {q: dayplan.outcome(dayplan.plan(fleet, dayplan.scenario({**self.forecast()['predictions'][0], **at}, q, 0), 'expected',
+                                                 dayplan.storage.DEFAULT)[1]) for q in (.1, .4, 9)}
+        for key in dayplan.EXPECTED_FIELDS:
+            want = .8 * (.3 * plans[.1][key] + .4 * plans[.4][key] + .3 * plans[9][key])
+            self.assertAlmostEqual(interval['expected'][key], want, places=2, msg=key)
+        self.assertEqual(interval['capturedKwh'], plans[.4]['capturedKwh'], 'the plan itself stays on the point forecast')
+        self.assertAlmostEqual(interval['expected']['atRiskKwh'], .8 * (.3 * .1 + .4 * .4 + .3 * 9) * 1000, places=2)
+        self.assertLessEqual(interval['expected']['capturedShare'], 1)
+
+    def test_expected_uses_the_quantiles_when_the_point_forecast_is_zero(self):
+        # The trend point forecast reads 0 while the classifier and quantiles expect dispatch-down.
+        interval = self.day(atRiskMwh=0, curtailmentMwh=0, constraintMwh=0, lowerMwh=0, medianMwh=3, upperMwh=19, probability=1)
+        self.assertEqual(interval['capturedKwh'], 0)
+        self.assertGreater(interval['expected']['capturedKwh'], 0)
+        self.assertGreater(interval['expected']['storedKwh'], 0)
+
+    def test_no_chance_of_dispatch_down_expects_nothing(self):
+        # The served P90 is widened even when no event is expected; the probability gates it.
+        interval = self.day(atRiskMwh=0, curtailmentMwh=0, constraintMwh=0, lowerMwh=0, medianMwh=0, upperMwh=5.5, probability=0)
+        self.assertEqual({k: interval['expected'][k] for k in dayplan.EXPECTED_FIELDS}, dict.fromkeys(dayplan.EXPECTED_FIELDS, 0))
+        self.assertIsNone(interval['expected']['capturedShare'])
+
+    def test_expected_share_needs_a_likely_event(self):
+        unlikely = self.day(lowerMwh=0, medianMwh=.5, upperMwh=6, probability=.2)
+        self.assertGreater(unlikely['expected']['capturedKwh'], 0)
+        self.assertIsNone(unlikely['expected']['capturedShare'])
+
+    def test_scenarios_keep_the_point_split_or_fall_back_to_the_day_split(self):
+        point = dict(self.forecast()['predictions'][0], atRiskMwh=2, curtailmentMwh=.5, constraintMwh=1.5)
+        self.assertEqual(dayplan.scenario(point, 4, .9)['curtailmentMwh'], 1)
+        zero = dict(point, atRiskMwh=0, curtailmentMwh=0, constraintMwh=0)
+        split = dayplan.scenario(zero, 4, .25)
+        self.assertEqual((split['curtailmentMwh'], split['constraintMwh']), (1, 3))
+        self.assertEqual(dayplan.curtailment_share([point, zero]), .25)
+        self.assertEqual(dayplan.curtailment_share([zero]), 0)
+
     def test_invalid_ev_assumptions(self):
         for kwh, kw in ((0, 22), (201, 22), (30, 0), (30, 401), (float('nan'), 22), (True, 22)):
             with self.subTest(kwh=kwh, kw=kw), self.assertRaises(ValueError):

@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 from scenario import build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
 import dayplan
-from demo import demo_day_rows, demo_payload
+from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
 import business
@@ -251,15 +251,6 @@ def _replay_day(day, capacity):
     return dict(date=day.isoformat(), range=dict(min=first.date().isoformat(), max=last.date().isoformat()),
                 source='grid-to-ev-model', modelVersion=points[0]['modelVersion'], intervalMinutes=30,
                 horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
-
-
-def demo_day_replay(day, capacity):
-    """Synthetic day replay used when the model cannot be reached, so the Impact page keeps its full layout."""
-    last = default_replay_day()
-    points = [normalize_row(row, capacity) for row in demo_day_rows(capacity, day)]
-    return dict(date=day.isoformat(), range=dict(min=(last - timedelta(days=364)).isoformat(), max=last.isoformat()),
-                source='local-demo-fixture', dataMode='simulated', modelVersion=points[0]['modelVersion'],
-                intervalMinutes=30, horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
 
 
 def neighbour_days(day, first, last, span=None):
@@ -747,10 +738,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
-        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
-            status, body = 200, dayplan.build(demo_day_replay(day, capacity), fleet, preset)
-            body['dataMode'] = 'simulated'
-        if status == 200 and body.get('dataMode') != 'simulated':
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            # No demo day: made-up intervals would be drawn as if they were the model's (see backend/README.md).
+            diagnosis = diagnose(error)
+            status, body = 502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}}
+        if status == 200:
             try:
                 schedule_prefetch(day, capacity)
             except Exception:  # prefetch is only an optimisation

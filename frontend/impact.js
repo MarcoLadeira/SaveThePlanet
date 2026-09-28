@@ -5,14 +5,40 @@
 //     Each half-hour is a separate what-if with the same fleet and battery, so recovery is never summed
 //     across the day; only the forecast energy at risk is.
 
-const impactView={series:'captured'};
-// Series for the "Across the day" dropdown; each is plotted on its own scale.
+const impactView={series:'overview'};
+// Each half-hour carries the plan on the model's point forecast (the Dashboard's figures) and an
+// `expected` outcome from the whole forecast: the same plan on the P10/P50/P90 scenarios, weighted by
+// the event probability (backend/dayplan.py). The point forecast is the model's trend blend and reads
+// 0 whenever the last observation did, so day curves follow the expected outcome and show the plan
+// as a dashed reference.
+const expectedOf=(r,key)=>r.expected?.[key]??0;
+const sharePct=share=>share==null?0:share*100;
+function outcomeSeries(label,key,tone){
+  const kwh=v=>`${n(v)} kWh`;
+  return {label,value:r=>expectedOf(r,key),ref:r=>r[key],unit:'kWh',tone,format:kwh,
+    legend:[[`is-${tone}`,'Expected'],['is-ref','Plan on the point forecast']],
+    tip:r=>`expected ${kwh(expectedOf(r,key))} · plan ${kwh(r[key])}`,
+    cols:[['Expected',r=>kwh(expectedOf(r,key))],['Plan',r=>kwh(r[key])]]};
+}
+// Series for the "Across the day" dropdown; each is plotted on its own scale. The default draws what is
+// captured under the energy at risk on one MWh scale: captured alone mostly sits at the battery's power
+// limit, a flat line that hides how small a slice of the surplus it is.
 const IMPACT_SERIES={
-  captured:{label:'Captured by EVs + battery',field:'capturedKwh',unit:'kWh',tone:'green',format:v=>`${n(v)} kWh`},
-  stored:{label:'Stored in the grid battery',field:'storedKwh',unit:'kWh',tone:'blue',format:v=>`${n(v)} kWh`},
-  ev:{label:'Charged into EVs',field:'evBatteryKwh',unit:'kWh',tone:'blue',format:v=>`${n(v)} kWh`},
-  share:{label:'Share of energy at risk captured',field:'capturedSharePct',unit:'%',tone:'green',format:v=>`${n(v)}%`},
-  risk:{label:'Energy at risk',field:'atRiskMwh',unit:'MWh',tone:'amber',format:v=>`${n(v)} MWh`}
+  overview:{label:'Energy at risk vs captured',value:r=>r.atRiskMwh,under:r=>expectedOf(r,'capturedKwh')/1000,unit:'MWh',tone:'amber',format:v=>`${n(v)} MWh`,
+    legend:[['is-amber','At risk (forecast)'],['is-green','Captured (expected)']],
+    tip:r=>`${n(r.atRiskMwh)} MWh at risk · ${n(expectedOf(r,'capturedKwh'))} kWh expected to be captured`,
+    cols:[['At risk',r=>`${n(r.atRiskMwh)} MWh`],['Captured (expected)',r=>`${n(expectedOf(r,'capturedKwh'))} kWh`]]},
+  captured:outcomeSeries('Captured by EVs + battery','capturedKwh','green'),
+  stored:outcomeSeries('Stored in the grid battery','storedKwh','blue'),
+  ev:outcomeSeries('Charged into EVs','evBatteryKwh','blue'),
+  share:{label:'Share of energy at risk captured',value:r=>sharePct(r.expected?.capturedShare),ref:r=>sharePct(r.capturedShare),unit:'%',tone:'green',format:v=>`${n(v)}%`,
+    legend:[['is-green','Expected'],['is-ref','Plan on the point forecast']],
+    tip:r=>`expected ${n(sharePct(r.expected?.capturedShare))}% · plan ${n(sharePct(r.capturedShare))}%`,
+    cols:[['Expected',r=>r.expected?.capturedShare==null?'–':`${n(sharePct(r.expected.capturedShare))}%`],['Plan',r=>r.capturedShare==null?'–':`${n(sharePct(r.capturedShare))}%`]]},
+  risk:{label:'Energy at risk',value:r=>r.atRiskMwh,band:r=>[r.lowerMwh??r.atRiskMwh,r.upperMwh??r.atRiskMwh],unit:'MWh',tone:'amber',format:v=>`${n(v)} MWh`,
+    legend:[['is-amber','Point forecast'],['is-band','P10–P90 range']],
+    tip:r=>`${n(r.atRiskMwh)} MWh forecast · P10–P90 ${n(r.lowerMwh)}–${n(r.upperMwh)} MWh · ${n(Math.round(r.probability*100))}% chance of dispatch-down`,
+    cols:[['Forecast',r=>`${n(r.atRiskMwh)} MWh`],['P10–P90',r=>`${n(r.lowerMwh)}–${n(r.upperMwh)} MWh`],['Chance',r=>`${n(Math.round(r.probability*100))}%`]]}
 };
 
 function impactLabel(){return isDemoData()?'Simulated':'Simulated fleet and battery'}
@@ -26,7 +52,7 @@ function impactSkeleton(bars=24){
   const heights=Array.from({length:bars},(_,i)=>28+Math.round(22*Math.sin(i/2.4)+18*Math.sin(i/5.1+1)));
   return `<div class="impact-skeleton" role="status" aria-live="polite"><div class="impact-skel-bars" aria-hidden="true">${heights.map(h=>`<i class="motion-loop" style="height:${Math.max(8,h)}%"></i>`).join('')}</div><span>Planning ${escapeHtml(impactDateLabel(impactDayDate()))}…</span></div>`;
 }
-function impactRows(){return dayPlanReady()?dayPlan.data.intervals.map(r=>({...r,capturedSharePct:r.capturedShare==null?0:r.capturedShare*100})):[]}
+function impactRows(){return dayPlanReady()?dayPlan.data.intervals:[]}
 
 // ---------- chart primitives ----------
 function niceMax(value){if(!(value>0))return 1;const p=10**Math.floor(Math.log10(value)),m=value/p;return (m<=1?1:m<=2?2:m<=2.5?2.5:m<=5?5:10)*p}
@@ -50,10 +76,11 @@ function impactDefs(){
   const grad=tone=>`<linearGradient id="impact-fill-${tone}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="stop-${tone}" stop-opacity=".55"/><stop offset="1" class="stop-${tone}" stop-opacity="0"/></linearGradient>`;
   return `<svg class="impact-defs" aria-hidden="true" focusable="false"><defs><filter id="impact-glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>${['green','blue','amber'].map(grad).join('')}</defs></svg>`;
 }
-function sparkArea(values,tone){
+// sel: index of the selected half-hour, marked with a dot (-1 for none).
+function sparkArea(values,tone,sel=-1){
   const w=110,h=42,max=Math.max(...values,0)||1,pts=values.map((v,i)=>[2+(w-4)*(i/(values.length-1||1)),h-3-(v/max)*(h-8)]);
-  const line=smoothPath(pts);
-  return `<svg class="impact-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#impact-fill-${tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/></svg>`;
+  const line=smoothPath(pts),dot=pts[sel]?`<circle class="sel is-${tone}" cx="${pts[sel][0]}" cy="${pts[sel][1]}" r="3.2"/>`:'';
+  return `<svg class="impact-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#impact-fill-${tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/>${dot}</svg>`;
 }
 function tipAttrs(text){return `data-tip="${escapeHtml(text)}" tabindex="0" aria-label="${escapeHtml(text)}"`}
 // Charts draw themselves in when they first appear or show new data; live refreshes and
@@ -66,8 +93,15 @@ function microBars(values,active){
   const max=Math.max(...values,0)||1,w=96,h=40,gap=values.length>6?1.5:10,bw=(w-gap*(values.length-1))/values.length;
   return `<svg class="impact-micro" viewBox="0 0 ${w} ${h}" aria-hidden="true">${values.map((v,i)=>{const bh=Math.max(v/max*(h-4),v>0?2:0);return `<rect x="${i*(bw+gap)}" y="${h-bh}" width="${bw}" height="${bh}" rx="${Math.min(3,bw/2)}" class="${i===active?'on':''}"/>`}).join('')}</svg>`;
 }
-function kpiMicro(field,tone='green'){
-  if(dayPlanReady())return {svg:sparkArea(impactRows().map(r=>r[field]),tone),caption:`each half-hour of ${shortDate(dayPlan.data.date)}`};
+// The expected outcome for each half-hour of the day (the headline beside it is the plan for the
+// selected half-hour, as on the Dashboard); format labels the selected half-hour's expected value.
+function kpiMicro(value,format,tone='green'){
+  if(dayPlanReady()){
+    const rows=impactRows(),sel=dayPlanIndex(),at=rows[sel];
+    const tip=`Expected with the model's full forecast (event probability and P10–P90 range), each half-hour of ${shortDate(dayPlan.data.date)}`+
+      (at?`. ${dayPlanTime(at.targetAt)}: ${format(value(at))} expected; the headline is the plan on the point forecast.`:'.');
+    return {svg:sparkArea(rows.map(value),tone,sel),caption:`expected · ${shortDate(dayPlan.data.date)}`,tip};
+  }
   if(!dayPlanLoading())return {svg:'',caption:'day plan unavailable'};
   return {svg:'<span class="impact-micro impact-micro-skel motion-loop" aria-hidden="true"></span>',caption:'Loading…'};
 }
@@ -87,16 +121,16 @@ impactFigure('impactFlowEv',()=>impactLedger().batteryDeliveredKwh,v=>[n(v),'kWh
 // Rendered at zero, so the card keeps its height until chartsSync counts the figure up.
 function figureSlot(name,label){const f=dashCharts[name];return `<div class="chart3d" data-chart="${name}" role="img" aria-label="${escapeHtml(`${label}: ${f.format(f.value()).join(' ')}`)}">${f.draw({v:0})}</div>`}
 function impactKpi(iconName,tone,label,figure,note,micro){
-  return `<article class="impact-kpi is-${tone}">${tile(iconName,tone)}<div class="impact-kpi-copy"><span>${label}</span>${figureSlot(figure,label)}<em>${note}</em></div><figure class="impact-kpi-micro">${micro.svg}<figcaption>${micro.caption}</figcaption></figure></article>`;
+  return `<article class="impact-kpi is-${tone}">${tile(iconName,tone)}<div class="impact-kpi-copy"><span>${label}</span>${figureSlot(figure,label)}<em>${note}</em></div><figure class="impact-kpi-micro"${micro.tip?` title="${escapeHtml(micro.tip)}"`:''}>${micro.svg}<figcaption>${micro.caption}</figcaption></figure></article>`;
 }
 function impactStats(alt){
   const L=alt.optimized.ledger,S=L.storage,m=planImpact(L),scope=`${modelTime(alt.targetAt)} · +${alt.horizonMinutes} min`;
   const cars=(alt.optimized.opportunityAllocations||[]).length,total=alt.optimized.vehiclesMet+alt.optimized.vehiclesMissed;
   return `<section class="impact-kpis${drawIn('kpis',`${dayPlan.status}|${dayPlan.key}`)}" aria-label="Selected half-hour">
-    ${impactKpi('battery','blue','Stored in the grid battery','impactStored',S?`${n(S.startFraction*100)}% → ${n(S.endFraction*100)}% full · ${scope}`:scope,kpiMicro('storedKwh','blue'))}
-    ${impactKpi('car','blue','Charged into EVs','impactEv',`${cars} of ${total} simulated cars · ${scope}`,kpiMicro('evBatteryKwh','blue'))}
-    ${impactKpi('leaf','green','Est. CO₂ avoided','impactCo2',`EV charging + stored energy · ${scope}`,kpiMicro('co2AvoidedKg'))}
-    ${impactKpi('bolt','green','Energy at risk captured','impactShare',`${n(m.captured)} kWh of ${n(L.predictedAtRiskKwh/1000)} MWh · ${scope}`,kpiMicro('capturedSharePct'))}
+    ${impactKpi('battery','blue','Stored in the grid battery','impactStored',S?`${n(S.startFraction*100)}% → ${n(S.endFraction*100)}% full · ${scope}`:scope,kpiMicro(r=>expectedOf(r,'storedKwh'),v=>`${n(v)} kWh`,'blue'))}
+    ${impactKpi('car','blue','Charged into EVs','impactEv',`${cars} of ${total} simulated cars · ${scope}`,kpiMicro(r=>expectedOf(r,'evBatteryKwh'),v=>`${n(v)} kWh`,'blue'))}
+    ${impactKpi('leaf','green','Est. CO₂ avoided','impactCo2',`EV charging + stored energy · ${scope}`,kpiMicro(r=>expectedOf(r,'co2AvoidedKg'),impactCo2Text))}
+    ${impactKpi('bolt','green','Energy at risk captured','impactShare',`${n(m.captured)} kWh of ${n(L.predictedAtRiskKwh/1000)} MWh · ${scope}`,kpiMicro(r=>sharePct(r.expected?.capturedShare),v=>`${n(v)}%`))}
   </section>`;
 }
 
@@ -166,16 +200,29 @@ function stackedBars(rows,{width=420,height=250,label}){
   return `<svg class="impact-chart" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(label)}">${yAxis(max,top,bottom,left,right,'MWh')}${bars}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/></svg>`;
 }
 // Area chart of one day-replay series on its own zero-based scale, with a peak callout and a
-// focusable hover target per half-hour.
+// focusable hover target per half-hour. Optional layers, all on the same scale:
+//  - series.band(r) -> [low, high]: a shaded range behind the area (the model's P10-P90);
+//  - series.ref(r): a dashed reference line (the plan on the point forecast);
+//  - series.under(r), never above the main value: a solid band beneath the area. At a true scale it
+//    can be a couple of pixels high, so it is labelled with its own peak.
 function areaChart(rows,series,{width=420,height=250,sel=-1}={}){
-  const left=46,right=width-10,top=34,bottom=height-30,values=rows.map(r=>r[series.field]),peak=Math.max(...values,0),max=niceMax(peak);
-  const x=i=>left+(right-left)*(i/(rows.length-1||1)),y=v=>bottom-(v/max)*(bottom-top),pts=values.map((v,i)=>[x(i),y(v)]);
-  const line=smoothPath(pts),slot=(right-left)/(rows.length-1||1);
-  const hits=rows.map((r,i)=>`<g class="impact-pt" ${tipAttrs(`${dayPlanTime(r.targetAt)}: ${series.format(values[i])}`)}><rect class="hit" x="${x(i)-slot/2}" y="${top}" width="${slot}" height="${bottom-top}"/><line class="guide" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bottom}"/><circle cx="${x(i)}" cy="${y(values[i])}" r="4"/></g>`).join('');
+  const left=46,right=width-10,top=34,bottom=height-30,values=rows.map(series.value),peak=Math.max(...values,0);
+  const bands=series.band?rows.map(series.band):[],refs=series.ref?rows.map(series.ref):[];
+  const max=niceMax(Math.max(peak,...bands.map(b=>b[1]),...refs));
+  const x=i=>left+(right-left)*(i/(rows.length-1||1)),y=v=>bottom-(v/max)*(bottom-top),slot=(right-left)/(rows.length-1||1);
+  const curve=vs=>smoothPath(vs.map((v,i)=>[x(i),y(v)])),line=curve(values);
+  const band=bands.length?`<path class="band" d="${curve(bands.map(b=>b[1]))} ${smoothPath(bands.map((b,i)=>[x(i),y(b[0])]).reverse()).replace(/^M/,'L')}Z"/>`:'';
+  const ref=refs.length?`<path class="ref" d="${curve(refs)}"/>`:'';
+  let under='';
+  if(series.under){
+    const lows=rows.map((r,i)=>Math.min(series.under(r),values[i])),underPeak=Math.max(...lows,0),underLine=curve(lows);
+    under=`<path class="under" d="${underLine} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z"/><path class="under-line" d="${underLine}"/><text class="under-label" x="${left+6}" y="${Math.min(y(underPeak),bottom)-6}">Captured · at most ${escapeHtml(series.format(underPeak))}</text>`;
+  }
+  const hits=rows.map((r,i)=>`<g class="impact-pt" ${tipAttrs(`${dayPlanTime(r.targetAt)}: ${series.tip?series.tip(r):series.format(values[i])}`)}><rect class="hit" x="${x(i)-slot/2}" y="${top}" width="${slot}" height="${bottom-top}"/><line class="guide" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${bottom}"/><circle cx="${x(i)}" cy="${y(values[i])}" r="4"/></g>`).join('');
   const ticks=rows.map((r,i)=>i%8===0?`<text class="impact-tick" x="${x(i)}" y="${bottom+17}" text-anchor="middle">${modelTime(r.targetAt)}</text>`:'').join('');
   const at=values.indexOf(peak),px=Math.min(Math.max(x(at),left+44),right-44);
   const callout=peak>0?`<g class="impact-peak" aria-hidden="true"><circle class="dot is-${series.tone}" cx="${x(at)}" cy="${y(peak)}" r="4.5"/><rect x="${px-44}" y="${y(peak)-34}" width="88" height="26" rx="7"/><text x="${px}" y="${y(peak)-22}" text-anchor="middle">${escapeHtml(series.format(peak))}</text><text class="sub" x="${px}" y="${y(peak)-12}" text-anchor="middle">peak · ${dayPlanTime(rows[at].targetAt)}</text></g>`:'';
-  return `<svg class="impact-chart impact-area is-${series.tone}" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(series.label)} per half-hour">${yAxis(max,top,bottom,left,right,series.unit)}<path class="area" d="${line} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-${series.tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/>${ticks}${sel>=0?`<line class="impact-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${bottom}"/><circle class="impact-sel-dot is-${series.tone}" cx="${x(sel)}" cy="${y(values[sel])}" r="5"/>`:''}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/>${hits}${callout}</svg>`;
+  return `<svg class="impact-chart impact-area is-${series.tone}" viewBox="0 0 ${width} ${height}" role="group" aria-label="${escapeHtml(series.label)} per half-hour">${yAxis(max,top,bottom,left,right,series.unit)}${band}<path class="area" d="${line} L${x(rows.length-1)} ${bottom} L${left} ${bottom}Z" fill="url(#impact-fill-${series.tone})"/><path class="line" d="${line}" pathLength="1" filter="url(#impact-glow)"/>${ref}${under}${ticks}${sel>=0?`<line class="impact-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${bottom}"/><circle class="impact-sel-dot is-${series.tone}" cx="${x(sel)}" cy="${y(values[sel])}" r="5"/>`:''}<line class="impact-base" x1="${left}" x2="${right}" y1="${bottom}" y2="${bottom}"/>${hits}${callout}</svg>`;
 }
 function seriesSelect(){
   return `<label class="impact-select"><span class="visually-hidden">Series</span><select id="impact-time-metric">${Object.entries(IMPACT_SERIES).map(([k,m])=>`<option value="${k}" ${impactView.series===k?'selected':''}>${m.label}</option>`).join('')}</select></label>`;
@@ -183,15 +230,18 @@ function seriesSelect(){
 function impactOverTime(){
   const title='<h2 id="impact-time-title">Across the day</h2>';
   if(dayPlanReady()){
-    const series=IMPACT_SERIES[impactView.series],rows=impactRows(),total=dayPlan.data.totals.atRiskMwh;
-    const table=`<table><caption>${escapeHtml(series.label)} per half-hour</caption><thead><tr><th>Half-hour</th><th>${escapeHtml(series.label)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(dayPlanTime(r.targetAt))}</td><td>${escapeHtml(series.format(r[series.field]))}</td></tr>`).join('')}</tbody></table>`;
-    const sub=series.field==='atRiskMwh'
-      ?`${escapeHtml(shortDate(dayPlan.data.date))}: ${n(total)} MWh at risk over the day (48 separate +30 min forecasts, past data)`
-      :`If charging were planned for each half-hour of ${escapeHtml(shortDate(dayPlan.data.date))} · separate what-ifs, never added up`;
+    const series=IMPACT_SERIES[impactView.series],rows=impactRows(),total=dayPlan.data.totals.atRiskMwh,date=escapeHtml(shortDate(dayPlan.data.date));
+    const cols=series.cols||[[series.label,r=>series.format(series.value(r))]];
+    const table=`<table><caption>${escapeHtml(series.label)} per half-hour</caption><thead><tr><th>Half-hour</th>${cols.map(([h])=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(dayPlanTime(r.targetAt))}</td>${cols.map(([,f])=>`<td>${escapeHtml(f(r))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const sub=impactView.series==='risk'
+      ?`${date} · ${n(total)} MWh at risk over 48 past +30 min forecasts`
+      :`${date} · each half-hour a separate what-if, never added up`;
+    const legend=`<ul class="impact-legend is-row">${series.legend.map(([cls,label])=>`<li><i class="${cls}"></i>${escapeHtml(label)}</li>`).join('')}</ul>`;
+    const method='<p class="impact-method"><b>Expected</b> runs the same plan on the model\'s P10, P50 and P90 forecasts, weights them 30/40/30 and multiplies by its chance of dispatch-down, so it uses the whole forecast. The <b>plan</b> follows the point forecast, the model\'s trend estimate, which reads 0 whenever the last observation did.</p>';
     return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
-    <div class="impact-card-head"><div>${title}<p>${sub}</p></div>${seriesSelect()}</div>
+    <div class="impact-card-head"><div>${title}<p>${sub}</p></div>${seriesSelect()}</div>${legend}
     <div class="impact-chart-wrap${drawIn('time',`${dayPlan.key}|${impactView.series}`)}">${areaChart(rows,series,{sel:dayPlanIndex()})}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
-    <details class="impact-data-table"><summary>View data</summary>${table}</details>
+    <details class="impact-data-table"><summary>View data</summary>${method}${table}</details>
   </section>`;
   }
   if(dayPlanLoading()){drawIn('time','loading');return `<section class="dash-card impact-time" aria-labelledby="impact-time-title" aria-busy="true">
