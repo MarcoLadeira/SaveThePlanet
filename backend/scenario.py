@@ -114,39 +114,6 @@ def build_scenario(forecast, total_kwh, flexible_kwh, kwh_per_charge=DEFAULT_KWH
     )
 
 
-DAY_FIELDS = ('targetAt', 'atRiskMwh', 'potentialRecoveryMwh', 'remainingWasteMwh', 'avoidedEmissionsTco2', 'evRangeKm')
-
-
-def build_day(replay, total_kwh, flexible_kwh):
-    """Apply the scenario to each non-overlapping half-hour of a historical day replay.
-
-    Unlike the +30/+60 alternatives, these intervals are consecutive and distinct, so
-    their recovery can be summed, under the stated assumption that the same demand
-    is available again in every half-hour.
-    """
-    validate_demand(total_kwh, flexible_kwh)
-    total, flexible = total_kwh / 1000, flexible_kwh / 1000
-    hours = replay['intervalMinutes'] / 60
-    capacity = replay['flexibleCapacityMw'] * hours
-    intervals = [dict({k: v for k, v in interval_outcome(p, capacity, hours, total, flexible).items() if k in DAY_FIELDS},
-                      probability=p.get('probability'))
-                 for p in replay['predictions']]
-    totals = {k: sum(i[k] for i in intervals) for k in DAY_FIELDS[1:]}
-    return dict(
-        date=replay['date'], range=replay['range'], source=replay['source'], dataMode='derived-scenario',
-        modelVersion=replay['modelVersion'], intervalMinutes=replay['intervalMinutes'],
-        horizonMinutes=replay['horizonMinutes'], flexibleCapacityMw=replay['flexibleCapacityMw'],
-        totalDemandKwh=total_kwh, flexibleDemandKwh=flexible_kwh, intervals=intervals, totals=totals,
-        assumptions=dict(gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM),
-        methodology=[
-            'Each half-hour is a separate +30 minute historical forecast replayed from the GridToEv dataset; intervals do not overlap.',
-            'The entered flexible demand is assumed to be available again in every half-hour, so daily totals are an upper-bound scenario.',
-            'Potential recovery per half-hour is the minimum of predicted surplus, flexible demand and power capacity times 0.5 hours.',
-            'Results are projected from historical forecasts, not measured charging or emissions savings.',
-        ],
-    )
-
-
 # Illustrative inputs for the About page's worked example. The figures are computed by the
 # same functions the pages use, so the example always matches the backend calculations.
 EXAMPLE_INPUTS = dict(atRiskMwh=42.0, curtailmentMwh=12.0, constraintMwh=30.0, flexibleCapacityMw=100.0,
@@ -177,4 +144,37 @@ def worked_example():
         assumptions=dict(kwhPerCharge=DEFAULT_KWH_PER_CHARGE, chargerKw=DEFAULT_CHARGER_KW,
                          gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM,
                          chargingEfficiency=1.0, intervalMinutes=x['intervalMinutes']),
+    )
+
+
+DAY_FIELDS = ('targetAt', 'atRiskMwh', 'potentialRecoveryMwh', 'remainingWasteMwh', 'avoidedEmissionsTco2', 'evRangeKm')
+
+
+def build_day(replay, total_kwh, flexible_kwh):
+    """Apply the scenario to each non-overlapping half-hour of a historical day replay.
+
+    Unlike the +30/+60 alternatives, these intervals are consecutive and distinct, so
+    their recovery can be summed, under the stated assumption that the same demand
+    is available again in every half-hour.
+    """
+    validate_demand(total_kwh, flexible_kwh)
+    total, flexible = total_kwh / 1000, flexible_kwh / 1000
+    hours = replay['intervalMinutes'] / 60
+    capacity = replay['flexibleCapacityMw'] * hours
+    intervals = [dict({k: v for k, v in interval_outcome(p, capacity, hours, total, flexible).items() if k in DAY_FIELDS},
+                      probability=p.get('probability'))
+                 for p in replay['predictions']]
+    totals = {k: sum(i[k] for i in intervals) for k in DAY_FIELDS[1:]}
+    return dict(
+        date=replay['date'], range=replay['range'], source=replay['source'], dataMode='derived-scenario',
+        modelVersion=replay['modelVersion'], intervalMinutes=replay['intervalMinutes'],
+        horizonMinutes=replay['horizonMinutes'], flexibleCapacityMw=replay['flexibleCapacityMw'],
+        totalDemandKwh=total_kwh, flexibleDemandKwh=flexible_kwh, intervals=intervals, totals=totals,
+        assumptions=dict(gridIntensityTco2PerMwh=GRID_INTENSITY_T_PER_MWH, evKwhPerKm=EV_KWH_PER_KM),
+        methodology=[
+            'Each half-hour is a separate +30 minute historical forecast replayed from the GridToEv dataset; intervals do not overlap.',
+            'The entered flexible demand is assumed to be available again in every half-hour, so daily totals are an upper-bound scenario.',
+            'Potential recovery per half-hour is the minimum of predicted surplus, flexible demand and power capacity times 0.5 hours.',
+            'Results are projected from historical forecasts, not measured charging or emissions savings.',
+        ],
     )

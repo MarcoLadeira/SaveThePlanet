@@ -22,6 +22,7 @@ import chat
 import explorer
 import fleet as fleets
 import optimizer
+import storage
 import synthetic
 import targets
 from gate import FOREGROUND, PREFETCH, Busy, Superseded, gate
@@ -564,6 +565,7 @@ class Handler(SimpleHTTPRequestHandler):
         started = time.monotonic()
         try:
             plan = optimizer.optimize(fleet_clean, forecast, mode, fixture and f'{fleets.presets()["fixtureVersion"]}/{fixture}')
+            storage.attach(plan)  # the Dashboard's simulated grid battery takes what the EVs could not
         except optimizer.ForecastError as error:
             self.send_json(502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': str(error)}})
             return
@@ -630,6 +632,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:  # the same fleet plan the page shows; Volt still answers everything else without it
             plan = optimizer.optimize(fleets.preset(selectors['fleetPreset']), forecast, selectors['uncertainty'],
                                       f'{fleets.presets()["fixtureVersion"]}/{selectors["fleetPreset"]}')
+            storage.attach(plan)  # same grid battery as the Dashboard card
         except (ValueError, RuntimeError, KeyError, OSError) as error:
             print(f'Volt has no fleet plan ({error}).', flush=True)
             plan = None

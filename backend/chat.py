@@ -211,6 +211,8 @@ def fleet_facts(plan, horizon):
         batteryKwh=r1(ledger['batteryDeliveredKwh']), lossKwh=r1(ledger['chargingLossKwh']),
         utilizationPct=None if ledger['utilizationFraction'] is None else r1(ledger['utilizationFraction'] * 100),
         ledgerOutcome=ledger['outcome'], networkEligibility=plan.get('networkEligibility'),
+        # The simulated grid battery (backend/storage.py): grid kWh it took and its charge before/after, or None.
+        gridBattery=grid_battery_facts(ledger.get('storage')),
         gainKwh=r1(alt['improvement']['claimedKwh']), improved=alt['improvement']['improved'],
         unmetKwh=r1(o['unmetKwh']), vehiclesMet=o['vehiclesMet'], vehiclesTotal=o['vehiclesMet'] + o['vehiclesMissed'],
         policy=o['policy'],
@@ -220,6 +222,14 @@ def fleet_facts(plan, horizon):
                         for v in missed[:MAX_FACT_VEHICLES]],
         missedCount=len(missed),
     )
+
+
+def grid_battery_facts(s):
+    if not s:
+        return None
+    return dict(simulated=True, gridKwh=r1(s['gridKwh']), storedKwh=r1(s['storedKwh']), capacityKwh=r1(s['capacityKwh']),
+                maxPowerKw=r1(s['maxPowerKw']), startPct=r1(s['startFraction'] * 100), endPct=r1(s['endFraction'] * 100),
+                limitedBy=s['limitedBy'])
 
 
 def provenance(facts):
@@ -259,6 +269,7 @@ def build_card(intent, facts):
         at = dict(targetAt=plan['windowStartAt'])
         rows = [row(plan['plannedKwh'], 'kWh', 'Optimized: charging in the forecast window', at),
                 row(plan['batteryKwh'], 'kWh', 'Of which reaches EV batteries (after losses)', at),
+                *([row(plan['gridBattery']['gridKwh'], 'kWh', 'Taken by the simulated grid battery', at)] if plan.get('gridBattery') else []),
                 row(plan['unallocatedKwh'], 'kWh', 'Eligible forecast energy left unallocated', at),
                 row(plan['baselineKwh'], 'kWh', 'Charging on arrival (baseline)', at),
                 row(plan['unmetKwh'], 'kWh', 'Charging still needed by departure', at)]
@@ -332,7 +343,10 @@ def fleet_text(question, facts):
         if not plan['eligibleKwh']:
             return "None of the forecast energy at risk can be claimed by the simulated fleet's sites, so none is allocated."
         limit = plan['windowLimits'][0]['message'] if plan['windowLimits'] else 'The fleet reached its limits.'
-        return (f"The simulated fleet can take {plan['plannedKwh']:g} kWh of the {plan['eligibleKwh']:g} kWh eligible forecast energy; "
+        battery = plan.get('gridBattery')
+        stored = (f" The simulated grid battery takes {battery['gridKwh']:g} kWh more "
+                  f"({battery['startPct']:g}% to {battery['endPct']:g}% full)." if battery and battery['gridKwh'] > 0 else '')
+        return (f"The simulated fleet can take {plan['plannedKwh']:g} kWh of the {plan['eligibleKwh']:g} kWh eligible forecast energy.{stored} "
                 f"{plan['unallocatedKwh']:g} kWh stays unallocated. {limit}")
     if not plan['forecastAtRiskKwh']:
         return 'No renewable energy is forecast at risk in this half-hour, so the fleet charges as usual.'
