@@ -641,6 +641,8 @@ class Handler(SimpleHTTPRequestHandler):
             elif name in ('daily/predict', 'daily/week'):
                 day = date.fromisoformat(query.get('date', '')).isoformat()
                 action = partial({'daily/predict': explorer.daily_predict, 'daily/week': explorer.daily_week}[name], day)
+            elif name == 'formulas':
+                action = explorer.model_formulas  # About page: both models' fitted formulas
             elif name in ('short-term', 'daily'):
                 action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
             else:

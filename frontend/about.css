@@ -1,53 +1,59 @@
 /* About page (Settings → About). The page scrolls inside the frame so the desktop fit does not
    shrink it; on narrow screens it becomes a normal full-width page (see fitDesktop). */
-.about-page{flex:1 1 0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px 4px 24px 0;scroll-behavior:smooth}
+.about-page{--about-link:#157046;--about-info-bg:#e2edfb;--about-info-ink:#1f4f8f;--about-eq-bg:#f1f6f2;
+  flex:1 1 0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px 4px 24px 0;scroll-behavior:smooth}
+/* Dark theme: every colour pair is set here, so no light fallback ends up behind light text. */
+.dashboard-main[data-theme="dark"] .about-page{--about-link:#7fe0ae;--about-info-bg:#172b45;--about-info-ink:#b9d7f7;--about-eq-bg:#10201a}
 .about-page>*{flex:0 0 auto}
 .about-page .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.about-page a{color:var(--about-link);font-weight:700}
+.about-page small{font-weight:600;color:var(--ink-3)}
 .about-back{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;padding:8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:13px;font-weight:750;cursor:pointer}
 .about-back:hover{border-color:var(--green)}
-.about-back:focus-visible,.about-page a:focus-visible,.about-assumptions summary:focus-visible,.about-open:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.about-back:focus-visible,.about-page a:focus-visible,.about-page summary:focus-visible,.about-open:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .about-back-icon{transform:rotate(180deg)}
-.about-intro{padding:18px 22px;gap:10px}
-.about-intro p{margin:0;font-size:15px;line-height:1.55;color:var(--ink)}
-.about-status{padding:10px 14px;border-radius:12px;background:var(--blue-soft,#e2edfb);color:var(--blue-ink,#1f5aa3);font-size:13.5px!important}
+.about-intro{padding:18px 22px;gap:12px}
+.about-intro>p{margin:0;font-size:15.5px;line-height:1.55;color:var(--ink)}
+.about-words{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+.about-words div{padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.about-words dt{font-size:13.5px;font-weight:800;color:var(--ink)}
+.about-words dd{margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--ink-2)}
+.about-status{margin:0;padding:10px 14px;border-radius:12px;background:var(--about-info-bg);color:var(--about-info-ink);font-size:13.5px;line-height:1.5}
+.about-status b{color:inherit}
 .about-status.is-demo{background:var(--amber-soft);color:var(--amber-ink)}
-.about-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0;padding:0;list-style:none}
-.about-step{padding:18px 22px;gap:10px}
-.about-step h2{display:flex;align-items:center;gap:10px;margin:0;font-size:18px;color:var(--ink)}
-.about-num{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:50%;background:var(--forest);color:#fff;font-size:15px}
-.about-step p,.about-step li,.about-step dd{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2)}
-.about-step b,.about-example b{color:var(--ink)}
-.about-page a{color:var(--green-deep);font-weight:700}
-.about-sources,.about-parts{display:grid;gap:6px;margin:0;padding-left:20px}
-.about-terms{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0}
-.about-terms dt{font-weight:800;color:var(--ink);font-size:14px}
-.about-formula{padding:12px 14px;border-left:4px solid var(--green);border-radius:10px;background:var(--surface-2);font-family:Consolas,"Cascadia Mono",monospace}
-.about-formula p{margin:0;font-size:14px!important;line-height:1.6;color:var(--ink)!important}
-.about-note{font-size:12.5px!important;color:var(--ink-3)!important}
-.about-warning{padding:10px 14px;border-radius:12px;background:var(--amber-soft);color:var(--amber-ink)!important}
-.about-warning b{color:inherit!important}
-.about-facts{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-.about-facts li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:9px 12px;border-radius:10px;background:var(--surface-2)}
-.about-facts span{font-size:13px;color:var(--ink-2)}
-.about-facts b{font-size:13.5px;color:var(--ink);text-align:right}
-.about-facts small{grid-column:1/-1;font-size:12px;color:var(--ink-3)}
-.about-example{padding:18px 22px;border-radius:24px;background:var(--surface);box-shadow:0 4px 0 var(--edge)}
-.about-example h2{margin:0 0 8px;font-size:18px;color:var(--ink)}
-.about-example h2 small{font-size:12.5px;font-weight:600;color:var(--ink-3)}
-.about-example>p{margin:0 0 10px;font-size:14px;line-height:1.55;color:var(--ink-2)}
-.about-example-steps{display:grid;gap:8px;margin:0 0 10px;padding-left:22px}
-.about-example-steps li{font-size:14px;color:var(--ink-2)}
-.about-example-steps span{display:block;font-weight:800;color:var(--ink)}
-.about-example-steps code{display:block;margin-top:3px;padding:8px 10px;border-radius:8px;background:var(--surface-2);font-size:13.5px;color:var(--ink);white-space:normal}
-.about-example-steps small{display:block;margin-top:3px;font-size:12.5px;color:var(--ink-3)}
+.about-section-title{margin:6px 0 -4px;font-size:19px;color:var(--ink)}
+.about-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.about-model{padding:18px 22px;gap:10px}
+.about-model header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.about-model h3{margin:0;font-size:18px;color:var(--ink)}
+.about-tag{padding:4px 10px;border-radius:999px;background:var(--green-soft);color:var(--ink);font-size:12px;font-weight:800;white-space:nowrap}
+.about-predicts{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2)}
+.about-predicts b{color:var(--ink)}
+.about-fs{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.about-f h4{margin:0 0 5px;font-size:14px;color:var(--ink)}
+.about-f p{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.about-f p b{color:var(--ink)}
+.about-f .about-eq{margin-bottom:6px;padding:9px 12px;border-left:4px solid var(--green);border-radius:8px;background:var(--about-eq-bg);color:var(--ink);font-family:Consolas,"Cascadia Mono",monospace;font-size:13.5px;line-height:1.6;overflow-wrap:anywhere}
+.about-note{margin:0;font-size:12.5px;line-height:1.5;color:var(--ink-3)}
+.about-note b{color:var(--ink-2)}
+.about-exact summary,.about-assumptions summary{cursor:pointer;font-weight:800;color:var(--ink)}
+.about-exact summary{font-size:12.5px;color:var(--ink-2)}
+.about-exact ul{display:grid;gap:6px;margin:8px 0 0;padding:0;list-style:none}
+.about-exact li{font-size:12px;color:var(--ink-2)}
+.about-exact code{display:block;margin-top:2px;padding:6px 8px;border-radius:6px;background:var(--about-eq-bg);color:var(--ink);font-size:11.5px;overflow-wrap:anywhere}
+.about-ev{padding:18px 22px;gap:12px}
+.about-ev h2{margin:0;font-size:18px;color:var(--ink)}
+.about-fs-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.about-worked{margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-2);font-size:14px;line-height:1.7;color:var(--ink-2)}
+.about-worked b{color:var(--ink)}
 .about-assumptions{padding:14px 22px;border-radius:20px;background:var(--surface);box-shadow:0 4px 0 var(--edge)}
-.about-assumptions summary{cursor:pointer;font-size:15px;font-weight:800;color:var(--ink)}
-.about-assumptions ul{display:grid;gap:6px;margin:10px 0;padding-left:20px}
-.about-assumptions li,.about-assumptions p{font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.about-assumptions summary{font-size:15px}
+.about-assumptions p{margin:10px 0 0;font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+.about-assumptions b{color:var(--ink)}
 /* The About button on the Settings header. */
 .about-open{position:relative;z-index:3;display:flex;align-items:center;gap:8px;margin:0 88px 0 auto;padding:9px 16px;border:0;border-radius:12px;background:var(--forest);box-shadow:0 3px 0 var(--forest-edge);color:#fff;font-size:13px;font-weight:800;white-space:nowrap;cursor:pointer}
 .about-open:hover{transform:translateY(-1px)}
-@media (max-width:1100px){.about-steps{grid-template-columns:1fr}}
+@media (max-width:1100px){.about-models,.about-fs-row{grid-template-columns:1fr}.about-words{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* Narrow screens: a normal, unscaled page without the sidebar (Back to Settings stays). */
 @media (max-width:760px){
   .app-shell.is-about{position:static;width:auto!important;height:auto!important;transform:none!important;overflow:visible}
@@ -59,9 +65,7 @@
   .app-shell.is-about .studio-header{margin:0 -14px;padding:16px 18px 12px}
   .app-shell.is-about .studio-header .dash-title h1{font-size:30px}
   .about-page{overflow:visible}
-  .about-step,.about-intro,.about-example,.about-assumptions{padding:14px 16px}
-  .about-terms{grid-template-columns:1fr}
-  .about-facts li{grid-template-columns:1fr}
-  .about-facts b{text-align:left}
+  .about-intro,.about-model,.about-ev,.about-assumptions{padding:14px 16px}
+  .about-words{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){.about-page{scroll-behavior:auto}.about-open:hover{transform:none}}

@@ -1,9 +1,8 @@
-// About page (Settings → About): how SaveThePlanet works, in four plain-English steps.
-// Every formula below is the one the backend uses (backend/scenario.py). The worked example
-// and the assumptions are fetched from /api/v1/about/example, which runs those same functions,
-// and the model facts come from the live model information (/api/v1/explorer/short-term),
-// so nothing on this page is typed in by hand and allowed to drift.
-const aboutState = { example: null, exampleError: '', model: null, modelError: '', loading: false };
+// About page (Settings → About): how SaveThePlanet works, in plain English.
+// The model formulas come from GridToEV's /fitted-formulas and /formulas endpoints (via
+// /api/v1/explorer/formulas), the accuracy figures from the live model information, and the
+// EV example from /api/v1/about/example (backend/scenario.py), so no number here is typed by hand.
+const aboutState = { formulas: null, formulasError: '', example: null, exampleError: '', model: null, loading: false };
 const ABOUT_LINKS = {
   gridtoev: 'https://github.com/Carlson29/GridToEv',
   howItWorks: 'https://github.com/Carlson29/GridToEv/blob/main/docs/HOW_IT_WORKS.md',
@@ -18,7 +17,7 @@ const ABOUT_LINKS = {
 };
 
 async function aboutLoad() {
-  if (aboutState.loading || (aboutState.example && aboutState.model)) return;
+  if (aboutState.loading || (aboutState.formulas && aboutState.example)) return;
   aboutState.loading = true;
   const get = async (path) => {
     const response = await fetch(path);
@@ -27,122 +26,153 @@ async function aboutLoad() {
     return body;
   };
   await Promise.all([
+    get('/api/v1/explorer/formulas').then((body) => { aboutState.formulas = body; }, (error) => { aboutState.formulasError = error.message; }),
     get('/api/v1/about/example').then((body) => { aboutState.example = body; }, (error) => { aboutState.exampleError = error.message; }),
-    get('/api/v1/explorer/short-term').then((body) => { aboutState.model = body.model; }, (error) => { aboutState.modelError = error.message; }),
+    get('/api/v1/explorer/short-term').then((body) => { aboutState.model = body.model; }, () => {}),
   ]);
   aboutState.loading = false;
   if (pageFromHash() === 'about') render();
 }
 
 const aboutLink = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}<span class="sr-only"> (opens in a new tab)</span></a>`;
-const aboutNum = (value, digits = 1) => new Intl.NumberFormat('en-IE', { maximumFractionDigits: digits }).format(value);
-function aboutFormula(lines) {
-  return `<div class="about-formula" role="math">${lines.map((line) => `<p>${line}</p>`).join('')}</div>`;
+const aboutNum = (value, digits = 1) => new Intl.NumberFormat('en-IE', { maximumFractionDigits: digits }).format(value).replace('-', '−');
+const aboutPct = (value) => `${Math.round(value * 100)}%`;
+// "tree₁ + … + tree₁₈₀": the sum of every tree's answer, written the way a person would read it.
+const aboutSub = (n) => String(n).replace(/\d/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[d]);
+const aboutTrees = (e) => `tree${aboutSub(1)} + … + tree${aboutSub(e.trees)}`;
+const aboutStart = (e) => (Math.abs(e.start) < 0.005 ? '0' : aboutNum(e.start, 2));
+
+// One formula: what it answers, the formula itself, and what it means in everyday words.
+function aboutFormula(title, formula, meaning) {
+  return `<li class="about-f"><h4>${title}</h4><p class="about-eq" role="math">${formula}</p><p>${meaning}</p></li>`;
 }
-function aboutTerm(term, meaning) { return `<dt>${term}</dt><dd>${meaning}</dd>`; }
 
 // What the pages are showing right now: never call a historical replay "live".
 function aboutDataStatus() {
   const d = modelState.data;
   if (!d) return '<p class="about-status">Loading what the pages are showing…</p>';
-  if (d.dataMode === 'simulated') return '<p class="about-status is-demo"><b>Right now:</b> an <b>offline example</b> (simulated data), because the forecast model could not be reached. It is not a real forecast.</p>';
-  return `<p class="about-status"><b>Right now:</b> a <b>historical dataset prediction</b> — the GridToEV model re-run for ${escapeHtml(modelTime(d.predictions[0].targetAt, true))} using archived January 2026 data. It is <b>not live</b>.</p>`;
+  if (d.dataMode === 'simulated') return '<p class="about-status is-demo"><b>Right now:</b> an <b>offline example</b>, because the forecast model could not be reached. It is not a real forecast.</p>';
+  return `<p class="about-status"><b>Right now:</b> a <b>historical prediction</b> for ${escapeHtml(modelTime(d.predictions[0].targetAt, true))}, re-run on archived January 2026 data. It is <b>not live</b>.</p>`;
 }
 
-function aboutModelFacts() {
-  const m = aboutState.model;
-  if (!m) return `<p class="about-note">${aboutState.modelError ? `Model details are unavailable right now (${escapeHtml(aboutState.modelError)}).` : 'Loading model details…'}</p>`;
-  const t = m.test || {};
-  return `<ul class="about-facts">
-      <li><span>Model version</span><b>GridToEV V1 ${escapeHtml(m.version)}</b></li>
-      <li><span>Forecast step</span><b>one half-hour, made 30 or 60 minutes ahead</b></li>
-      <li><span>Typical error on unseen data</span><b>${aboutNum(t.maeMwh)} MWh per half-hour</b><small>Over ${aboutNum(t.rows, 0)} half-hours the model never trained on. A simple “same as the last half-hour” guess was off by ${aboutNum(t.latestObservationMaeMwh)} MWh.</small></li>
-      <li><span>How often reality fell in the “likely range”</span><b>${Math.round((t.intervalCoverage || 0) * 100)}% of the time</b><small>The aim is 80%. The likely range (called P10–P90) is where the model expects the true value 8 times out of 10.</small></li>
-    </ul>
-    <p class="about-note">Accuracy details: ${aboutLink(ABOUT_LINKS.howItWorks, 'how GridToEV is trained and tested')} · ${aboutLink(ABOUT_LINKS.apiDocs, 'GridToEV API documentation')}</p>`;
+function aboutExact(model) {
+  return `<details class="about-exact"><summary>Exact formulas from the API</summary>
+    <ul>${model.estimators.map((e) => `<li><b>${escapeHtml(e.id)}</b><code>${escapeHtml(e.formula)}</code></li>`).join('')}</ul></details>`;
 }
 
-function aboutExample() {
+function aboutPending() {
+  return `<p class="about-note">${aboutState.formulasError ? `The formulas are unavailable right now (${escapeHtml(aboutState.formulasError)}).` : 'Loading the formulas from the model…'}</p>`;
+}
+
+function aboutShortTermModel() {
+  const m = aboutState.formulas?.shortTerm;
+  const head = `<header><h3>Half-hour forecast</h3><span class="about-tag">V1${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
+  if (!m) return `<article class="dash-card about-model">${head}${aboutPending()}</article>`;
+  const e = Object.fromEntries(m.estimators.map((item) => [item.id, item]));
+  const p = m.parameters, alpha = p.dispatch_trend_alpha_by_horizon || {}, risk = p.risk_level_cutoffs || {};
+  const shares = p.default_component_shares || {}, widen = p.prediction_interval_adjustment_mwh;
+  const mlOff = Object.values(p.dispatch_regression_ml_weight_by_horizon || {}).every((w) => w === 0);
+  const t = aboutState.model?.test;
+  const example = 20 + alpha[30] * (20 - 10);
+  return `<article class="dash-card about-model">${head}
+    <p class="about-predicts"><b>Predicts:</b> how much wind and solar power (MWh) the grid will switch off in <b>one half-hour</b>, <b>30 or 60 minutes ahead</b>. It reads ${m.inputs} grid measurements known at that moment: wind, demand, prices, power flows to Britain and recent switch-offs.</p>
+    <ol class="about-fs">
+      ${aboutFormula('1 · Chance of a switch-off',
+        `chance = sigmoid(${aboutStart(e.event_classifier)} + ${aboutTrees(e.event_classifier)})`,
+        `${e.event_classifier.trees} decision trees each add or subtract a little evidence. Sigmoid turns the total into a chance from 0% to 100%. The dashboard shows <b>high risk</b> at ${aboutPct(risk.high)} or more and <b>medium</b> at ${aboutPct(risk.medium)} or more.`)}
+      ${aboutFormula('2 · Amount switched off (MWh)',
+        `amount = latest + α × (latest − previous) &nbsp;<small>(never below 0)</small><br><small>α = ${aboutNum(alpha[30], 3)} at 30 min · ${aboutNum(alpha[60], 3)} at 60 min</small>`,
+        `Start from the last measured half-hour and continue its recent trend a little. <i>Example:</i> 20 MWh now and 10 MWh before gives 20 + ${aboutNum(alpha[30], 3)} × 10 = <b>${aboutNum(example, 2)} MWh</b>.${mlOff ? ' A tree model for this amount exists but currently has weight 0, so this trend is the number you see.' : ''}`)}
+      ${aboutFormula('3 · Split into the two causes',
+        `curtailment = amount × C ÷ (C + K)<br>constraints = amount − curtailment<br><small>C = e^(${aboutStart(e.curtailment_regressor)} + ${aboutTrees(e.curtailment_regressor)}) · K = e^(${aboutStart(e.constraint_regressor)} + ${aboutTrees(e.constraint_regressor)})</small>`,
+        `Two more tree models guess each cause (e^ keeps the guesses positive). They only share out the amount, so the two parts always add up to it. If both guess 0, the usual split is used: ${aboutPct(shares.curtailment)} curtailment, ${aboutPct(shares.constraint)} constraints.`)}
+      ${aboutFormula('4 · Likely range (P10–P90)',
+        `low = latest + (${aboutStart(e.dispatch_down_quantile_p10)} + ${aboutTrees(e.dispatch_down_quantile_p10)}) − ${aboutNum(widen, 2)}<br>high = latest + (${aboutStart(e.dispatch_down_quantile_p90)} + ${aboutTrees(e.dispatch_down_quantile_p90)}) + ${aboutNum(widen, 2)}`,
+        `Two tree models predict a cautious and a generous change from the latest half-hour. Each end is pushed out by ${aboutNum(widen, 2)} MWh, so the range should hold the real value about 8 times in 10.`)}
+    </ol>
+    ${t ? `<p class="about-note"><b>Accuracy:</b> on ${aboutNum(t.rows, 0)} half-hours it never trained on, it was off by ${t.maeMwh.toFixed(1)} MWh on average, against ${t.latestObservationMaeMwh.toFixed(1)} MWh for simply repeating the last half-hour. The range held the real value ${aboutPct(t.intervalCoverage)} of the time (target 80%). ${aboutLink(ABOUT_LINKS.howItWorks, 'How it was tested')}</p>` : ''}
+    ${aboutExact(m)}
+  </article>`;
+}
+
+function aboutDailyModel() {
+  const m = aboutState.formulas?.daily;
+  const head = `<header><h3>Daily forecast</h3><span class="about-tag">V2${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
+  if (!m) return `<article class="dash-card about-model">${head}${aboutPending()}</article>`;
+  const e = Object.fromEntries(m.estimators.map((item) => [item.id, item]));
+  return `<article class="dash-card about-model">${head}
+    <p class="about-predicts"><b>Predicts:</b> the <b>total curtailment (MWh) over a whole day</b> (midnight to midnight UTC), from the day-ahead weather forecast. It reads ${m.inputs} inputs: wind, sunshine and temperature in four regions of Ireland, plus the time of year and whether it is a weekend.</p>
+    <ol class="about-fs">
+      ${aboutFormula('1 · Chance of curtailment that day',
+        `chance = sigmoid(${aboutStart(e.event_model)} + ${aboutTrees(e.event_model)})`,
+        `${e.event_model.trees} decision trees weigh up the weather. Sigmoid turns their total into a chance from 0% to 100%.`)}
+      ${aboutFormula('2 · Amount, if it happens (MWh)',
+        `amount = (${aboutTrees(e.amount_model)}) ÷ ${e.amount_model.trees}`,
+        `${e.amount_model.trees} trees, trained only on days that had curtailment, each make a guess. The model takes their average.`)}
+      ${aboutFormula('3 · Predicted curtailment (MWh)',
+        'predicted = chance × amount',
+        '<i>Example:</i> a 60% chance of a 200 MWh day gives 0.6 × 200 = <b>120 MWh</b>. An unlikely day gives a small number, even if it could have been a big one.')}
+    </ol>
+    <p class="about-note">This model is experimental. It covers curtailment only (no constraints) and gives no likely range.</p>
+    ${aboutExact(m)}
+  </article>`;
+}
+
+function aboutEvSection() {
   const e = aboutState.example;
-  if (!e) return `<p class="about-note">${aboutState.exampleError ? `The worked example is unavailable right now (${escapeHtml(aboutState.exampleError)}).` : 'Loading the worked example…'}</p>`;
-  const i = e.inputs, s = e.steps, a = e.assumptions;
-  const limit = s.potentialRecoveryMwh === s.flexibleDemandMwh ? 'your flexible EV demand' : s.potentialRecoveryMwh === s.capacityEnergyMwh ? 'the charging capacity' : 'the energy at risk';
-  return `<section class="about-example" aria-labelledby="about-example-title">
-      <h2 id="about-example-title">A worked example <small>(illustrative numbers, not a real forecast)</small></h2>
-      <p>Imagine one half-hour where the model predicts <b>${aboutNum(i.curtailmentMwh)} MWh</b> of curtailment and <b>${aboutNum(i.constraintMwh)} MWh</b> of constraints. You have <b>${aboutNum(i.flexibleDemandKwh, 0)} kWh</b> of EV charging that can move in time, and <b>${aboutNum(i.flexibleCapacityMw, 0)} MW</b> of chargers.</p>
-      <ol class="about-example-steps">
-        <li><span>Energy at risk</span><code>${aboutNum(i.curtailmentMwh)} + ${aboutNum(i.constraintMwh)} = <b>${aboutNum(s.atRiskMwh)} MWh</b></code></li>
-        <li><span>Potential energy</span><code>min(${aboutNum(s.atRiskMwh)}, ${aboutNum(i.flexibleDemandKwh, 0)} ÷ 1,000, ${aboutNum(i.flexibleCapacityMw, 0)} × 0.5) = min(${aboutNum(s.atRiskMwh)}, ${aboutNum(s.flexibleDemandMwh)}, ${aboutNum(s.capacityEnergyMwh)}) = <b>${aboutNum(s.potentialRecoveryMwh)} MWh</b></code><small>The smallest number wins: here the limit is ${limit}.</small></li>
-        <li><span>In EV terms</span><code>${aboutNum(s.potentialRecoveryMwh)} × 1,000 = <b>${aboutNum(s.potentialKwh, 0)} kWh</b> → ${aboutNum(s.potentialKwh, 0)} ÷ ${aboutNum(a.kwhPerCharge, 0)} ≈ <b>${aboutNum(s.chargingSessionsEquivalent)} charging sessions’ worth</b></code></li>
-      </ol>
-      <p class="about-note">So even in the best case, <b>${aboutNum(s.remainingAtRiskMwh)} MWh</b> would still be wasted. These are the same calculations the app uses (${aboutLink(ABOUT_LINKS.scenario, 'backend/scenario.py')}).</p>
-    </section>`;
+  const perCharge = e?.assumptions.kwhPerCharge ?? 30;
+  const worked = e ? (() => {
+    const i = e.inputs, s = e.steps;
+    const limit = s.potentialRecoveryMwh === s.flexibleDemandMwh ? 'the charging that can wait' : s.potentialRecoveryMwh === s.capacityEnergyMwh ? 'the chargers’ capacity' : 'the spare power itself';
+    return `<p class="about-worked"><b>Worked example</b> <small>(made-up numbers)</small><br>
+      ${aboutNum(i.curtailmentMwh)} + ${aboutNum(i.constraintMwh)} = <b>${aboutNum(s.atRiskMwh)} MWh</b> at risk →
+      min(${aboutNum(s.atRiskMwh)}, ${aboutNum(i.flexibleDemandKwh, 0)} ÷ 1,000, ${aboutNum(i.flexibleCapacityMw, 0)} × 0.5) = <b>${aboutNum(s.potentialRecoveryMwh)} MWh</b> →
+      <b>${aboutNum(s.potentialKwh, 0)} kWh</b> → ${aboutNum(s.potentialKwh, 0)} ÷ ${aboutNum(perCharge, 0)} ≈ <b>${aboutNum(s.chargingSessionsEquivalent)} charges</b>.
+      Here the limit is ${limit}, so ${aboutNum(s.remainingAtRiskMwh)} MWh would still be wasted.</p>`;
+  })() : `<p class="about-note">${aboutState.exampleError ? `The worked example is unavailable (${escapeHtml(aboutState.exampleError)}).` : 'Loading the worked example…'}</p>`;
+  return `<section class="dash-card about-ev" aria-labelledby="about-ev-title">
+    <h2 id="about-ev-title">From forecast to EV charging <small>(our app’s own maths, using the half-hour forecast)</small></h2>
+    <ol class="about-fs about-fs-row">
+      ${aboutFormula('Energy at risk (MWh)', 'at risk = curtailment + constraints',
+        'Everything the grid is expected to switch off in that half-hour. The 30- and 60-minute forecasts are two guesses about the <b>same</b> half-hour, so they are never added together.')}
+      ${aboutFormula('Usable by EVs (MWh)', 'usable = min(at risk, flexible kWh ÷ 1,000, chargers MW × 0.5 h)',
+        '“min” means the smallest of the three wins: the spare power, the charging that can wait, or what the chargers can draw in half an hour. It is an <b>upper limit</b>, not energy actually saved.')}
+      ${aboutFormula('In charging terms', `kWh = MWh × 1,000<br>charges = kWh ÷ ${aboutNum(perCharge, 0)}`,
+        `One charge is a typical ${aboutNum(perCharge, 0)} kWh top-up, with no energy lost. It compares amounts of energy. It is <b>not</b> a count of real cars booked in; a charging scheduler is ${aboutLink(ABOUT_LINKS.optimiser, 'still being built')}.`)}
+    </ol>
+    ${worked}
+  </section>`;
 }
 
-function aboutAssumptions() {
-  const e = aboutState.example;
-  if (!e) return '';
-  const a = e.assumptions, s = e.steps;
+function aboutSources() {
+  const a = aboutState.example?.assumptions;
   return `<details class="about-assumptions">
-      <summary>Assumptions &amp; sources</summary>
-      <ul>
-        <li><b>${aboutNum(a.kwhPerCharge, 0)} kWh per charge</b> — a typical top-up session, used for “charging sessions’ worth”.</li>
-        <li><b>${aboutNum(a.chargingEfficiency * 100, 0)}% charging efficiency</b> — no energy is assumed lost while charging. Real charging loses some.</li>
-        <li><b>${aboutNum(a.chargerKw, 0)} kW per charger</b> — a public AC charger, used on the Charging page for the fewest chargers that could take the energy in half an hour.</li>
-        <li><b>CO₂ avoided (estimate)</b> = potential MWh × ${aboutNum(a.gridIntensityTco2PerMwh, 2)} tonnes per MWh, a rough Irish grid average. In the example: ${aboutNum(s.avoidedEmissionsTco2, 3)} t.</li>
-        <li><b>Driving range (estimate)</b> = potential kWh ÷ ${aboutNum(a.evKwhPerKm, 2)} kWh per km, a typical car. In the example: ${aboutNum(s.evRangeKm, 0)} km.</li>
-        <li><b>Limits:</b> the short-term model learned from one month (January 2026), and its test days contained no curtailment examples. Every figure is a projection, not measured charging or measured savings.</li>
-      </ul>
-      <p>Sources: ${aboutLink(ABOUT_LINKS.gridtoev, 'GridToEV repository')} · ${aboutLink(ABOUT_LINKS.howItWorks, 'How GridToEV works')} · ${aboutLink(ABOUT_LINKS.apiDocs, 'API documentation')} · ${aboutLink(ABOUT_LINKS.scenario, 'our calculation code')}</p>
-    </details>`;
+    <summary>Data sources &amp; assumptions</summary>
+    <p><b>Data (historical, January 2026, not live):</b> ${aboutLink(ABOUT_LINKS.eirgridSystem, 'EirGrid system data')} (every 15 min) · ${aboutLink(ABOUT_LINKS.eirgridDispatchDown, 'EirGrid dispatch-down report')} (every 30 min) · ENTSO-E samples via Hack the Climate: ${aboutLink(ABOUT_LINKS.generation, 'generation')}, ${aboutLink(ABOUT_LINKS.load, 'demand')}, ${aboutLink(ABOUT_LINKS.prices, 'prices')}.</p>
+    <p><b>How it reaches you:</b> our server asks the ${aboutLink(ABOUT_LINKS.gridtoev, 'GridToEV')} model (${aboutLink(ABOUT_LINKS.apiDocs, 'API docs')}); its access key never leaves our server.</p>
+    ${a ? `<p><b>Estimates on other pages:</b> CO₂ avoided = usable MWh × ${aboutNum(a.gridIntensityTco2PerMwh, 2)} t per MWh (a rough Irish grid average) · driving range = kWh ÷ ${aboutNum(a.evKwhPerKm, 2)} kWh per km · chargers are ${aboutNum(a.chargerKw, 0)} kW.</p>` : ''}
+    <p><b>Limits:</b> the models learned from about one month of data, and the half-hour model’s test days had no curtailment. Every figure is a projection. Our calculations: ${aboutLink(ABOUT_LINKS.scenario, 'backend/scenario.py')}.</p>
+  </details>`;
 }
 
 function renderAbout() {
   queueMicrotask(aboutLoad);
-  const step = (n, title, body) => `<li class="dash-card about-step"><h2><span class="about-num" aria-hidden="true">${n}</span>${title}</h2>${body}</li>`;
-  return `${studioHeader('About', 'How SaveThePlanet works, in about a minute.')}
+  return `${studioHeader('About', 'How SaveThePlanet works.')}
   <div class="about-page">
     <button type="button" class="about-back" data-page="settings">${icon('arrow', 16, 'about-back-icon')}Back to Settings</button>
     <section class="dash-card about-intro">
-      <p><b>SaveThePlanet</b> uses an AI forecast to spot renewable electricity — mostly wind — that Ireland’s grid may have to switch off, and estimates how much of it electric-car charging could use instead.</p>
+      <p><b>SaveThePlanet</b> predicts when Ireland’s grid will have to <b>switch off</b> wind and solar power it can’t use, and works out how much of it electric cars could charge with instead.</p>
+      <dl class="about-words">
+        <div><dt>MWh</dt><dd>an amount of energy. 1 MWh = 1,000 kWh, about 33 car top-ups.</dd></div>
+        <div><dt>Curtailment</dt><dd>too much green power on the whole island, so some is switched off.</dd></div>
+        <div><dt>Constraints</dt><dd>one part of the network is full, like a jammed road, so local power can’t get out.</dd></div>
+        <div><dt>Decision tree</dt><dd>a flowchart of yes/no questions (“Is wind above 2,000 MW?”) ending in a number. The models add up many of them.</dd></div>
+      </dl>
       ${aboutDataStatus()}
     </section>
-    <ol class="about-steps">
-      ${step(1, 'Where our data comes from', `
-        <p>The forecasting model, called <b>GridToEV</b>, learned from public Irish electricity records for <b>January 2026</b>:</p>
-        <ul class="about-sources">
-          <li>${aboutLink(ABOUT_LINKS.eirgridSystem, 'EirGrid system data')} — wind, solar, demand and cables to Britain, every 15 minutes.</li>
-          <li>${aboutLink(ABOUT_LINKS.eirgridDispatchDown, 'EirGrid dispatch-down report')} — how much wind and solar power was actually switched off, every half-hour.</li>
-          <li>Hack the Climate samples from ENTSO-E (the European grid operators’ data platform): ${aboutLink(ABOUT_LINKS.generation, 'generation by fuel')}, ${aboutLink(ABOUT_LINKS.load, 'electricity demand')} and ${aboutLink(ABOUT_LINKS.prices, 'prices')}.</li>
-        </ul>
-        <p><b>How it reaches you:</b> our server asks the GridToEV model for its forecasts (the access key stays on our server), checks the numbers, and passes them to this page. See ${aboutLink(ABOUT_LINKS.gridtoev, 'the GridToEV project')}.</p>
-        <p><b>Is it live?</b> No. The model re-runs its predictions on that archived January 2026 data — a <b>historical replay</b>. If the model can’t be reached you see a clearly labelled <b>offline example</b> instead. Nothing here forecasts today.</p>`)}
-      ${step(2, 'How we predict wasted energy', `
-        <p>Sometimes there is more wind or solar power than the grid can take, so the grid operator turns some of it down. This is called <b>dispatch-down</b>, and it has two causes:</p>
-        <dl class="about-terms">
-          ${aboutTerm('Curtailment', 'The whole island has too much renewable power at once, so some is turned down to keep the system stable.')}
-          ${aboutTerm('Constraints', 'One part of the network is full — like a traffic jam on one road — so power there can’t get out.')}
-        </dl>
-        ${aboutFormula(['<b>Predicted energy at risk</b> (MWh) = predicted curtailment (MWh) + predicted constraints (MWh)'])}
-        <p class="about-note">MWh (megawatt-hour) is an amount of energy: 1 MWh = 1,000 kWh.</p>
-        <p>The model forecasts one half-hour at a time, made either <b>30 or 60 minutes ahead</b>. These are two forecasts of the <b>same</b> half-hour — like two weather forecasts for the same afternoon made at different times — so they are <b>never added together</b>.</p>
-        ${aboutModelFacts()}`)}
-      ${step(3, 'How much might be usable', `
-        ${aboutFormula(['<b>Potential energy</b> (MWh) = min(', '&nbsp;&nbsp;predicted energy at risk (MWh),', '&nbsp;&nbsp;flexible EV demand (kWh) ÷ 1,000,', '&nbsp;&nbsp;charging capacity (MW) × 0.5 hours )'])}
-        <p><b>min(…)</b> means “take the smallest of the three”, like a chain that is only as strong as its weakest link:</p>
-        <ul class="about-parts">
-          <li><b>Energy at risk</b> — you can’t use more wasted energy than there is.</li>
-          <li><b>Flexible EV demand</b> — only charging that can move in time counts. Dividing kWh by 1,000 turns it into MWh.</li>
-          <li><b>Charging capacity × 0.5 hours</b> — chargers can only draw so much power in one half-hour. For example, 100 MW for half an hour is 50 MWh.</li>
-        </ul>
-        <p class="about-warning"><b>This is a potential upper bound</b> — the most that could be used if chargers were connected in the right place at the right time. It is <b>not</b> energy that was actually saved. Location, local grid limits, whether cars are plugged in, charging speed and reaction time can all reduce it.</p>`)}
-      ${step(4, 'How it becomes EV charging', `
-        ${aboutFormula(['<b>Potential EV energy</b> (kWh) = potential energy (MWh) × 1,000', `<b>Charging sessions’ worth</b> = potential EV energy (kWh) ÷ ${aboutNum(aboutState.example?.assumptions.kwhPerCharge ?? 30, 0)} kWh per charge`])}
-        <p>We assume a typical top-up of ${aboutNum(aboutState.example?.assumptions.kwhPerCharge ?? 30, 0)} kWh and <b>100% charging efficiency</b> (no energy lost while charging).</p>
-        <p>“Charging sessions’ worth” is an <b>energy comparison</b> — for example, “500 kWh is about as much energy as 17 typical top-ups”. It is <b>not</b> a count of real cars that were scheduled or charged.</p>
-        <p class="about-note">A scheduler that checks when cars arrive and leave, and each charger’s limits, is being built (${aboutLink(ABOUT_LINKS.optimiser, 'issue #44')}). It is <b>not part of this app yet</b>.</p>`)}
-    </ol>
-    ${aboutExample()}
-    ${aboutAssumptions()}
+    <h2 class="about-section-title">The two forecasting models</h2>
+    <div class="about-models">${aboutShortTermModel()}${aboutDailyModel()}</div>
+    ${aboutEvSection()}
+    ${aboutSources()}
   </div>`;
 }

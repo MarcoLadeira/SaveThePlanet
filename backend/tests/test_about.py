@@ -55,6 +55,39 @@ class WorkedExampleTests(unittest.TestCase):
                           scenario.EV_KWH_PER_KM, 1.0))
 
 
+class ModelFormulasTests(unittest.TestCase):
+    """The About page's formulas come from GridToEV's /fitted-formulas and /formulas routes."""
+    def test_both_models_are_fetched_and_trimmed_for_the_page(self):
+        import explorer
+        tree = dict(id='event_classifier', estimator_class='HistGradientBoostingClassifier', training_target='event',
+                    output_unit='probability', formula='raw_score(X) = 0 + sum(tree_k(X), k=0..179)', tree_count=180,
+                    baseline_raw_score=0.0, aggregation='sum', inverse_link='sigmoid', serving_weight_by_horizon=None)
+        fitted = dict(model_version='1.1.0', target='t', input_features=[{'name': 'a'}, {'name': 'b'}],
+                      estimators=[tree], limitation='observed only')
+        serving = dict(fitted_parameters={'dispatch_trend_alpha_by_horizon': {'30': 0.35}},
+                       steps=[{'id': 'trend_baseline', 'expression': 'x', 'explanation': 'y'}])
+        seen = []
+        def fake_call(path):
+            seen.append(path)
+            return fitted if path.endswith('fitted-formulas') else serving
+        explorer._cache.pop('model-formulas', None)
+        original, explorer.call = explorer.call, fake_call
+        try:
+            body = explorer.model_formulas()
+        finally:
+            explorer.call = original
+            explorer._cache.pop('model-formulas', None)
+        self.assertEqual(sorted(seen), sorted(['/model-info/v1/fitted-formulas', '/model-info/v1/formulas',
+                                               '/model-info/daily-curtailment/fitted-formulas',
+                                               '/model-info/daily-curtailment/formulas']))
+        model = body['shortTerm']
+        self.assertEqual((model['version'], model['inputs']), ('1.1.0', 2))
+        self.assertEqual(model['estimators'][0]['trees'], 180)
+        self.assertEqual(model['estimators'][0]['link'], 'sigmoid')
+        self.assertEqual(model['parameters']['dispatch_trend_alpha_by_horizon'], {'30': 0.35})
+        self.assertEqual(model['steps'], [{'id': 'trend_baseline', 'expression': 'x'}])
+
+
 class AboutHttpTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
