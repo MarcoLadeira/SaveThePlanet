@@ -6,7 +6,7 @@
 //     Each half-hour is a separate what-if with the same fleet, so charging is never added up across the day.
 //  3. cgWeek — seven days from the experimental daily model (GET /api/v1/explorer/daily/week), a different
 //     model from the half-hour forecasts, labelled as such, with EirGrid's observed values beside it.
-//  4. dw — discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
+//  4. dw — SaveThePlanet Rewards: discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
 // Nothing is invented: charts without data show a loading or "unavailable" state instead.
 
 const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '', retried: '' };
@@ -419,8 +419,12 @@ function cgBestCard() {
         body = cgChartState(dayPlanLoading() ? 'loading' : 'error', 'Planning the replay day…', 'The day plan could not be loaded.');
     } else {
         const best = cgBestHalfHours(dayPlan.data.intervals), max = Math.max(...best.map((i) => i.atRiskMwh), 0.001);
+        // One line per row: "+1" marks the half-hour ending at midnight, which falls on the next day, and
+        // whole MWh from 100 up keep the column narrow (the bar's label has the exact value).
+        const time = (at) => `${escapeHtml(modelTime(at))}${at.slice(0, 10) > dayPlan.data.date ? '<sup title="The next day">+1</sup><span class="visually-hidden"> the next day</span>' : ''}`;
+        const mwh = (x) => n(x >= 100 ? Math.round(x) : Math.round(x * 10) / 10);
         body = best.length
-            ? `<ol class="cg-rank${cgDrawIn('rank', `${dayPlan.data.date}|${best.map((i) => i.targetAt).join(',')}`)}">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}" style="--i:${k}" title="${escapeHtml(`${n(i.evGridKwh)} kWh to the simulated EVs in this half-hour`)}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${escapeHtml(dayPlanTime(i.targetAt))}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${n(i.atRiskMwh)} MWh</span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}<span class="visually-hidden"> · ${n(i.evGridKwh)} kWh to EVs</span></span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
+            ? `<ol class="cg-rank${cgDrawIn('rank', `${dayPlan.data.date}|${best.map((i) => i.targetAt).join(',')}`)}">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}" style="--i:${k}" title="${escapeHtml(`${n(i.evGridKwh)} kWh to the simulated EVs in this half-hour`)}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${time(i.targetAt)}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${mwh(i.atRiskMwh)}<small> MWh</small></span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}<span class="visually-hidden"> · ${n(i.evGridKwh)} kWh to EVs</span></span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
             : '<div class="cg-empty" role="status">No renewable energy is predicted at risk on this day, so there is no good time to shift charging.</div>';
     }
     return `<section class="dash-card cg-card cg-best-card">${cgHead('green', 'clock', 'Best half-hours to charge', sub)}${body}</section>`;
@@ -511,7 +515,7 @@ document.addEventListener('click', (event) => {
     render();
 });
 
-// ---------- discount windows (demo sign-up and booking) ----------
+// ---------- SaveThePlanet Rewards: discount windows (demo sign-up and booking) ----------
 // Offers, prices and quotes come from the server (backend/offers.py); the page only shows them. Joining
 // is a demo opt-in kept by the server under a random id: not a real account, reservation or payment.
 const dw = { status: 'idle', data: null, day: '', window: '', kwh: 20, busy: false, error: '', timer: null };
@@ -583,7 +587,7 @@ function dwDetail(o, booking, d) {
         return `<div class="dw-booked"><b>${icon('check', 15)} Reserved · ${n(booking.kwh)} kWh<button type="button" class="dw-link is-quiet" data-dw-act="cancel"${dw.busy ? ' disabled' : ''}>Cancel (no fee)</button></b>
             <span>Arrive ${escapeHtml(o.label)}, plug in, pick “Discount window” on the charger.</span>
             <span class="dw-price">You pay <b>${dwEur(booking.priceEur)}</b> instead of ${dwEur(booking.publicEur)} · save <b>${dwEur(booking.discountEur)}</b></span>
-            <span class="dw-share">Operator keeps ${dwEur(booking.split.operatorEur)} · our commission ${dwEur(booking.split.platformEur)}</span></div>`;
+            <span class="dw-share">Operator keeps ${dwEur(booking.split.operatorEur)} · SaveThePlanet commission ${dwEur(booking.split.platformEur)}</span></div>`;
     }
     const q = o.quotes.find((x) => x.kwh === dw.kwh) || o.quotes.at(-1);
     const sizes = o.quotes.map((x) => `<button type="button" class="${x.kwh === q.kwh ? 'is-on' : ''}" data-dw-kwh="${x.kwh}" aria-pressed="${x.kwh === q.kwh}">${n(x.kwh)}${x === o.quotes.at(-1) ? ' kWh' : ''}</button>`).join('');
@@ -595,17 +599,21 @@ function dwDetail(o, booking, d) {
 function dwCard() {
     if (dw.status === 'idle') queueMicrotask(dwLoad);
     const d = dw.data, joined = dw.status === 'ready' && d.member.joined;
-    const sub = d ? `${d.dataMode === 'simulated' ? 'Example data' : 'Replay'} · demo booking · ex VAT` : 'Cheaper charging when our AI has stored surplus';
+    // Once joined the day switcher takes the title row: the programme name moves to the subtitle, which
+    // runs under the switcher (charging.css), and "demo" stands in for the Demo tag.
+    const sim = d?.dataMode === 'simulated', title = joined ? 'Discount windows' : 'SaveThePlanet Rewards';
+    const sub = !d ? 'Discount windows when our AI has stored surplus'
+        : joined ? `SaveThePlanet Rewards · ${sim ? 'example data' : 'demo'} · ex VAT` : `Discount windows · ${sim ? 'example data' : 'replay'} · ex VAT`;
     let body, extra = '<span class="cg-tag is-demo">Demo</span>';
     if (joined) {
         const days = dwDays(), at = days.indexOf(dw.day);
         const step = (delta, label, glyph) => `<button type="button" class="dw-step" data-dw-step="${delta}" aria-label="${label}"${at + delta < 0 || at + delta >= days.length ? ' disabled' : ''}>${glyph}</button>`;
         extra = `<div class="dw-bar">${step(-1, 'Previous day', '‹')}<b>${escapeHtml(cgDayLabel(dw.day).replace(',', ''))}</b>${step(1, 'Next day', '›')}</div>`;
     }
-    const head = cgHead('green', 'charge', 'Discount windows', sub, extra);
+    const head = cgHead('green', 'charge', title, sub, extra);
     if (dw.status !== 'ready') {
         body = dw.status === 'error' || dw.status === 'empty'
-            ? `<div class="cg-empty" role="status">Discount windows are unavailable${dw.error ? `: ${escapeHtml(dw.error)}` : '.'}</div>`
+            ? `<div class="cg-empty" role="status">SaveThePlanet Rewards is unavailable${dw.error ? `: ${escapeHtml(dw.error)}` : '.'}</div>`
             : `<div class="cg-skeleton" role="status"><i></i><span>Preparing this week's offers…</span></div>`;
     } else if (!d.member.joined) {
         body = `<div class="dw-join"><p>Book a cheaper charge at <b>07:00–09:00</b> or <b>17:00–19:00</b> when our AI has stored surplus energy. You get half of the extra saving.</p>
@@ -620,7 +628,7 @@ function dwCard() {
         body = `<div class="dw-tiles">${windows.map((o) => dwWindowTile(o, booked(o))).join('')}</div>
             ${pick ? dwDetail(pick, booking, d) : ''}${dw.error ? `<p class="dw-error" role="alert">${escapeHtml(dw.error)}</p>` : ''}`;
     }
-    return `<section class="dash-card cg-card dw-card" aria-label="Discount windows (demo)">${head}${body}</section>`;
+    return `<section class="dash-card cg-card dw-card${joined ? ' is-joined' : ''}" aria-label="SaveThePlanet Rewards (demo)">${head}${body}</section>`;
 }
 document.addEventListener('click', (event) => {
     if (pageFromHash() !== 'charging') return;

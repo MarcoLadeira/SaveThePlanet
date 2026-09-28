@@ -1,4 +1,4 @@
-"""Discount windows (issue #56): settlement, the 50/25/25 split, profit, the offer gate, the replay and the API."""
+"""SaveThePlanet Rewards (issue #56): settlement, the 50/25/25 split, profit, the offer gate, the replay and the API."""
 from datetime import datetime, timedelta
 from functools import partial
 from http.server import ThreadingHTTPServer
@@ -54,7 +54,7 @@ class SettlementTests(unittest.TestCase):
         none = offers.monthly(0, 20, 0.10)
         self.assertEqual((none['poolEur'], none['platform']['grossEur']), (0.0, 0.0))
         self.assertEqual((none['operator']['profitEur'], none['platform']['profitEur']), (-100.0, -120.0))
-        # Our share never covers our per-session cost: no break-even, however many sessions.
+        # SaveThePlanet's share never covers its per-session cost: no break-even, however many sessions.
         thin = offers.monthly(400, 20, 0.01)
         self.assertIsNone(thin['platform']['breakEvenSessions'])
         self.assertLess(thin['platform']['profitEur'], 0)
@@ -65,7 +65,7 @@ class SettlementTests(unittest.TestCase):
         for pool in range(0, 1001):
             s = offers.split(pool)
             self.assertEqual(s['driverCents'] + s['operatorCents'] + s['platformCents'], pool)
-            self.assertLessEqual(s['platformCents'] * 4, pool, 'our commission is never rounded up')
+            self.assertLessEqual(s['platformCents'] * 4, pool, 'the SaveThePlanet commission is never rounded up')
             self.assertGreaterEqual(s['driverCents'] * 2, pool, 'the driver never loses a rounding cent')
         month = offers.monthly(333, 17.3, 0.0917)
         per = month['perSession']
@@ -108,6 +108,22 @@ class CapacityTests(unittest.TestCase):
         self.assertEqual((too_big['month']['sessions'], too_big['noSpareEnergy']), (0, True))
         self.assertIn('22 kWh', too_big['capacity']['limit'])
 
+    def test_calculator_counts_only_windows_the_replay_found_worth_offering(self):
+        values, _ = offers.parse_calculator({'sessions': '900', 'kwhPerSession': '20', 'savingEurPerKwh': '0.1'})
+        out = offers.calculate(**values, eligible_windows=26)
+        self.assertEqual((out['capacity']['counted'], out['capacity']['maxPerMonth'], out['capacity']['siteMaxPerMonth']), (416, 416, 960))
+        self.assertIn('about 26 windows a month worth offering', out['capacity']['limit'])
+        self.assertEqual(out['capacity']['limitedBy'], 'windows')
+        self.assertEqual(offers.calculate(**values)['capacity']['counted'], 900, 'without a replay only the site caps sessions')
+        none = offers.calculate(**values, eligible_windows=0)
+        self.assertEqual((none['month']['sessions'], none['noSpareEnergy']), (0, True))
+        # The replay's own scenarios stay inside the cap it reports.
+        d = business.simulated_result('MODEL_UNAVAILABLE')['discountWindows']
+        cap = d['calculator']['capacity']
+        self.assertEqual(cap['maxPerMonth'], min(cap['siteMaxPerMonth'], cap['sessionsPerWindow'] * cap['eligibleWindowsPerMonth']))
+        for key in ('expected', 'evaluationWeek', 'example'):
+            self.assertLessEqual(d['scenarios'][key]['inputs']['sessions'], cap['maxPerMonth'], key)
+
     def test_calculator_validation(self):
         _, errors = offers.parse_calculator({'sessions': '1.5', 'kwhPerSession': '', 'savingEurPerKwh': '2'})
         self.assertEqual(set(errors), {'sessions', 'kwhPerSession', 'savingEurPerKwh'})
@@ -138,7 +154,7 @@ class ReplayTests(unittest.TestCase):
         windows, _, _ = offers.replay(week())
         mornings = [w for w in windows if w['window'] == 'morning']
         self.assertTrue(mornings)
-        self.assertTrue(all(w['status'] == 'none' and w['reason'] == 'not-cheaper' for w in mornings))
+        self.assertTrue(all(w['status'] == 'none' and w['reason'] in ('not-cheaper', 'too-small') for w in mornings))
 
     def test_no_surplus_means_no_offer_and_a_next_opportunity(self):
         nights = week(3, surplus=())
@@ -257,7 +273,7 @@ class MemberTests(unittest.TestCase):
 
     def test_join_book_rebook_and_cancel(self):
         member = 'demo-member-1'
-        with self.assertRaisesRegex(ValueError, 'Join'):
+        with self.assertRaisesRegex(ValueError, 'Join SaveThePlanet Rewards first'):
             offers.act(self.section, member, 'book', self.offer['id'], 20)
         self.assertTrue(offers.act(self.section, member, 'join')['joined'])
         view = offers.act(self.section, member, 'book', self.offer['id'], 20)
@@ -355,6 +371,11 @@ class RouteTests(unittest.TestCase):
         status, body = self.call('/api/v1/business/offers/estimate?sessions=400&kwhPerSession=20&savingEurPerKwh=0.1')
         self.assertEqual(status, 200)
         self.assertEqual(body['month']['platform']['profitEur'], 40.0)
+        # With a finished replay, only the windows it found worth offering count.
+        known = {'discountWindows': {'calculator': {'capacity': {'eligibleWindowsPerMonth': 10}}}}
+        with patch('business.ready', return_value=known):
+            status, body = self.call('/api/v1/business/offers/estimate?sessions=400&kwhPerSession=20&savingEurPerKwh=0.1')
+        self.assertEqual((status, body['capacity']['counted'], body['capacity']['eligibleWindowsPerMonth']), (200, 160, 10))
         status, body = self.call('/api/v1/business/offers/estimate?sessions=-1&kwhPerSession=20&savingEurPerKwh=0.1')
         self.assertEqual((status, body['error']['code']), (400, 'INVALID_REQUEST'))
         self.assertIn('sessions', body['error']['fields'])

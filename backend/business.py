@@ -868,6 +868,12 @@ def current(refresh=False):
                 'progress': {'done': _state['done'], 'total': _state['total'], 'stage': _state['stage']}}
 
 
+def ready():
+    """The finished result if there is one, without starting or prioritising a build (else None)."""
+    with _lock:
+        return _state['result'] if _state['status'] == 'ready' else None
+
+
 def reset():
     """Forget the cached result (tests)."""
     with _lock:

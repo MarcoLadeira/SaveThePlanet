@@ -1,10 +1,10 @@
-"""Discount windows: the business case behind the Impact page and the EV page's booking card (issue #56).
+"""SaveThePlanet Rewards: the business case behind the Impact page and the EV page's booking card (issue #56).
 
-Drivers join for free, book a 07:00-09:00 or 17:00-19:00 discount window at a participating charger,
+Drivers join SaveThePlanet Rewards for free, book a 07:00-09:00 or 17:00-19:00 discount window at a participating charger,
 arrive and plug in. Our AI fills a battery with surplus renewable energy when the GridToEv forecast
 calls it, and a window is offered at a discount only when that stored energy, all costs included, is
 cheaper than the best basic smart charging the same driver could get in the same window. The extra
-saving is shared 50/25/25: the driver's discount, the charging operator, and our commission.
+saving is shared 50/25/25: the driver's discount, the charging operator, and SaveThePlanet's commission.
 
 What this module guarantees (tests in tests/test_offers.py check each point):
 - Only the extra saving over basic smart charging is shared, never the saving over normal charging.
@@ -20,7 +20,7 @@ What this module guarantees (tests in tests/test_offers.py check each point):
   sessions on the example site's 20 x 11 kW chargers and 180 kW connection.
 - Money is settled in whole cents, pre-VAT, and every split adds up exactly. A driver's locked
   discount is honoured when the actual saving is lower: the shortfall reduces the operator's share
-  and our commission, never the driver's discount. No fee on cancelled or failed sessions.
+  and SaveThePlanet's commission, never the driver's discount. No fee on cancelled or failed sessions.
 - The +30 and +60 forecasts of one half-hour are two estimates, never added: only +30 is used.
 - Prices, costs, demand and the battery are illustrative and labelled as such: nothing here is a
   real customer, booking, payment or verified carbon saving.
@@ -39,7 +39,7 @@ import eligibility
 import fleet as fleets
 import optimizer
 
-VERSION = 'discount-windows/v1'
+VERSION = 'rewards/v1'  # SaveThePlanet Rewards: drivers book discount windows
 SLOT_MINUTES = business.SLOT_MINUTES
 SLOT_HOURS = business.SLOT_HOURS
 WINDOW_SLOTS = 4
@@ -53,7 +53,7 @@ SPLIT = {'driver': 50, 'operator': 25, 'platform': 25}
 SESSION_KWH = 20.0  # delivered at the charger
 DAYS_PER_MONTH = 30
 QUOTE_KWH = (10.0, 15.0, 20.0, 22.0)  # charge sizes the EV page offers, each priced by the server
-MIN_SAVING_EUR_PER_KWH = 0.02  # the AI only stores energy that could clear at least this at the peak
+MIN_SAVING_EUR_PER_KWH = 0.05  # the AI only stores energy that could clear at least this at the peak
 EPS = 1e-9
 
 HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', 'region': 'IE', 'public': True,
@@ -62,7 +62,7 @@ HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', '
 BATTERY = {
     'name': 'Hypothetical site battery', 'provenance': 'hypothetical',
     'capacityKwh': 700.0, 'powerKw': 180.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
-    'wearEurPerKwh': 0.08,
+    'wearEurPerKwh': 0.04,
     'note': 'Not built and not claimed as real storage: an illustrative extension to show what stored surplus would cost.',
 }
 PRICES = {
@@ -99,10 +99,10 @@ def eur(amount_cents):
 
 
 def split(pool_cents, driver_cents=None):
-    """Share one session's eligible saving: driver 50%, operator 25%, us 25%, summing to the pool exactly.
+    """Share one session's eligible saving: driver 50%, operator 25%, SaveThePlanet 25%, summing to the pool exactly.
 
     `driver_cents` is a discount locked when the offer was booked. It is always honoured; if the
-    settled pool turns out smaller, our commission (25% of the actual pool) is reduced first to what
+    settled pool turns out smaller, SaveThePlanet's commission (25% of the actual pool) is reduced first to what
     is left after the driver, and the operator carries the rest as a shortfall."""
     pool = max(0, int(pool_cents))
     driver = (pool + 1) // 2 if driver_cents is None else int(driver_cents)
@@ -126,7 +126,7 @@ def monthly(sessions, kwh_per_session, saving_eur_per_kwh, operator_fixed_eur=CO
             platform_variable_eur=COSTS['platformVariableEurPerSession'], platform_fixed_eur=COSTS['platformFixedEurPerMonth']):
     """A month of qualifying sessions: the 50/25/25 split, both profit bridges and both break-evens.
 
-    Savings are not profit: our commission pays our per-session cost and our monthly overhead first,
+    Savings are not profit: SaveThePlanet's commission pays its per-session cost and monthly overhead first,
     and the operator's share pays its remaining programme costs. Costs already inside the saving (energy,
     losses, wear, network, session costs) are not subtracted again. Every figure is in whole cents."""
     n = int(sessions)
@@ -441,9 +441,14 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
     per_day = totals['sessions'] / count
     factor = seasonal.get('factor') if seasonal.get('available') else None
     site_cap = site_session_cap(kwh)
-    month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
-    week_sessions = min(month_cap, round(per_day * DAYS_PER_MONTH))
-    # Stored surplus depends on how often curtailment happens, so the month is scaled like the depot's surplus.
+    site_month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
+    # Windows worth offering a month: a window without stored surplus has no discount to sell. Stored
+    # surplus depends on how often curtailment happens, so the month is scaled like the depot's surplus.
+    offered_count = sum(1 for w in windows if w['status'] == 'offer')
+    week_windows = min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH))
+    eligible_windows = week_windows if factor is None else min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH * factor))
+    month_cap = min(site_month_cap, site_cap * eligible_windows)
+    week_sessions = min(site_month_cap, site_cap * week_windows, round(per_day * DAYS_PER_MONTH))
     expected_sessions = week_sessions if factor is None else min(month_cap, round(per_day * DAYS_PER_MONTH * factor))
     basis = 'evaluation-week' if factor is None else 'seasonal'
     scenarios = {
@@ -476,8 +481,8 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
         'calculator': {'defaults': {**scenarios['expected']['inputs'], 'operatorFixedEur': COSTS['operatorFixedEurPerMonth'],
                                     'platformVariableEur': COSTS['platformVariableEurPerSession'],
                                     'platformFixedEur': COSTS['platformFixedEurPerMonth']},
-                       'capacity': {'sessionsPerWindow': site_cap, 'windowsPerDay': len(WINDOWS), 'maxPerMonth': month_cap,
-                                    'eligibleWindowsPerMonth': round(len(offered) / count * DAYS_PER_MONTH)}},
+                       'capacity': {'sessionsPerWindow': site_cap, 'windowsPerDay': len(WINDOWS), 'siteMaxPerMonth': site_month_cap,
+                                    'eligibleWindowsPerMonth': eligible_windows, 'maxPerMonth': month_cap}},
         'offers': windows,
         'ledger': {**totals, 'nights': count, 'offers': len(offered), 'byWindow': by_window, 'forecastHorizonMinutes': 30},
         'energy': {
@@ -507,8 +512,8 @@ METHODOLOGY = [
     'Eligible pool per session = max(0, basic smart cost - AI all-in cost) x kWh, pre-VAT, avoidable costs only.',
     'Basic smart cost: the cheapest half-hours inside the same window that still deliver the session, at the charger rate.',
     'AI all-in cost: stored energy price / discharge efficiency + battery wear + network charges + session costs.',
-    'Split: driver 50% (discount on the public price), operator 25%, our commission 25%. Our commission pays our '
-    'per-session cost and monthly overhead before any profit; the operator\'s share pays its remaining programme costs.',
+    'Split: driver 50% (discount on the public price), operator 25%, SaveThePlanet\'s commission 25%. The commission pays '
+    'SaveThePlanet\'s per-session cost and monthly overhead before any profit; the operator\'s share pays its remaining programme costs.',
     'An offer is locked 30 minutes before its window from surplus already stored and settled, sized by the energy bridge '
     '(chargers, connection), battery power and stored energy, and only if both businesses have a non-negative unit contribution.',
     'Month: sessions per replayed day x 30 days, scaled by how often curtailment happens over a full year when that is known.',
@@ -530,8 +535,8 @@ CALCULATOR_FIELDS = {
     'kwhPerSession': ('kWh per session', 1, 100, False, False),
     'savingEurPerKwh': ('Extra saving per kWh', 0, 1, False, False),
     'operatorFixedEur': ('Operator programme costs per month', 0, 1_000_000, False, True),
-    'platformVariableEur': ('Our cost per session', 0, 100, False, True),
-    'platformFixedEur': ('Our overhead per month', 0, 1_000_000, False, True),
+    'platformVariableEur': ('SaveThePlanet cost per session', 0, 100, False, True),
+    'platformFixedEur': ('SaveThePlanet overhead per month', 0, 1_000_000, False, True),
 }
 DEFAULT_COSTS = {'operatorFixedEur': COSTS['operatorFixedEurPerMonth'], 'platformVariableEur': COSTS['platformVariableEurPerSession'],
                  'platformFixedEur': COSTS['platformFixedEurPerMonth']}
@@ -562,22 +567,31 @@ def parse_calculator(query):
     return values, errors
 
 
-def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur):
-    """What-if month for one site. Sessions above what the site can physically deliver are not counted."""
+def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur,
+              eligible_windows=None):
+    """What-if month for one site. Sessions above what the site can physically deliver are not counted,
+    nor, when the replay is known, sessions beyond the windows it found worth offering a month
+    (`eligible_windows`): a window without stored surplus has no discount to sell."""
     per_window = site_session_cap(kwhPerSession)
-    cap = per_window * len(WINDOWS) * DAYS_PER_MONTH
+    site_cap = per_window * len(WINDOWS) * DAYS_PER_MONTH
+    windows = None if eligible_windows is None else max(0, min(int(eligible_windows), len(WINDOWS) * DAYS_PER_MONTH))
+    cap = site_cap if windows is None else min(site_cap, per_window * windows)
     counted = min(int(sessions), cap)
     month = monthly(counted, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur)
     if kwhPerSession > max_session_kwh():
-        limit = f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+        limited_by, limit = 'session-kwh', f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+    elif counted < sessions and cap < site_cap:
+        limited_by, limit = 'windows', (f'the replay found about {windows} windows a month worth offering, '
+                                        f'at most {per_window} sessions of {kwhPerSession:g} kWh each.')
     elif counted < sessions:
-        limit = (f'The site fits {per_window} sessions of {kwhPerSession:g} kWh per window ({HUB["chargers"]} x '
-                 f'{HUB["chargerKw"]:g} kW chargers, {HUB["sitePowerKw"]:g} kW connection): at most {cap:,} a month.')
+        limited_by, limit = 'site', (f'the site fits {per_window} sessions of {kwhPerSession:g} kWh per window ({HUB["chargers"]} x '
+                                     f'{HUB["chargerKw"]:g} kW chargers, {HUB["sitePowerKw"]:g} kW connection): at most {cap:,} a month.')
     else:
-        limit = None
+        limited_by, limit = None, None
     return {'version': VERSION, 'illustrative': True, 'month': month,
-            'capacity': {'sessionsPerWindow': per_window, 'maxPerMonth': cap, 'requested': int(sessions), 'counted': counted,
-                         'capped': counted < sessions, 'limit': limit},
+            'capacity': {'sessionsPerWindow': per_window, 'maxPerMonth': cap, 'siteMaxPerMonth': site_cap,
+                         'eligibleWindowsPerMonth': windows, 'requested': int(sessions), 'counted': counted,
+                         'capped': counted < sessions, 'limitedBy': limited_by, 'limit': limit},
             'noSpareEnergy': counted == 0 or savingEurPerKwh <= 0}
 
 
@@ -635,7 +649,7 @@ def act(section, member_id, action, offer_id=None, kwh=None):
             members.pop(member_id, None)
         elif action in ('book', 'cancel'):
             if not member:
-                raise ValueError('Join the discount windows first (free).')
+                raise ValueError('Join SaveThePlanet Rewards first (free).')
             offer = _offer(section, offer_id)
             if offer is None:
                 raise ValueError('This offer has changed or expired. Pick a window again.')

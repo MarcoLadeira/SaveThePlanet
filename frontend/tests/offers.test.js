@@ -32,6 +32,7 @@ test('joining is optional and the normal price stays available', () => {
   withData(run, { joined: false, bookings: [] });
   const html = run('dwCard()');
   assert.match(html, /data-dw-act="join"[^>]*>Join free \(demo\)/);
+  assert.match(html, /aria-label="SaveThePlanet Rewards \(demo\)"[\s\S]*<h2>SaveThePlanet Rewards<\/h2><p>Discount windows · /, 'the programme is named as in issue #56');
   assert.match(html, /anyone can charge at the normal price, €0\.49\/kWh, without joining/);
   assert.match(html, /07:00–09:00<\/b> or <b>17:00–19:00/);
 });
@@ -40,10 +41,14 @@ test('an offer shows the server\'s locked price for the chosen charge size', () 
   const run = load();
   withData(run, { joined: true, bookings: [] });
   let html = run('dwCard()');
+  assert.match(html, /<h2>Discount windows<\/h2><p>SaveThePlanet Rewards · example data · ex VAT<\/p><\/div><div class="dw-bar">/, 'once joined the day switcher takes the header, so the programme name moves to the subtitle');
+  run("dw.data.dataMode = 'replay'");
+  assert.match(run('dwCard()'), /<h2>Discount windows<\/h2><p>SaveThePlanet Rewards · demo · ex VAT<\/p>/, 'the joined card still says it is a demo');
+  run("dw.data.dataMode = 'simulated'");
   const offer = SECTION.offers.find((o) => o.date === '2026-01-25' && o.window === 'evening');
   assert.equal(offer.status, 'offer');
-  assert.match(html, /€0\.44<small>\/kWh<\/small><\/b><em>−€0\.05/);
-  assert.match(html, /You pay <b>€8\.80<\/b> instead of €9\.80 · save <b>€1\.00/);
+  assert.match(html, /€0\.42<small>\/kWh<\/small><\/b><em>−€0\.07/);
+  assert.match(html, /You pay <b>€8\.40<\/b> instead of €9\.80 · save <b>€1\.40/);
   assert.match(html, new RegExp(`${offer.sessions} places · price fixed now`));
   run('dw.kwh = 10');
   html = run('dwCard()');
@@ -56,7 +61,7 @@ test('a window without an offer says so and points to the next opportunity', () 
   withData(run, { joined: true, bookings: [] }, '2026-01-25', 'morning');
   const html = run('dwCard()');
   assert.match(html, /No discounted window right now/);
-  assert.match(html, /Stored surplus is not cheaper than normal charging in this window\. Normal charging stays open at €0\.49\/kWh/);
+  assert.match(html, /The saving would not cover the per-session costs\. Normal charging stays open at €0\.49\/kWh/);
   assert.match(html, /data-dw-day="2026-01-25" data-dw-pick="evening">Next opportunity: Sun, 25 Jan 17:00–19:00/);
 });
 
@@ -68,6 +73,6 @@ test('a reservation shows the price, the saving, the split and a free cancel', (
   const html = run('dwCard()');
   assert.match(html, /Reserved · 20 kWh/);
   assert.match(html, /Cancel \(no fee\)/);
-  assert.match(html, /You pay <b>€8\.80<\/b> instead of €9\.80 · save <b>€1\.00/);
-  assert.match(html, /Operator keeps €0\.50 · our commission €0\.50/);
+  assert.match(html, /You pay <b>€8\.40<\/b> instead of €9\.80 · save <b>€1\.40/);
+  assert.match(html, /Operator keeps €0\.70 · SaveThePlanet commission €0\.70/);
 });

@@ -16,7 +16,7 @@
 }
 
 /* Small green text needs the lighter green to stay readable on dark cards. */
-[data-current-page="business"][data-theme="dark"] :is(.bz-req.is-met,.bz-wf-col.is-down .bz-wf-bar em,.bz-out-label,.bz-link:not(.is-quiet),.bz-chip.is-busy,.bz-scn-icon,.is-profit>b,b.is-profit,span.is-profit,.bz-out-figure strong.is-profit,.bz-kpi.is-profit .bz-kpi-figure strong){color:var(--green-top)}
+[data-current-page="business"][data-theme="dark"] :is(.bz-req.is-met,.bz-wf-col.is-down .bz-wf-bar em,.bz-updating,.bz-link:not(.is-quiet),.bz-chip.is-busy,.bz-scn-icon,.is-profit>b,b.is-profit,span.is-profit,.bz-kpi.is-profit .bz-kpi-figure strong){color:var(--green-top)}
 
 /* ---------- Header scenario indicator ---------- */
 [data-current-page="business"] .studio-header{min-height:64px}
@@ -34,29 +34,37 @@
 .bz-chip.is-busy{color:var(--green-deep);background:var(--green-soft)}
 .bz-chip.is-busy i{width:8px;height:8px;border-radius:50%;background:var(--green);animation:bz-pulse 1s ease-in-out infinite}
 .bz-chip.is-illustrative{height:28px;background:var(--amber-soft);color:var(--amber-ink);cursor:help}
-.bz-chip.is-projected{background:var(--bz-blue-soft);color:var(--bz-blue-ink);cursor:help}
 @keyframes bz-pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:none}}
 
 /* ---------- Layout ---------- */
-/* Three columns: the business case (where the € goes, what-if) on the left, the depot comparison and the
-   energy proof beside it. The bottom row has a fixed height in every state, so loading, editing and
-   errors never shift the page. */
-.bz-layout{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) 262px;gap:12px;flex:1;min-height:0}
-.bz-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;min-width:0}
-.bz-split-card{grid-column:1;grid-row:2}
-.bz-money{grid-column:2;grid-row:2}
-.bz-compare{grid-column:3;grid-row:2}
-.bz-calc{grid-column:1/3;grid-row:3}
-.bz-energy{grid-column:3;grid-row:3}
-.bz-invest{grid-column:2/4;grid-row:2}
+/* Two views, one story each. Who earns: the view switcher, the KPIs, then where the € goes (with its
+   what-if) beside the energy proof. Depot savings: the waterfall beside the comparison, the investment
+   case below. Cards fill fixed cells, so editing, loading and errors never shift the page. */
+.bz-layout{display:grid;gap:12px;flex:1;min-height:0}
+.bz-layout.is-earn{grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+.bz-layout.is-depot{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.bz-views,.bz-kpis{grid-column:1/-1}
+.bz-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;min-width:0}
+.bz-layout.is-earn>.bz-split-card{grid-column:1;grid-row:3}
+.bz-layout.is-earn>.bz-energy{grid-column:2;grid-row:3}
+.bz-layout.is-depot>.bz-money{grid-column:1;grid-row:2}
+.bz-layout.is-depot>.bz-compare{grid-column:2;grid-row:2}
+.bz-layout.is-depot>.bz-invest{grid-column:1/-1;grid-row:3}
 .bz-card{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;padding:16px 18px;border-radius:22px}
 .bz-layout>.dash-card,.bz-kpi{transition:transform .25s ease,box-shadow .25s ease}
 .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:translateY(-2px)}
-.bz-layout>.bz-invest.is-open:hover{transform:none}
 .bz-head{gap:11px;align-items:center}
 .bz-head .dash-head-copy{min-width:0;flex:1}
 .bz-head .dash-head-copy h2{font-size:16.5px;font-weight:780;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bz-head .dash-head-copy p{margin-top:1px;font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-head .dash-head-copy p{margin-top:1px;font-size:13px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- View switcher: which story, and what its figures are ---------- */
+.bz-views{display:flex;align-items:center;gap:14px;min-width:0}
+.bz-seg.is-views{flex:0 0 auto;padding:4px;border-radius:14px;background:var(--surface);box-shadow:0 2px 0 var(--edge),0 8px 22px rgba(18,74,68,.06)}
+.bz-seg.is-views button{display:flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:10px;font-size:13.5px;line-height:1}
+.bz-seg.is-views button small{font-size:11.5px;font-weight:700;opacity:.72}
+.bz-views-label{display:flex;align-items:center;gap:7px;min-width:0;margin:0!important;font-size:12.5px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-views-label svg{flex:0 0 auto}
 .bz-head-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:12px}
 .bz-head-icon.is-green,.bz-kpi.is-green .bz-kpi-icon,.bz-kpi.is-profit .bz-kpi-icon{background:var(--green-soft);color:var(--green-deep)}
 .bz-head-icon.is-blue,.bz-kpi.is-blue .bz-kpi-icon{background:var(--bz-blue-soft);color:var(--bz-blue)}
@@ -77,7 +85,7 @@
 .bz-kpi-figure strong.is-text{font-size:22px;color:var(--amber-ink)}
 .bz-kpi-figure small{margin-left:5px;font-size:13px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
 .bz-kpi-foot{grid-column:1/-1;grid-row:3;margin:4px 0 0!important;min-width:0}
-.bz-kpi-foot em{display:block;font-size:12px;font-style:normal;line-height:1.3;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-kpi-foot em{display:block;font-size:12.5px;font-style:normal;line-height:1.3;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- Waterfall ---------- */
 .bz-wf-chart{flex:1;min-height:0;display:flex}
@@ -143,17 +151,15 @@
 .bz-foot{display:flex;align-items:center;gap:7px;margin:0!important;font-size:12px;line-height:1.35;color:var(--ink-3)}
 .bz-foot svg{flex:0 0 auto}
 .bz-foot.is-invest{gap:6px}
-.bz-foot.is-invest .bz-link{margin-left:auto}
 .bz-foot span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ---------- Calculator ---------- */
-.bz-calc{gap:10px}
-.bz-form{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;flex:1;min-height:0;margin:0}
+/* ---------- What-if inputs (inside where the € goes) ---------- */
+.bz-form{flex:0 0 auto;margin:0}
 .bz-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;align-content:start}
 .bz-seg.is-small button{height:28px;padding:0 10px;font-size:11.5px}
 .bz-field{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;min-width:0}
 /* Labels may take two lines (the wording is the brief's); inputs in a row stay aligned. */
-.bz-field-label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:11.5px;font-weight:750;line-height:1.22;color:var(--ink-2)}
+.bz-field-label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:12px;font-weight:750;line-height:1.22;color:var(--ink-2)}
 .bz-input{display:flex;align-items:center;height:36px;padding:0 10px 0 2px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);transition:border-color .15s ease,box-shadow .15s ease}
 .bz-input:focus-within{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft);background:var(--surface)}
 .bz-input input{flex:1;min-width:0;height:100%;padding:0 8px;border:0;background:none;color:var(--ink);font:inherit;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;outline:none}
@@ -171,90 +177,78 @@
 .bz-link.is-quiet{color:var(--ink-3)}
 .bz-link small{font-weight:600;color:var(--ink-3)}
 .bz-link:hover{text-decoration:underline}
-.bz-out{display:flex;flex-direction:column;gap:2px;min-width:0;padding:12px 16px;border-radius:17px;background:linear-gradient(160deg,var(--green-soft),var(--surface-2))}
-.bz-out-label{font-size:12.5px;font-weight:750;color:var(--green-deep)}
-/* Spins while a new estimate is on its way; the figure then counts to the new answer. */
-.bz-out-spin{display:inline-block;width:10px;height:10px;margin-left:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-1px;opacity:0;transition:opacity .2s ease}
-.bz-calc.is-pending .bz-out-spin{opacity:1;animation:bz-spin .7s linear infinite}
-.bz-out-label small{display:block;font-size:11px;font-weight:650;color:var(--ink-3)}
-.bz-out-figure strong{display:block;font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.035em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s ease}
-.bz-out-figure small{margin-left:5px;font-size:13px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
-.bz-calc.is-pending .bz-out-figure strong{opacity:.55}
-.bz-out-detail{min-height:0}
-.bz-out-list{display:flex;flex-direction:column;gap:2px;margin:2px 0 0;padding:0;list-style:none}
-.bz-out-list li{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-2);white-space:nowrap}
-.bz-out-list b{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bz-out-list li.is-warn b{color:var(--bz-bad)}
 .bz-out-note{display:flex;align-items:flex-start;gap:6px;margin:4px 0 0!important;font-size:12px;line-height:1.35;color:var(--ink-3)}
 .bz-out-note.is-warn{color:var(--bz-bad)}
 .bz-out-note svg{flex:0 0 auto;margin-top:1px}
-.bz-link.is-reset{align-self:flex-start;margin-top:auto;color:var(--ink-3)}
+/* Spins while a new answer is on its way; the bar and the bridges then move to it. */
+.bz-updating{display:none;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto;font-size:12px;font-weight:750;color:var(--green-deep)}
+.bz-split-card.is-pending .bz-updating{display:inline-flex}
+.bz-out-spin{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%}
+.bz-split-card.is-pending .bz-out-spin{animation:bz-spin .7s linear infinite}
+.bz-split-card :is(.bz-split-chart,.bz-whatif .bz-bridges){transition:opacity .2s ease}
+.bz-split-card:is(.is-pending,.is-stale) :is(.bz-split-chart,.bz-whatif .bz-bridges){opacity:.55}
 
 /* ---------- Where the € goes ---------- */
-.bz-split-card{gap:12px}
-.bz-split-total{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 auto;text-align:right}
-.bz-split-total b{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bz-split-total small{font-size:11.5px;font-weight:650;color:var(--ink-3);white-space:nowrap}
+.bz-split-card{gap:16px}
 .bz-split-chart{flex:0 0 auto}
-.bz-split{display:flex;height:46px;gap:3px;padding:3px;border-radius:15px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)}
+.bz-split-sum{display:flex;align-items:baseline;gap:10px;min-width:0;margin:0 0 8px!important}
+.bz-split-sum b{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-split-sum span{min-width:0;font-size:14px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-split{display:flex;height:60px;gap:3px;padding:3px;border-radius:15px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)}
 .bz-split i{position:relative;display:flex;font-style:normal;align-items:center;justify-content:center;min-width:0;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,var(--top),var(--fill));box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
-.bz-split i.is-driver,.bz-legend .is-driver{--top:var(--bz-green-top);--fill:var(--bz-green)}
-.bz-split i.is-operator,.bz-legend .is-operator,.bz-bridge.is-operator{--top:#7fd8c9;--fill:var(--bz-teal)}
-.bz-split i.is-platform,.bz-legend .is-platform,.bz-bridge.is-platform{--top:var(--bz-blue-top);--fill:var(--bz-blue)}
-.bz-split b{font-size:13.5px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.18);font-variant-numeric:tabular-nums;transition:opacity .2s ease}
+.bz-split i.is-driver{--top:var(--bz-green-top);--fill:var(--bz-green)}
+.bz-split i.is-operator,.bz-bridge.is-operator{--top:#7fd8c9;--fill:var(--bz-teal)}
+.bz-split i.is-platform,.bz-bridge.is-platform{--top:var(--bz-blue-top);--fill:var(--bz-blue)}
+.bz-split b{min-width:0;padding:0 8px;overflow:hidden;text-overflow:ellipsis;font-size:15px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.18);font-variant-numeric:tabular-nums;transition:opacity .2s ease}
+.bz-split b span{font-weight:700;opacity:.92}
 .bz-split.is-empty{align-items:center;justify-content:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--ink-3);text-align:center}
-.bz-legend{display:grid;grid-template-columns:2fr 1fr 1fr;gap:3px;margin:-6px 3px 0;padding:0;list-style:none}
-.bz-legend li{position:relative;display:flex;flex-direction:column;gap:1px;min-width:0;padding-left:16px}
-.bz-legend li>i{position:absolute;left:0;top:3px;width:10px;height:10px;border-radius:3px;background:var(--fill)}
-.bz-legend span{font-size:12px;font-weight:750;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bz-legend small{font-size:11px;font-weight:700;color:var(--ink-3)}
-.bz-bridges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;flex:1;min-height:0}
-.bz-bridge{display:flex;flex-direction:column;gap:5px;min-width:0;padding:11px 13px;border-radius:15px;background:var(--surface-2)}
-.bz-bridge h3{display:flex;align-items:center;gap:7px;margin:0;font-size:13px;font-weight:800;color:var(--ink)}
+.bz-whatif{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+.bz-bridges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;flex:1;min-height:0}
+.bz-bridge{display:flex;flex-direction:column;gap:8px;min-width:0;padding:16px 18px;border-radius:15px;background:var(--surface-2)}
+.bz-bridge h3{display:flex;align-items:center;gap:7px;margin:0;font-size:15px;font-weight:800;color:var(--ink)}
 .bz-bridge h3 i{width:10px;height:10px;border-radius:3px;background:var(--fill)}
-.bz-bridge ul{display:flex;flex-direction:column;gap:3px;margin:0;padding:0;list-style:none}
-.bz-bridge li{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-2)}
+.bz-bridge ul{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.bz-bridge li{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--ink-2)}
 .bz-bridge li b{color:var(--ink);font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
-.bz-bridge-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:2px 0 0!important;padding-top:6px;border-top:1.5px solid var(--line);font-size:12.5px;font-weight:800;color:var(--ink)}
-.bz-bridge-total b{font-size:17px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
-.is-profit>b,b.is-profit,span.is-profit,.bz-out-figure strong.is-profit{color:var(--green-deep)}
-.is-loss>b,b.is-loss,span.is-loss,.bz-out-figure strong.is-loss{color:var(--bz-bad)}
+.bz-bridge-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:4px 0 0!important;padding-top:10px;border-top:1.5px solid var(--line);font-size:14.5px;font-weight:800;color:var(--ink)}
+.bz-bridge-total b{font-size:23px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.is-profit>b,b.is-profit,span.is-profit{color:var(--green-deep)}
+.is-loss>b,b.is-loss,span.is-loss{color:var(--bz-bad)}
 .is-zero>b,b.is-zero,span.is-zero{color:var(--ink-3)}
-.bz-bridge small{margin-top:auto;font-size:11px;font-weight:650;color:var(--ink-3)}
+.bz-bridge small{margin-top:auto;font-size:13px;font-weight:650;color:var(--ink-3)}
+.bz-bridge small span{font-weight:800}
 
 /* ---------- Energy behind the offers ---------- */
-.bz-energy{gap:8px;cursor:help}
+.bz-energy{gap:16px;cursor:help}
 .bz-energy-top{display:flex;align-items:baseline;gap:8px;margin:0!important;min-width:0}
-.bz-energy-top b{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
-.bz-energy-top span{min-width:0;font-size:11px;font-weight:650;line-height:1.25;color:var(--ink-3)}
-.bz-sources{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}
-.bz-sources li{display:grid;grid-template-columns:112px minmax(0,1fr) 76px;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
-.bz-sources span{font-weight:700;white-space:nowrap}
-.bz-sources i{height:8px;border-radius:99px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
-.bz-sources em{display:block;height:100%;min-width:0;border-radius:99px;background:var(--bz-green)}
-.bz-sources .is-direct em{background:var(--bz-teal)}
-.bz-sources .is-grid em{background:var(--bz-grey)}
-.bz-sources b{text-align:right;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bz-facts{display:flex;flex-direction:column;gap:2px;margin:auto 0 0;padding:7px 10px;border-radius:12px;background:var(--surface-2)}
+.bz-energy-top b{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-energy-top span{min-width:0;font-size:13px;font-weight:650;line-height:1.25;color:var(--ink-3)}
+.bz-mix{display:flex;gap:2px;height:18px;border-radius:99px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.bz-mix i{display:block;height:100%;min-width:4px}
+.bz-mix .is-stored,.bz-mix-legend .is-stored i{background:var(--bz-green)}
+.bz-mix .is-direct,.bz-mix-legend .is-direct i{background:var(--bz-teal)}
+.bz-mix .is-grid,.bz-mix-legend .is-grid i{background:var(--bz-grey)}
+.bz-mix-legend{display:flex;flex-direction:column;gap:9px;margin:0;padding:0;list-style:none}
+.bz-mix-legend li{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650;color:var(--ink-2)}
+.bz-mix-legend li i{flex:0 0 auto;width:10px;height:10px;border-radius:3px}
+.bz-mix-legend b{margin-left:auto;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-facts{display:flex;flex-direction:column;gap:9px;margin:auto 0 0;padding:14px 16px;border-radius:12px;background:var(--surface-2)}
 .bz-facts div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-width:0}
-.bz-facts dt{flex:0 0 auto;font-size:11.5px;font-weight:650;color:var(--ink-3);white-space:nowrap}
-.bz-facts dd{min-width:0;margin:0;font-size:12px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.bz-facts dt{flex:0 0 auto;font-size:13px;font-weight:650;color:var(--ink-3);white-space:nowrap}
+.bz-facts dd{min-width:0;margin:0;font-size:14px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .bz-chip.is-hypo{flex:0 0 auto;height:26px;padding:0 10px;font-size:11px;background:var(--amber-soft);color:var(--amber-ink);cursor:help}
 
 /* ---------- Depot investment details ---------- */
-.bz-details-btn{display:flex;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;height:40px;padding:0 16px;border:0;border-radius:12px;background:var(--forest);box-shadow:0 3px 0 var(--forest-edge);color:#fff;font-size:12.5px;font-weight:800;white-space:nowrap;cursor:pointer;transition:background-color .2s ease}
-.bz-details-btn:hover{background:var(--forest-2)}
-.bz-invest.is-open{gap:12px;animation:bz-open .28s cubic-bezier(.16,.84,.38,1) both}
-.bz-invest.is-open .bz-details-btn{height:34px;padding:0 12px;background:var(--surface-2);box-shadow:none;color:var(--ink-2)}
-@keyframes bz-open{from{opacity:0;transform:translateY(8px)}}
-.bz-roi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.bz-roi div{padding:10px 12px;border-radius:14px;background:var(--surface-2)}
+.bz-invest{gap:10px}
+.bz-invest-body{display:grid;grid-template-columns:minmax(0,.62fr) minmax(0,2.38fr);gap:18px;min-height:0}
+.bz-roi{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-content:start}
+.bz-roi div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 12px;border-radius:12px;background:var(--surface-2)}
 .bz-roi span{display:block;font-size:11.5px;font-weight:700;color:var(--ink-3)}
-.bz-roi strong{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-roi strong{display:block;font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
 .bz-tables{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-height:0}
 .bz-tables .bz-table th,.bz-tables .bz-table td{padding:5px 4px}
 .bz-invest .bz-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-.bz-table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.bz-table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 .bz-table caption{padding:0 0 4px;font-size:12.5px;font-weight:800;text-align:left;color:var(--ink)}
 .bz-table caption small{margin-left:6px;font-weight:650;color:var(--ink-3)}
 .bz-table th,.bz-table td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
@@ -290,6 +284,8 @@
 .bz-skel.is-stack{height:34px;margin-top:10px;border-radius:12px}
 .bz-skel-pair{flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-height:0}
 .bz-skel.is-block{height:auto;border-radius:14px}
+.bz-invest.is-skeleton{min-height:210px}
+.bz-invest.is-skeleton .bz-skel-pair{min-height:120px}
 .bz-skel-bars{flex:1;display:flex;align-items:flex-end;justify-content:space-around;min-height:0;margin:16px 0 26px 44px;border-bottom:1.5px solid var(--grey-soft)}
 .bz-skel-bars .bz-skel{flex:0 0 min(46px,12%);border-radius:9px 9px 0 0}
 .bz-skel.is-seg{width:78%;height:38px;border-radius:12px}
@@ -343,11 +339,11 @@
 .bz-layout.is-intro .bz-kpi:nth-child(2){--d:.06s}
 .bz-layout.is-intro .bz-kpi:nth-child(3){--d:.12s}
 .bz-layout.is-intro .bz-kpi:nth-child(4){--d:.18s}
-.bz-layout.is-intro>.bz-split-card{--d:.14s}
-.bz-layout.is-intro>.bz-money,.bz-layout.is-intro>.bz-invest{--d:.2s}
-.bz-layout.is-intro>.bz-compare{--d:.26s}
-.bz-layout.is-intro>.bz-calc{--d:.3s}
-.bz-layout.is-intro>.bz-energy{--d:.36s}
+.bz-layout.is-intro>.bz-split-card{--d:.16s}
+.bz-layout.is-intro>.bz-energy{--d:.24s}
+.bz-layout.is-intro>.bz-money{--d:.04s}
+.bz-layout.is-intro>.bz-compare{--d:.12s}
+.bz-layout.is-intro>.bz-invest{--d:.2s}
 @keyframes bz-card-in{from{opacity:0;transform:translateY(16px) scale(.985)}}
 .app-shell .bz-scenario.is-intro>*{animation:bz-rise .5s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
 .bz-scenario.is-intro>:nth-child(2){--d:.08s}
@@ -415,10 +411,10 @@
 .app-shell.is-phone .bz-layout.is-loading .bz-card{min-height:160px}
 
 @media (prefers-reduced-motion:reduce){
-  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open,.bz-spin,.bz-out-spin,.bz-bar b,.bz-step-mark,.bz-message,
-  .bz-layout.is-waiting>*,.bz-calc.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
+  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-spin,.bz-out-spin,.bz-bar b,.bz-step-mark,.bz-message,
+  .bz-layout.is-waiting>*,.bz-split-card.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
   .app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card,.app-shell .bz-layout.is-intro .bz-kpi-icon,
   .app-shell .bz-layout.is-intro .bz-head-icon,.app-shell .bz-scenario.is-intro>*,.app-shell .bz-provenance.is-intro{animation:none!important}
-  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-out-figure strong,.bz-details-btn,.bz-split b,.bz-steps li,.bz-out-spin{transition:none}
+  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-split b,.bz-split-card :is(.bz-split-chart,.bz-whatif .bz-bridges),.bz-steps li,.bz-out-spin{transition:none}
   .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:none}
 }

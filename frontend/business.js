@@ -1,19 +1,24 @@
 // Impact page: who saves and who earns when our AI finds cheaper energy, for a simulated site.
-// Every figure comes from /api/v1/business/impact (backend/business.py and backend/offers.py): the
-// discount-window business case (KPIs, where the € goes, both profit bridges, the energy behind the
-// offers) and the depot's normal / basic smart / AI comparison, replayed on the same nights of
-// Carlson's historical GridToEv forecasts. The page draws the backend's figures and never recomputes
-// them; the what-if calculator asks the server too (/api/v1/business/offers/estimate).
+// Every figure comes from /api/v1/business/impact (backend/business.py and backend/offers.py), replayed
+// on the same nights of Carlson's historical GridToEv forecasts, in two views so that one screen tells
+// one story:
+//  - "Who earns" (per month): the SaveThePlanet Rewards business case (drivers book discount windows).
+//    KPIs, where the € goes (a what-if the
+//    server answers: /api/v1/business/offers/estimate) with both profit bridges, and the energy proof.
+//  - "Depot savings" (per year): the depot's normal / basic smart / AI comparison, its waterfall and
+//    the investment case.
+// The page draws the backend's figures and never recomputes them.
 const bz = {
   status: 'idle', // idle | loading | preparing | ready | empty | failed
   result: null, progress: null, error: '', token: 0, timer: null, inFlight: false,
   progressSince: null, // {at, done, total}: when this page first saw the build's progress, for the time left
   metric: 'money', // comparison chart: money | co2 | renewable
-  details: false, // depot investment details open
+  view: 'earn', // earn: who earns, per month | depot: the depot's savings, per year
   // view: which inputs show (main | costs)
   calc: { values: null, errors: {}, view: 'main', result: null, seq: 0, pending: false, error: '', timer: null },
 };
 try { const m = localStorage.getItem('impact-metric'); if (['money', 'co2', 'renewable'].includes(m)) bz.metric = m; } catch {}
+try { const v = localStorage.getItem('impact-view'); if (['earn', 'depot'].includes(v)) bz.view = v; } catch {}
 
 const bzGlyphs = {
   euro: '<path d="M17.5 6.3A7 7 0 1 0 17.5 17.7"/><path d="M4 10.2h9M4 13.8h9"/>',
@@ -131,7 +136,7 @@ function bzTrackProgress(now) {
 }
 
 // Re-render and put keyboard focus back where it was, since render() rebuilds <main>.
-const BZ_FOCUS = ['data-bz-metric', 'data-bz-details', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset'];
+const BZ_FOCUS = ['data-bz-metric', 'data-bz-view', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset'];
 function bzRender() {
   if (pageFromHash() !== 'business') return;
   const el = document.activeElement, attr = el && BZ_FOCUS.find((a) => el.hasAttribute?.(a));
@@ -167,27 +172,29 @@ bzFigure('bzDrivers', () => bzD() && { v: bzD().kpis.driversSavedEur, kind: 'mon
 bzFigure('bzOperator', () => bzD() && { v: bzD().kpis.operatorProfitEur, kind: 'month' });
 bzFigure('bzPlatform', () => bzD() && { v: bzD().kpis.platformProfitEur, kind: 'month' });
 
-// Where the € goes: one stacked bar of the month's extra AI savings, 50 / 25 / 25.
-const BZ_PARTS = [['driver', 'Drivers'], ['operator', 'Charging operator'], ['platform', 'Us']];
-function bzParts(d) {
-  const m = d.month;
+// Where the € goes: one stacked bar of the month's extra AI savings, 50 / 25 / 25, named in the bar.
+const BZ_PARTS = [['driver', 'Drivers'], ['operator', 'Operator'], ['platform', 'SaveThePlanet']];
+function bzParts(m) {
   return { driver: m.driversEur, operator: m.operator.retainedEur, platform: m.platform.grossEur };
 }
+// The month the card shows: the what-if's latest answer, or the replay until there is one.
+const bzShownMonth = () => bz.calc.result?.month || bzD()?.month;
 bzChart('bzSplit', {
   values() {
-    const d = bzD();
-    if (!d) return { w: [0, 0, 0], text: ['', '', ''], empty: '1', reveal: 0 };
-    const parts = bzParts(d), pool = d.month.poolEur;
+    const m = bzShownMonth();
+    if (!m) return { w: [0, 0, 0], amounts: [0, 0, 0], pool: 0, sessions: '0', empty: '1', reveal: 0 };
+    const parts = bzParts(m), pool = m.poolEur;
     return {
-      w: BZ_PARTS.map(([id]) => (pool > 0 ? Math.max(0, parts[id]) / pool : 0)),
-      text: BZ_PARTS.map(([id]) => bzCents(parts[id])), empty: pool > 0 ? '' : '1', reveal: 1,
+      w: BZ_PARTS.map(([id]) => (pool > 0 ? Math.max(0, parts[id]) / pool : 0)), amounts: BZ_PARTS.map(([id]) => parts[id]),
+      pool, sessions: String(m.sessions), empty: pool > 0 ? '' : '1', reveal: 1,
     };
   },
-  start: (t) => ({ ...t, w: t.w.map(() => 0), reveal: 0 }),
-  draw({ w, text, empty, reveal }) {
-    if (empty) return '<div class="bz-split is-empty"><span>No eligible extra savings this month: nothing to share, no commission.</span></div>';
-    const segs = BZ_PARTS.map(([id], i) => `<i class="is-${id}" style="width:${(w[i] * 100).toFixed(2)}%"><b style="opacity:${reveal > 0.85 ? 1 : 0}">${text[i]}</b></i>`).join('');
-    return `<div class="bz-split">${segs}</div>`;
+  start: (t) => ({ ...t, w: t.w.map(() => 0), amounts: t.amounts.map(() => 0), pool: 0, reveal: 0 }),
+  draw({ w, amounts, pool, sessions, empty, reveal }) {
+    const sum = `<p class="bz-split-sum"><b>${bzCents(pool)}</b><span>extra AI savings a month</span></p>`;
+    if (empty) return `${sum}<div class="bz-split is-empty"><span>No eligible extra savings: nothing to share, no commission.</span></div>`;
+    const segs = BZ_PARTS.map(([id, label], i) => `<i class="is-${id}" style="width:${(w[i] * 100).toFixed(2)}%"><b style="opacity:${reveal > 0.85 ? 1 : 0}"><span>${label}</span> ${bzEur(amounts[i])}</b></i>`).join('');
+    return `${sum}<div class="bz-split">${segs}</div>`;
   },
 });
 
@@ -288,21 +295,11 @@ bzChart('bzCompare', {
       const s = byId[row.id], w = (row.w * 100).toFixed(2), d = deltas?.[row.id];
       const chip = d?.text ? `<span class="bz-cmp-delta is-${row.id} is-${d.tone}" style="opacity:${fade}">${d.text}</span>` : '';
       return `<div class="bz-cmp-row is-${row.id}">
-        <div class="bz-cmp-name"><b>${escapeHtml(s.label)}</b>${chip}${bzRequirement(s.requirements)}</div>
+        <div class="bz-cmp-name"><b>${escapeHtml(s.label)}</b>${chip}${s.requirements.allMet ? '' : bzRequirement(s.requirements)}</div>
         <div class="bz-cmp-track"><i style="width:${w}%"></i><strong style="left:${w}%;opacity:${reveal > 0.85 ? 1 : 0}">${row.text}</strong></div>
       </div>`;
     }).join('');
   },
-});
-
-// Calculator output: our operating profit for the month.
-bzChart('bzCalcOut', {
-  values() {
-    const c = bz.calc.result, ok = c && !Object.keys(bz.calc.errors).length;
-    return { v: ok ? c.month.platform.profitEur : 0, none: ok ? '' : '1' };
-  },
-  start: (t) => ({ ...t, v: 0 }),
-  draw: ({ v, none }) => (none ? '<strong>—</strong>' : `<strong class="is-${bzTone(v)}">${bzEur(v)}<small>/month</small></strong>`),
 });
 
 // ---------------------------------------------------------------- calculator
@@ -312,8 +309,8 @@ const BZ_FIELDS = {
   kwhPerSession: ['Energy per session', 1, 100, false, 'kWh', 'Delivered at the charger. An 11 kW charger gives at most 22 kWh in a two-hour window.'],
   savingEurPerKwh: ['Extra AI saving', 0, 1, false, '€/kWh', 'Versus basic smart charging, net of storage losses, battery wear, network and session costs.'],
   operatorFixedEur: ['Operator programme costs', 0, 1000000, false, '€/month', 'The charging operator\'s remaining fixed costs for the programme.'],
-  platformVariableEur: ['Our cost per session', 0, 100, false, '€', 'Our own extra cost for each session (payments, messages, support).'],
-  platformFixedEur: ['Our monthly overhead', 0, 1000000, false, '€/month', 'Software, integration and support allocated to this site.'],
+  platformVariableEur: ['SaveThePlanet cost per session', 0, 100, false, '€', 'SaveThePlanet\'s own extra cost for each session (payments, messages, support).'],
+  platformFixedEur: ['SaveThePlanet monthly overhead', 0, 1000000, false, '€/month', 'Software, integration and support allocated to this site.'],
 };
 const BZ_MAIN = ['sessions', 'kwhPerSession', 'savingEurPerKwh'];
 const BZ_COSTS = ['operatorFixedEur', 'platformVariableEur', 'platformFixedEur'];
@@ -392,33 +389,32 @@ function bzField(name) {
     <span class="bz-input"><input type="text" inputmode="${whole ? 'numeric' : 'decimal'}" autocomplete="off" spellcheck="false" data-bz-input="${name}" value="${escapeHtml(bz.calc.values?.[name] ?? '')}" aria-invalid="${Boolean(error)}" aria-describedby="bz-err-${name}"><em>${error ? escapeHtml(bzShortError(error)) : unit}</em></span>
     <small class="bz-err" id="bz-err-${name}">${escapeHtml(bzFieldError(name))}</small></label>`;
 }
-function bzCalcDetail() {
-  const c = bz.calc, r = c.result, invalid = Object.keys(c.errors).length;
-  if (invalid) return `<p class="bz-out-note is-warn">${bzIcon('alert', 15)}Fix the highlighted ${invalid === 1 ? 'field' : 'fields'} to see an estimate.</p>`;
-  if (c.error) return `<p class="bz-out-note is-warn">${bzIcon('alert', 15)}${escapeHtml(c.error)}</p>`;
-  if (!r) return '<p class="bz-out-note">Working it out…</p>';
-  const m = r.month, even = (x) => (bzHas(x) ? `${n(x)} sessions` : 'never');
-  const cap = r.capacity.limit ? `<li class="is-warn" title="${escapeHtml(r.capacity.limit)}"><span>Site cap</span><b>${n(r.capacity.counted)} of ${n(r.capacity.requested)} counted</b></li>` : '';
-  const none = r.noSpareEnergy ? `<li class="is-warn"><span>No spare energy</span><b>no commission</b></li>` : '';
-  return `<ul class="bz-out-list">${cap}${none}
-    <li><span>Our gross commission</span><b>${bzCents(m.platform.grossEur)}</b></li>
-    <li><span>Operator profit</span><b class="is-${bzTone(m.operator.profitEur)}">${bzCents(m.operator.profitEur)}</b></li>
-    <li><span>Drivers save</span><b>${bzCents(m.driversEur)}</b></li>
-    <li><span>Break-even: us · operator</span><b>${even(m.platform.breakEvenSessions)} · ${even(m.operator.breakEvenSessions)}</b></li>
-    <li><span>Per year: us · operator</span><b><span class="is-${bzTone(m.yearly.platformProfitEur)}">${bzEur(m.yearly.platformProfitEur)}</span> · <span class="is-${bzTone(m.yearly.operatorProfitEur)}">${bzEur(m.yearly.operatorProfitEur)}</span></b></li></ul>`;
+// The what-if's profit bridges and any note about the answer (a cap, no spare energy, an error).
+function bzWhatIf() {
+  const c = bz.calc, m = bzShownMonth(), d = bzD(), invalid = Object.keys(c.errors).length;
+  if (!m || !d) return '';
+  const warn = (text) => `<p class="bz-out-note is-warn">${bzIcon('alert', 15)}<span>${escapeHtml(text)}</span></p>`;
+  const note = invalid ? warn(`Fix the highlighted ${invalid === 1 ? 'field' : 'fields'} to update the split.`)
+    : c.error ? warn(c.error)
+      : c.result?.capacity?.limit ? warn(c.result.capacity.limitedBy === 'session-kwh' ? c.result.capacity.limit
+        : `${n(c.result.capacity.counted)} of ${n(c.result.capacity.requested)} sessions counted: ${c.result.capacity.limit}`)
+        : c.result?.noSpareEnergy ? `<p class="bz-out-note">${bzIcon('info', 15)}<span>No spare energy: no discount and no commission, while both businesses still carry their fixed costs.</span></p>` : '';
+  return `<div class="bz-bridges">
+      ${bzBridge('platform', 'SaveThePlanet', [['Commission', m.platform.grossEur], ['Per-session costs', -m.platform.variableEur], ['Overhead', -m.platform.fixedEur]], ['Operating profit', m.platform.profitEur], m.platform.breakEvenSessions, m.yearly.platformProfitEur)}
+      ${bzBridge('operator', 'Charging operator', [[`${d.split.operator}% share`, m.operator.retainedEur], ['Programme costs', -m.operator.fixedEur]], ['Extra profit', m.operator.profitEur], m.operator.breakEvenSessions, m.yearly.operatorProfitEur)}
+    </div>${note}`;
 }
-// Updates only the calculator output, presets and field errors, so typing never loses focus.
+// Updates the what-if in place (bar, bridges, presets, field errors), so typing never loses focus.
 function bzCalcPaint() {
   const main = document.querySelector('main[data-current-page="business"]');
-  if (!main) return;
-  const detail = main.querySelector('.bz-out-detail'), card = main.querySelector('.bz-calc');
-  if (!detail || !card) return;
-  detail.innerHTML = bzCalcDetail();
+  const card = main?.querySelector('.bz-split-card:not(.bz-progress)');
+  if (!card) return;
   card.classList.toggle('is-pending', bz.calc.pending);
+  card.classList.toggle('is-stale', Object.keys(bz.calc.errors).length > 0 || Boolean(bz.calc.error));
+  const detail = card.querySelector('.bz-whatif');
+  if (detail) detail.innerHTML = bzWhatIf();
   const active = bzActivePreset();
   main.querySelectorAll('[data-bz-preset]').forEach((b) => { const on = b.dataset.bzPreset === active; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', String(on)); });
-  const note = main.querySelector('.bz-adv-note');
-  if (note) note.textContent = bzCostNote();
   for (const name of Object.keys(BZ_FIELDS)) {
     const field = main.querySelector(`[data-bz-field="${name}"]`);
     if (!field) continue;
@@ -428,12 +424,8 @@ function bzCalcPaint() {
     field.querySelector('.bz-input em').textContent = error ? bzShortError(error) : BZ_FIELDS[name][4];
     field.querySelector('.bz-err').textContent = bzFieldError(name);
   }
-  const chart = main.querySelector('[data-chart="bzCalcOut"]');
-  if (chart) chartsSync(chart.parentElement);
-}
-function bzCostNote() {
-  const v = bz.calc.values || {}, num = (k) => Number(String(v[k] ?? '').replace(/,/g, ''));
-  return `Costs: operator ${bzEur(num('operatorFixedEur'))}/month · us ${bzCents(num('platformVariableEur'))}/session + ${bzEur(num('platformFixedEur'))}/month`;
+  const chart = card.querySelector('[data-chart="bzSplit"]');
+  if (chart) { chart.setAttribute('aria-label', bzSplitLabel()); chartsSync(chart.parentElement); }
 }
 
 // ---------------------------------------------------------------- building blocks
@@ -456,11 +448,10 @@ function bzScenario(intro = '') {
   const sim = r.dataMode === 'simulated', d = r.discountWindows;
   const mode = sim
     ? `<button type="button" class="bz-chip is-sim" data-bz-retry="model" title="GridToEv is unavailable (${escapeHtml(r.fallback?.reason || '')}); this is a fixed simulated example. Click to try the model again.">${bzIcon('alert', 14)}Simulated data · retry model</button>`
-    : `<span class="bz-chip is-replay" title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">Historical replay</span>`;
+    : '';
   return `<div class="bz-scenario${intro ? ' is-intro' : ''}"${intro} aria-label="Scenario">
     <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>Example site</b><small>${n(d.hub.chargers)} × ${n(d.hub.chargerKw)} kW · simulated</small></span></span>
-    <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small>${n(r.period.nights)} nights replayed</small>`}</span></span>
-    <span class="bz-chip is-projected" title="${escapeHtml(`${d.label}. No real customers, bookings, payments or battery: without real settlement data these are projections, never money earned.`)}">Projected</span>
+    <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">${n(r.period.nights)} nights · GridToEv ${escapeHtml(r.modelVersion || '')} replay</small>`}</span></span>
     ${mode}</div>`;
 }
 
@@ -469,36 +460,47 @@ function bzKpiRow(r) {
   const loss = (v, tone) => (bzTone(v) === 'profit' ? tone : bzTone(v));
   const extraFoot = k.sessions ? `vs basic smart charging · ${n(k.sessions)} sessions` : 'no eligible sessions: nothing extra to share';
   const driverFoot = k.sessions ? `${bzCents(per.driverEur)} off each ${n(d.sessionKwh)} kWh charge` : 'normal prices apply';
-  const opFoot = `${bzCents(m.operator.retainedEur)} kept − ${bzCents(m.operator.fixedEur)} programme costs`;
+  const opFoot = `after ${bzEur(m.operator.fixedEur)} programme costs`;
   const usFoot = `from ${bzCents(m.platform.grossEur)} gross commission`;
   return `<section class="bz-kpis" aria-label="Monthly business case at the example site, projected from the replay">
     ${bzKpi('blue', 'spark', 'Extra savings from our AI', 'bzExtra', `Extra savings from our AI ${bzEur(k.aiExtraSavingsEur)} a month versus basic smart charging`, `<em>${extraFoot}</em>`)}
     ${bzKpi('green', 'car', 'Drivers saved', 'bzDrivers', `Drivers saved ${bzEur(k.driversSavedEur)} a month`, `<em>${driverFoot}</em>`)}
     ${bzKpi(loss(k.operatorProfitEur, 'teal'), 'building', 'Charging operator profit', 'bzOperator', `Charging operator profit ${bzEur(k.operatorProfitEur)} a month after its programme costs`, `<em>${opFoot}</em>`)}
-    ${bzKpi(loss(k.platformProfitEur, 'profit'), 'euro', 'Our operating profit', 'bzPlatform', `Our operating profit ${bzEur(k.platformProfitEur)} a month, from ${bzEur(k.platformGrossEur)} gross commission`, `<em>${usFoot}</em>`)}
+    ${bzKpi(loss(k.platformProfitEur, 'profit'), 'euro', 'SaveThePlanet operating profit', 'bzPlatform', `SaveThePlanet operating profit ${bzEur(k.platformProfitEur)} a month, from ${bzEur(k.platformGrossEur)} gross commission`, `<em>${usFoot}</em>`)}
   </section>`;
 }
 
 // One profit bridge: revenue, then costs, then the profit (or loss) that is left.
-function bzBridge(id, title, rows, total, breakEven) {
+function bzBridge(id, title, rows, total, breakEven, yearly) {
   const tone = bzTone(total[1]);
-  const even = bzHas(breakEven) ? `Break-even: ${n(breakEven)} sessions` : 'Never breaks even';
+  const even = bzHas(breakEven) ? `Breaks even at ${n(breakEven)} sessions` : 'Never breaks even';
   return `<div class="bz-bridge is-${id}"><h3><i></i>${title}</h3>
     <ul>${rows.map(([label, v]) => `<li><span>${label}</span><b>${bzCents(v, false)}</b></li>`).join('')}</ul>
     <p class="bz-bridge-total is-${tone}"><span>${total[0]}</span><b>${bzCents(total[1])}</b></p>
-    <small>${even}</small></div>`;
+    <small>${even}${bzHas(yearly) ? ` · <span class="is-${bzTone(yearly)}">${bzEur(yearly)}</span> a year` : ''}</small></div>`;
 }
+function bzSplitLabel() {
+  const m = bzShownMonth();
+  if (!m) return 'Where the € goes';
+  const parts = bzParts(m);
+  return `Of ${bzCents(m.poolEur)} extra savings a month: drivers ${bzCents(parts.driver)}, charging operator ${bzCents(parts.operator)}, SaveThePlanet ${bzCents(parts.platform)}`;
+}
+// Where the € goes, as a what-if: presets and three inputs drive the bar and both profit bridges, so the
+// split is shown once. It starts from the replay (the KPIs above); the server answers every change.
 function bzSplitCard(r) {
-  const d = r.discountWindows, m = d.month, parts = bzParts(d);
-  const legend = BZ_PARTS.map(([id, label]) => `<li class="is-${id}"><i></i><span>${id === 'operator' ? 'Operator' : label} <small>${d.split[id]}%</small></span></li>`).join('');
-  return `<section class="dash-card bz-card bz-split-card">
-    ${bzHead('split', 'blue', 'Where the € goes', `Extra AI savings a month, split ${d.split.driver} / ${d.split.operator} / ${d.split.platform}`, `<span class="bz-split-total"><b>${bzCents(m.poolEur)}</b><small>${n(m.sessions)} sessions</small></span>`)}
-    ${chartSlot('bzSplit', `Of ${bzCents(m.poolEur)} extra savings a month: drivers ${bzCents(parts.driver)}, charging operator ${bzCents(parts.operator)}, us ${bzCents(parts.platform)}`, 'bz-split-chart')}
-    <ul class="bz-legend">${legend}</ul>
-    <div class="bz-bridges">
-      ${bzBridge('platform', 'Us', [['Commission', m.platform.grossEur], ['Per-session costs', -m.platform.variableEur], ['Overhead', -m.platform.fixedEur]], ['Operating profit', m.platform.profitEur], m.platform.breakEvenSessions)}
-      ${bzBridge('operator', 'Charging operator', [[`${d.split.operator}% share`, m.operator.retainedEur], ['Programme costs', -m.operator.fixedEur]], ['Extra profit', m.operator.profitEur], m.operator.breakEvenSessions)}
-    </div>
+  const c = bz.calc, d = r.discountWindows, costs = c.view === 'costs', active = bzActivePreset();
+  const presets = `<div class="bz-seg is-small" role="group" aria-label="Start from">${BZ_PRESETS.map(([id, label]) => `<button type="button" data-bz-preset="${id}" aria-pressed="${active === id}" class="${active === id ? 'is-active' : ''}">${label}</button>`).join('')}</div>`;
+  // The cost inputs replace the main inputs in the same space, so the card never reflows.
+  const updating = '<span class="bz-updating" aria-hidden="true"><i class="bz-out-spin motion-loop"></i>Updating</span>';
+  const fields = costs
+    ? `${BZ_COSTS.map(bzField).join('')}<div class="bz-adv"><span class="bz-adv-note">Savings are shared first; these costs come out of each share.</span><button type="button" class="bz-link" data-bz-costs="done">${icon('check', 14)}Done</button>${updating}</div>`
+    : `${BZ_MAIN.map(bzField).join('')}<div class="bz-adv"><button type="button" class="bz-link" data-bz-costs="open">Edit costs</button>${updating}</div>`;
+  const stale = Object.keys(c.errors).length || c.error;
+  return `<section class="dash-card bz-card bz-split-card${c.pending ? ' is-pending' : ''}${stale ? ' is-stale' : ''}">
+    ${bzHead('split', 'blue', 'Where the € goes', `One site, one month · split ${d.split.driver} / ${d.split.operator} / ${d.split.platform}`, presets)}
+    <form class="bz-form" novalidate onsubmit="return false"><div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div></form>
+    ${chartSlot('bzSplit', bzSplitLabel(), 'bz-split-chart')}
+    <div class="bz-whatif" aria-live="polite">${bzWhatIf()}</div>
   </section>`;
 }
 
@@ -506,51 +508,32 @@ function bzMoneyCard(r) {
   const s = r.seasonal, f = r.financials;
   const basis = s.available ? 'season-adjusted' : 'not season-adjusted';
   const payback = f.paybackStatus === 'months' ? `Setup pays back in ${bzMonths(f.paybackMonths)}` : 'Depot setup does not pay back';
-  const button = `<button type="button" class="bz-link" data-bz-details aria-expanded="false">Investment details</button>`;
   return `<section class="dash-card bz-card bz-money">
     ${bzHead('euro', 'green', 'Where does the money come from?', `Depot · ${n(r.company.vehicles)} vans · yearly · ${basis}`)}
     ${chartSlot('bzWaterfall', `Waterfall: normal charging ${bzEur(r.financials.baselineCostEur)}, smarter timing ${bzEur(-r.financials.smartTimingSavingsEur, true)}, AI forecast ${bzEur(-r.financials.aiSavingsEur, true)}, software ${bzEur(r.financials.annualCostsEur, true)}, with our AI ${bzEur(r.financials.finalCostEur)} a year`, 'bz-wf-chart')}
-    <p class="bz-foot is-invest">${bzIcon('hourglass', 14)}<span title="${escapeHtml(`${bzEur(f.implementationEur)} example setup cost`)}">${payback}</span>${button}</p>
+    <p class="bz-foot is-invest">${bzIcon('hourglass', 14)}<span title="${escapeHtml(`${bzEur(f.implementationEur)} example setup cost`)}">${payback}</span></p>
   </section>`;
 }
 
 function bzCompareCard(r) {
-  const m = BZ_METRICS[bz.metric], c = r.forecastCalls;
+  const m = BZ_METRICS[bz.metric], c = r.forecastCalls, req = r.strategies.map((s) => s.requirements);
+  const onTime = req.every((q) => q.allMet) ? ` · all ${n(req[0].total)} van-nights on time` : '';
   const seg = `<div class="bz-seg" role="group" aria-label="Compare by">${Object.entries(BZ_METRICS).map(([key, x]) => `<button type="button" data-bz-metric="${key}" aria-pressed="${bz.metric === key}" class="${bz.metric === key ? 'is-active' : ''}">${x.label}</button>`).join('')}</div>`;
   const calls = c.surplusCalls ? `Forecast said “surplus” ${n(c.surplusCalls)} times: ${n(c.right)} right, ${n(c.falseAlarms)} false alarms, ${n(c.missed)} missed` : 'The forecast never called a surplus while vans were plugged in';
   return `<section class="dash-card bz-card bz-compare">
-    ${bzHead('spark', 'blue', 'Is our AI making a difference?', 'Same vans, prices and limits · no look-ahead')}
+    ${bzHead('spark', 'blue', 'Is our AI making a difference?', `Same vans, prices and limits · no look-ahead${onTime}`)}
     <div class="bz-cmp-bar">${seg}<p class="bz-cmp-unit"><span>${m.unit}</span><em>${m.better === 'lower' ? 'lower is better' : 'higher is better'}</em></p></div>
     ${chartSlot('bzCompare', `${m.unit} for normal, basic smart and AI charging`, 'bz-cmp-chart')}
     <p class="bz-foot" title="Each call is a half-hour with vans plugged in where the +30 minute forecast predicted enough curtailment to cover the site's full draw; checked against observed curtailment.">${bzIcon('info', 14)}<span>${calls}</span></p>
   </section>`;
 }
 
-function bzCalcCard(r) {
-  const c = bz.calc, costs = c.view === 'costs', d = r.discountWindows, active = bzActivePreset();
-  const presets = `<div class="bz-seg is-small" role="group" aria-label="Start from">${BZ_PRESETS.map(([id, label]) => `<button type="button" data-bz-preset="${id}" aria-pressed="${active === id}" class="${active === id ? 'is-active' : ''}">${label}</button>`).join('')}</div>`;
-  // The cost inputs replace the main inputs in the same space, so the page never reflows.
-  const fields = costs
-    ? `<p class="bz-fields-title">Costs <small>per site · savings are shared before these, profit is what is left</small></p>${BZ_COSTS.map(bzField).join('')}
-      <div class="bz-adv"><button type="button" class="bz-link" data-bz-costs="done">${icon('check', 14)}Done</button></div>`
-    : `${BZ_MAIN.map(bzField).join('')}<div class="bz-adv"><span class="bz-adv-note">${escapeHtml(bzCostNote())}</span><button type="button" class="bz-link" data-bz-costs="open">Edit costs</button></div>`;
-  const cap = d.calculator.capacity;
-  return `<section class="dash-card bz-card bz-calc${c.pending ? ' is-pending' : ''}">
-    ${bzHead('calc', 'amber', 'What if…?', `One site, one month · the site fits ${n(cap.sessionsPerWindow)} sessions per window, ${n(cap.maxPerMonth)} a month`, presets)}
-    <form class="bz-form" novalidate onsubmit="return false">
-      <div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div>
-      <div class="bz-out" aria-live="polite"><span class="bz-out-label">Our operating profit<i class="bz-out-spin motion-loop" aria-hidden="true"></i><small>projected · after our costs</small></span>
-        ${chartSlot('bzCalcOut', 'Our operating profit per month', 'bz-out-figure')}
-        <div class="bz-out-detail">${bzCalcDetail()}</div></div>
-    </form>
-  </section>`;
-}
-
 function bzEnergyCard(r) {
   const d = r.discountWindows, e = d.energy, b = e.battery, l = d.ledger;
   const src = [['stored', 'Stored surplus', e.sources.storedSurplusKwh], ['direct', 'Direct surplus', e.sources.directSurplusKwh], ['grid', 'Conventional grid', e.sources.conventionalKwh]];
-  const top = Math.max(1, ...src.map((s) => s[2]));
-  const rows = src.map(([id, label, kwh]) => `<li class="is-${id}"><span>${label}</span><i><em style="width:${((kwh / top) * 100).toFixed(1)}%"></em></i><b>${n(Math.round(kwh))} kWh</b></li>`).join('');
+  const sum = src.reduce((a, s) => a + s[2], 0);
+  const bar = src.map(([id, , kwh]) => (sum > 0 && kwh > 0 ? `<i class="is-${id}" style="width:${((kwh / sum) * 100).toFixed(1)}%"></i>` : '')).join('');
+  const legend = src.map(([id, label, kwh]) => `<li class="is-${id}"><i></i><span>${label}</span><b>${n(Math.round(kwh))} kWh</b></li>`).join('');
   const kwh = (v) => n(Math.round(v));
   const facts = [
     ['Battery in · out · left', `${kwh(b.gridChargedKwh)} · ${kwh(b.dischargedKwh)} · ${kwh(b.unallocatedSurplusKwh + b.unallocatedConventionalKwh)} kWh`, 'Grid energy into the battery, energy out at the chargers, and energy still stored (unallocated) at the end of the replay.'],
@@ -562,14 +545,14 @@ function bzEnergyCard(r) {
   return `<section class="dash-card bz-card bz-energy" title="${escapeHtml(e.notes.join('\n'))}">
     ${bzHead('battery', 'green', 'Energy proof', 'Apart from the money', `<span class="bz-chip is-hypo" title="${escapeHtml(d.battery.note)}">Hypothetical battery</span>`)}
     <p class="bz-energy-top"><b>${kwh(e.qualifyingKwh)} kWh</b><span>qualifying · ${n(l.sessions)} sessions · ${offers}</span></p>
-    <ul class="bz-sources">${rows}</ul>
+    <div class="bz-mix" role="img" aria-label="${escapeHtml(src.map(([, label, kwh]) => `${label} ${n(Math.round(kwh))} kWh`).join(', '))}">${bar}</div>
+    <ul class="bz-mix-legend">${legend}</ul>
     <dl class="bz-facts">${facts}</dl>
   </section>`;
 }
 
 function bzInvestCard(r) {
   const s = r.scenarios, f = r.financials;
-  const button = '<button type="button" class="bz-details-btn" data-bz-details aria-expanded="true">Hide details' + bzIcon('close', 16) + '</button>';
   const pay = (x) => (x.paybackStatus === 'months' ? bzMonths(x.paybackMonths) : 'Not achieved');
   const rows = [
     ['conservative', 'Conservative', 'No surplus benefit: smarter timing only'],
@@ -580,9 +563,9 @@ function bzInvestCard(r) {
   const season = r.seasonal.available
     ? `Curtailment happened on ${Math.round(r.seasonal.yearEventRate * 100)}% of days over a full year (${bzDay(r.seasonal.yearFrom, true)} – ${bzDay(r.seasonal.yearTo, true)}) and ${Math.round(r.seasonal.periodEventRate * 100)}% of the evaluation days, so the surplus part is scaled ×${n(Math.round(r.seasonal.appliedFactor * 100) / 100)}.`
     : `No seasonal adjustment: ${escapeHtml(r.seasonal.reason || 'not available')}`;
-  return `<section class="dash-card bz-card bz-invest is-open" aria-label="Investment details">
-    ${bzHead('hourglass', 'amber', 'Depot investment details', `Example costs: ${bzEur(f.implementationEur)} setup, ${bzEur(f.annualCostsEur)} a year`, button)}
-    <div class="bz-roi">
+  return `<section class="dash-card bz-card bz-invest" aria-label="Investment case">
+    ${bzHead('hourglass', 'amber', 'Investment case', `Example costs: ${bzEur(f.implementationEur)} setup, ${bzEur(f.annualCostsEur)} a year · 5-year view`)}
+    <div class="bz-invest-body"><div class="bz-roi">
       <div><span>Payback</span><strong>${f.paybackStatus === 'months' ? bzMonths(f.paybackMonths) : 'Not achieved'}</strong></div>
       <div><span>${n(f.roiYears)}-year net return</span><strong>${bzEur(f.roiNetEur)}</strong></div>
       <div><span>Return on investment</span><strong>${bzHas(f.roiPct) ? `${n(f.roiPct)}%` : '—'}</strong></div>
@@ -590,20 +573,32 @@ function bzInvestCard(r) {
     <div class="bz-tables">
       <table class="bz-table"><caption>Scenarios</caption><thead><tr><th scope="col"></th><th scope="col">Savings/year</th><th scope="col">CO₂/year</th><th scope="col">Payback</th></tr></thead><tbody>${rows}</tbody></table>
       <table class="bz-table is-sites"><caption>More locations <small>each needs its own grid check</small></caption><thead><tr><th scope="col"></th><th scope="col">Savings/year</th><th scope="col">CO₂/year</th><th scope="col">Setup</th></tr></thead><tbody>${sites}</tbody></table>
-    </div>
+    </div></div>
     <p class="bz-note">${season} Prices, fleet and costs are examples; replace them with your own quotes.</p>
   </section>`;
+}
+
+// Two views, one story each. The label says what the figures below are.
+const BZ_VIEWS = [['earn', 'Who earns', 'per month'], ['depot', 'Depot savings', 'per year']];
+function bzViews(r) {
+  const tabs = BZ_VIEWS.map(([id, label, unit]) => `<button type="button" data-bz-view="${id}" aria-pressed="${bz.view === id}" class="${bz.view === id ? 'is-active' : ''}">${label}<small>${unit}</small></button>`).join('');
+  const sim = r?.dataMode === 'simulated';
+  const label = !r ? '' : bz.view === 'earn'
+    ? `SaveThePlanet Rewards · ${sim ? 'illustrative example' : 'illustrative replay'} · projected revenue, simulated profit · ex VAT`
+    : `${sim ? 'Simulated example' : 'Historical replay'} · ${n(r.company.vehicles)} simulated vans · illustrative tariff`;
+  return `<div class="bz-views"><div class="bz-seg is-views" role="group" aria-label="Impact view">${tabs}</div>${label ? `<p class="bz-views-label">${bzIcon('info', 14)}${label}</p>` : ''}</div>`;
 }
 
 function bzProvenance(r, intro = '') {
   const cov = r.coverage || {};
   const gaps = (cov.missingForecasts || cov.missingObservations) ? ` · ${n(cov.missingForecasts || 0)} forecasts and ${n(cov.missingObservations || 0)} observations missing (not filled in)` : '';
   const how = r.dataMode === 'simulated'
-    ? 'Simulated example (GridToEv unavailable): fixed weather, same site and prices'
-    : `GridToEv ${escapeHtml(r.modelVersion || '')} +30 min historical forecasts scored against observed EirGrid curtailment`;
-  const d = r.discountWindows;
-  const tip = [...(d.methodology || []), ...(d.limitations || []), d.prices.vat, ...(r.methodology || []), ...(r.limitations || [])].join('\n');
-  return `<p class="bz-provenance${intro ? ' is-intro' : ''}"${intro} title="${escapeHtml(tip)}">${bzIcon('info', 13)}<span>${how} · hypothetical battery · illustrative prices, costs and demand · amounts ex VAT · projected revenue, simulated profit, not money earned · network deliverability not verified${gaps}</span></p>`;
+    ? 'Simulated example (GridToEv unavailable): fixed weather'
+    : `GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts vs observed EirGrid curtailment`;
+  const d = r.discountWindows, earn = bz.view === 'earn';
+  const tip = (earn ? [...(d.methodology || []), ...(d.limitations || []), d.prices.vat] : [...(r.methodology || []), ...(r.limitations || [])]).join('\n');
+  const what = earn ? 'hypothetical battery · illustrative prices, costs and demand' : `simulated fleet · illustrative prices · CO₂ estimated at ${n(r.emissions.gridIntensityKgPerKwh)} kg/kWh`;
+  return `<p class="bz-provenance${intro ? ' is-intro' : ''}"${intro} title="${escapeHtml(tip)}">${bzIcon('info', 13)}<span>${how} · ${what} · network access not verified${gaps}</span></p>`;
 }
 
 // ---------------------------------------------------------------- states
@@ -638,9 +633,9 @@ function bzStep(s) {
   const mark = s.state === 'done' ? bzIcon('tick', 14) : s.state === 'active' ? '<i class="bz-spin motion-loop"></i>' : '<i class="bz-dot"></i>';
   return `<li class="is-${s.state}" data-state="${s.state}"><span class="bz-step-mark">${mark}</span><span class="bz-step-copy"><b>${s.label}</b><small>${s.detail}</small></span></li>`;
 }
-function bzProgressCard(p) {
+function bzProgressCard(p, slot = 'bz-split-card') {
   const share = bzShare(p);
-  return `<section class="dash-card bz-card bz-split-card bz-progress" role="status">
+  return `<section class="dash-card bz-card ${slot} bz-progress" role="status">
     <div class="bz-progress-head"><span class="bz-progress-icon motion-loop">${bzIcon('spark', 22)}</span>
       <div><h2>Replaying a week of charging</h2><p>The first run replays GridToEv's forecasts; after that the page opens instantly.</p></div></div>
     <ol class="bz-steps">${bzLoadingSteps(p).map(bzStep).join('')}</ol>
@@ -675,13 +670,15 @@ function bzSkeleton() {
   const head = `<div class="bz-skel-head">${line('is-icon')}<span class="bz-skel-copy">${line('is-title')}${line('is-sub')}</span></div>`;
   const kpi = `<article class="dash-card bz-kpi is-skeleton">${line('is-kpi-icon')}<span class="bz-skel-copy">${line('is-label')}${line('is-figure')}</span>${line('is-foot')}</article>`;
   const card = (cls, body) => `<section class="dash-card bz-card ${cls} is-skeleton">${head}${body}</section>`;
-  const split = bz.status === 'preparing' ? bzProgressCard(bz.progress)
-    : card('bz-split-card', `${line('is-stack')}<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`);
-  const money = card('bz-money', `<div class="bz-skel-bars">${[84, 44, 10, 7, 42].map((h) => line('', `height:${h}%`)).join('')}</div>`);
-  const compare = card('bz-compare', `${line('is-seg')}<div class="bz-skel-rows">${[88, 46, 42].map((w) => `<div class="bz-skel-row">${line('is-row-label')}${line('is-row-bar', `width:${w}%`)}</div>`).join('')}</div>`);
-  const calc = card('bz-calc', `<div class="bz-skel-calc"><div class="bz-skel-fields">${line('is-field').repeat(3)}</div>${line('is-out')}</div>`);
-  const energy = card('bz-energy', `${line('is-title')}<div class="bz-skel-rows is-tight">${[90, 55, 30].map((w) => line('is-row-bar', `width:${w}%`)).join('')}</div>`);
-  return `<div class="bz-layout is-loading${bz.status === 'preparing' ? '' : ' is-waiting'}" aria-busy="true"><section class="bz-kpis">${kpi.repeat(4)}</section>${split}${money}${compare}${calc}${energy}</div>`;
+  const preparing = bz.status === 'preparing';
+  const rows = (widths) => `<div class="bz-skel-rows">${widths.map((w) => `<div class="bz-skel-row">${line('is-row-label')}${line('is-row-bar', `width:${w}%`)}</div>`).join('')}</div>`;
+  const cards = bz.view === 'depot'
+    ? `${preparing ? bzProgressCard(bz.progress, 'bz-money') : card('bz-money', `<div class="bz-skel-bars">${[84, 44, 10, 7, 42].map((h) => line('', `height:${h}%`)).join('')}</div>`)}
+      ${card('bz-compare', `${line('is-seg')}${rows([88, 46, 42])}`)}${card('bz-invest', `<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`)}`
+    : `<section class="bz-kpis">${kpi.repeat(4)}</section>
+      ${preparing ? bzProgressCard(bz.progress, 'bz-split-card') : card('bz-split-card', `<div class="bz-skel-fields">${line('is-field').repeat(3)}</div>${line('is-stack')}<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`)}
+      ${card('bz-energy', `${line('is-title')}${line('is-stack')}${rows([90, 55, 30])}`)}`;
+  return `<div class="bz-layout is-loading is-${bz.view}${preparing ? '' : ' is-waiting'}" aria-busy="true">${bzViews(null)}${cards}</div>`;
 }
 function bzMessage(kind, title, text, action = '') {
   return `<section class="dash-card bz-message is-${kind}" role="${kind === 'error' ? 'alert' : 'status'}"><span class="bz-message-icon">${bzIcon(kind === 'error' ? 'alert' : 'info', 26)}</span><h2>${title}</h2><p>${text}</p>${action}</section>`;
@@ -696,7 +693,7 @@ function renderBusiness() {
   // results already shown: while the entrance still plays (a live model update, say) it continues
   // from the same point; after that the cards stay still.
   const live = typeof liveRender !== 'undefined' && liveRender, now = Date.now();
-  if (shown && !live && !document.querySelector('#app .bz-layout.is-ready')) bz.introAt = now;
+  if (shown && !live && !document.querySelector(`#app .bz-layout.is-ready.is-${bz.view}`)) bz.introAt = now; // arrival or a new view
   const since = shown && bz.introAt !== undefined ? now - bz.introAt : Infinity;
   const intro = since < BZ_INTRO_MS ? (since > 0 ? ` style="--bz-t:-${since}ms"` : ' ') : '';
   const top = studioHeader('Impact', 'Who saves and who earns from our AI.', bzScenario(intro));
@@ -705,8 +702,8 @@ function renderBusiness() {
   }
   if (bz.status === 'empty' && r) return top + bzMessage('empty', 'Nothing to evaluate yet', escapeHtml(r.message || 'No complete night of forecasts was available.'), '<button type="button" class="studio-button" data-bz-retry="model">Check again</button>');
   if (!shown) return top + bzSkeleton();
-  const cards = bz.details ? bzInvestCard(r) : `${bzMoneyCard(r)}${bzCompareCard(r)}`;
-  return `${top}<div class="bz-layout is-ready${intro ? ' is-intro' : ''}${bz.details ? ' is-details' : ''}"${intro}>${bzKpiRow(r)}${bzSplitCard(r)}${cards}${bzCalcCard(r)}${bzEnergyCard(r)}</div>${bzProvenance(r, intro)}`;
+  const cards = bz.view === 'depot' ? `${bzMoneyCard(r)}${bzCompareCard(r)}${bzInvestCard(r)}` : `${bzKpiRow(r)}${bzSplitCard(r)}${bzEnergyCard(r)}`;
+  return `${top}<div class="bz-layout is-ready is-${bz.view}${intro ? ' is-intro' : ''}"${intro}>${bzViews(r)}${cards}</div>${bzProvenance(r, intro)}`;
 }
 const BZ_INTRO_MS = 1000; // the entrance's longest delay plus its animation
 // Cost inputs: open, or done (back to the main inputs once they are valid).
@@ -735,7 +732,12 @@ document.addEventListener('click', (event) => {
     try { localStorage.setItem('impact-metric', bz.metric); } catch {}
     bzRender(); return;
   }
-  if (pick('data-bz-details')) { bz.details = !bz.details; bzRender(); return; }
+  if ((el = pick('data-bz-view'))) {
+    if (bz.view === el.dataset.bzView) return;
+    bz.view = el.dataset.bzView;
+    try { localStorage.setItem('impact-view', bz.view); } catch {}
+    bzRender(); return;
+  }
   if ((el = pick('data-bz-costs'))) { bzCosts(el.dataset.bzCosts); return; }
   if ((el = pick('data-bz-preset'))) { bzPreset(el.dataset.bzPreset); bzRender(); return; }
   if ((el = pick('data-bz-retry'))) { bzLoad(el.dataset.bzRetry === 'model'); }
@@ -745,7 +747,4 @@ document.addEventListener('input', (event) => {
   if (!el || pageFromHash() !== 'business' || !bz.calc.values) return;
   bz.calc.values[el.dataset.bzInput] = el.value;
   bzCalcChanged();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && bz.details && pageFromHash() === 'business') { bz.details = false; bzRender(); }
 });
