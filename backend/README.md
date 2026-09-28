@@ -288,6 +288,19 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
 
+## Impact page: business and environmental impact
+
+`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`). Three charging
+strategies (normal, basic smart and AI) charge the same simulated depot fleet over the latest week of
+V1 +30 minute replays, with no look-ahead, and are scored against observed curtailment for money
+(illustrative tariff), estimated CO2 and surplus renewable energy. The year is scaled by how often
+curtailment happened over a full observed year (V2 daily dataset). The first request returns HTTP 202
+with progress while the week is replayed (the server also starts this at launch, at prefetch priority);
+the result is then cached. A model outage gives a labelled simulated example. Every plan passes the
+energy bridge's `optimizer.check_plan`, and the calculator plans its EVs on the example site with
+`optimizer.run_policy`. Full contract, methodology and limitations:
+[docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
+
 ## Dashboard V1 target and synthetic scenarios
 
 **Historical dataset prediction.** The shared forecast (Dashboard, Charging, Impact, Volt)
@@ -380,3 +393,14 @@ A synthetic API demonstration and stress test, not realistic current telemetry.
 Chrome) to drive one headless session across Dashboard → Charging → Impact → Volt. It
 saves screenshots and a `summary.json` of the pinned target each view shows to
 `docs/screenshots/pr40/`.
+
+## Charging optimizer and energy ledger
+
+`POST /api/v1/charging/optimize` with `{"preset": "depot-and-retail"}` (or a `fleet/v1` object
+under `fleet`) returns baseline and optimized vehicle-level plans for the +30 and +60 minute
+forecasts of the pinned half-hour, never added together. The optimized plan shares the window's
+eligible forecast energy equally between the plugged-in vehicles (max-min fair) and every plan
+carries a server-checked `ledger`: eligible = allocated to chargers + real storage (0) +
+unallocated, and allocated = delivered into batteries + charging loss. `GET /api/v1/charging/presets`
+lists the simulated fleets. Fleets are simulated and network eligibility is unverified; window
+energy is projected, not measured. See [docs/CHARGING_OPTIMIZER.md](../docs/CHARGING_OPTIMIZER.md).

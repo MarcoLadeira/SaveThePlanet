@@ -17,8 +17,11 @@ from scenario import build_day, build_scenario, validate_demand, validate_ev, DE
 from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
+import business
 import chat
 import explorer
+import fleet as fleets
+import optimizer
 import synthetic
 import targets
 from gate import FOREGROUND, PREFETCH, Busy, Superseded, gate
@@ -475,12 +478,14 @@ def dashboard_target(value):
 
 def keep_model_warm():
     """Wake the hosted model at startup, cache a first forecast and its day replay, start the
-    background prediction index used to mix risk levels, then ping the model so it never sleeps."""
+    Impact page's week of replays and the background prediction index used to mix risk levels,
+    then ping the model so it never sleeps."""
     try:
         model_request('/health', timeout=60)
         targets.dataset_targets()  # the population the dashboard's target is sampled from
         forecast = cached_forecast(100.0)
         fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0, prefetch=True)
+        business.start_prefetch()  # Impact page: ~8 day replays at prefetch priority
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
     targets.start_index_build()  # ~30 day replays at prefetch priority, or loaded from disk
@@ -529,6 +534,48 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def charging_optimize(self):
+        """Fleet plans for the server's own forecast. The browser supplies the fleet, never the forecast."""
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 256_000:
+                raise ValueError('Request body must be between 1 byte and 256 kB.')
+            body = json.loads(self.rfile.read(length))
+            if not isinstance(body, dict):
+                raise ValueError('Send a JSON object.')
+            capacity = body.get('capacityMw', 100.0)
+            number(capacity, 'capacity', minimum=0.001, maximum=10000)
+            mode = body.get('uncertainty', 'expected')
+            if 'fleet' in body:
+                fleet_input, fixture = body['fleet'], None
+            else:
+                fixture = body.get('preset', 'depot-and-retail')
+                if not isinstance(fixture, str):
+                    raise ValueError('preset must be a string')
+                fleet_input = fleets.preset(fixture)
+            fleet_clean = fleets.validate(fleet_input)
+            # The page's pinned target half-hour, so the plan uses the same forecast as every other view.
+            target = dashboard_target(body.get('target'))
+        except (ValueError, TypeError, UnicodeDecodeError) as error:
+            message = str(error) if isinstance(error, ValueError) and not isinstance(error, json.JSONDecodeError) else 'Send valid JSON.'
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': message}})
+            return
+        forecast = cached_forecast(float(capacity), target)
+        started = time.monotonic()
+        try:
+            plan = optimizer.optimize(fleet_clean, forecast, mode, fixture and f'{fleets.presets()["fixtureVersion"]}/{fixture}')
+        except optimizer.ForecastError as error:
+            self.send_json(502, {'error': {'code': 'INVALID_MODEL_RESPONSE', 'message': str(error)}})
+            return
+        except ValueError as error:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': str(error)}})
+            return
+        except RuntimeError:
+            self.send_json(500, {'error': {'code': 'OPTIMIZER_FAILED', 'message': 'The optimizer could not produce a plan that respects every constraint.'}})
+            return
+        plan['solver']['elapsedMs'] = round((time.monotonic() - started) * 1000, 1)
+        self.send_json(200, plan)
+
     def synthetic_v1(self):
         """A synthetic V1 scenario from the model's example request; never stored or treated as a forecast."""
         try:
@@ -557,6 +604,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
 
     def do_POST(self):
+        if urlsplit(self.path).path == '/api/v1/charging/optimize':
+            self.charging_optimize()
+            return
         if urlsplit(self.path).path == '/api/v1/synthetic-v1':
             self.synthetic_v1()
             return
@@ -577,7 +627,31 @@ class Handler(SimpleHTTPRequestHandler):
         # Figures come from the server's own forecast and scenario, never from the browser.
         forecast = cached_forecast(selectors['capacityMw'], selectors['target'])
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
-        self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
+        try:  # the same fleet plan the page shows; Volt still answers everything else without it
+            plan = optimizer.optimize(fleets.preset(selectors['fleetPreset']), forecast, selectors['uncertainty'],
+                                      f'{fleets.presets()["fixtureVersion"]}/{selectors["fleetPreset"]}')
+        except (ValueError, RuntimeError, KeyError, OSError) as error:
+            print(f'Volt has no fleet plan ({error}).', flush=True)
+            plan = None
+        self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario, plan)})
+
+    def business_impact(self, query):
+        """Impact page: 202 with progress while the week is replayed, then the full result."""
+        body = business.current(refresh=query.get('refresh', ['0'])[0] == '1')
+        if body['status'] == 'preparing':
+            self.send_json(202, body, {'Retry-After': '2'})
+        elif body['status'] == 'failed':
+            self.send_json(500, {'error': {'code': 'IMPACT_FAILED', 'message': body['message']}})
+        else:
+            self.send_json(200, body)
+
+    def business_estimate(self, query):
+        """Impact page calculator: an illustrative yearly saving for another fleet."""
+        values, errors = business.parse_estimate({key: value[0] for key, value in query.items()})
+        if errors:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
+            return
+        self.send_json(200, business.estimate(**values))
 
     def impact_day(self, query):
         try:
@@ -699,12 +773,23 @@ class Handler(SimpleHTTPRequestHandler):
         if route.path == '/api/v1/impact/day':
             self.impact_day(parse_qs(route.query))
             return
+        if route.path == '/api/v1/business/impact':
+            self.business_impact(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/estimate':
+            self.business_estimate(parse_qs(route.query))
+            return
 
         if route.path == '/api/v1/about/example':
             self.send_json(200, worked_example())  # About page: the real formulas on fixed example inputs
             return
         if route.path.startswith('/api/v1/explorer/'):
             self.explorer(route)
+            return
+        if route.path == '/api/v1/charging/presets':
+            data = fleets.presets()
+            self.send_json(200, dict(schemaVersion=data['schemaVersion'], fixtureVersion=data['fixtureVersion'],
+                                     provenance=data['provenance'], note=data['note'], presets=data['presets']))
             return
         if route.path == '/api/v1/health':
             probe = parse_qs(route.query).get('probe', ['true']) != ['false']

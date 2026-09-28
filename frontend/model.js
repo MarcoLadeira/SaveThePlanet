@@ -255,6 +255,8 @@ async function loadModelForecast(live = false) {
                 render();
                 loadModelHealth(false);
             }
+            // The Dashboard's battery plan follows the pinned half-hour (bridge.js).
+            if (modelState.data && typeof loadFleetPlan === "function") loadFleetPlan();
             liveTimer = setTimeout(
                 () => loadModelForecast(true),
                 isDemoData() ? 15000 : 60000,

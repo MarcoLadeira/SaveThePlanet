@@ -13,7 +13,7 @@ const ABOUT_LINKS = {
   load: 'https://hacktheclimate.io/samples/load.csv',
   prices: 'https://hacktheclimate.io/samples/prices.csv',
   scenario: 'https://github.com/MarcoLadeira/SaveThePlanet/blob/main/backend/scenario.py',
-  optimiser: 'https://github.com/MarcoLadeira/SaveThePlanet/issues/44',
+  optimiser: 'https://github.com/MarcoLadeira/SaveThePlanet/blob/main/docs/CHARGING_OPTIMIZER.md',
 };
 
 async function aboutLoad() {
@@ -146,7 +146,7 @@ function aboutEvSection() {
       ${aboutFormula('Usable by EVs (MWh)', 'usable = min(at risk, flexible kWh ÷ 1,000, chargers MW × 0.5 h)',
         '“min” means the smallest of the three wins: the spare power, the charging that can wait, or what the chargers can draw in half an hour. It is an <b>upper limit</b>, not energy actually saved.')}
       ${aboutFormula('In charging terms', `kWh = MWh × 1,000<br>charges = kWh ÷ ${aboutNum(perCharge, 0)}`,
-        `One charge is a typical ${aboutNum(perCharge, 0)} kWh top-up, with no energy lost. It compares amounts of energy. It is <b>not</b> a count of real cars booked in; a charging scheduler is ${aboutLink(ABOUT_LINKS.optimiser, 'still being built')}.`)}
+        `One charge is a typical ${aboutNum(perCharge, 0)} kWh top-up, with no energy lost. It compares amounts of energy. It is <b>not</b> a count of real cars booked in. Separately, the Dashboard’s energy bridge runs a ${aboutLink(ABOUT_LINKS.optimiser, 'charging optimiser')} that plans a <b>simulated</b> fleet car by car, within charger and site limits and assuming 90% efficiency. Its plans are recommendations, not real charging.`)}
       ${worked}
     </ol>
   </section>`;
