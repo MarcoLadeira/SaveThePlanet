@@ -1,0 +1,24 @@
+{
+ "model_version": "2.0.0-sources-experimental",
+ "parent_model_version": "2.0.0-daily-experimental",
+ "experimental": true,
+ "validation_status": "candidate_awaiting_fresh_confirmation",
+ "target_date_utc": "2026-09-15",
+ "issue_timestamp_utc": "2026-09-15T00:00:00+00:00",
+ "forecast_max_available_at_utc": "2026-09-14T23:00:00+00:00",
+ "curtailment_event_probability": 0.9615857706627287,
+ "predicted_curtailment_mwh": 5988.848124366113,
+ "predicted_wind_curtailment_mwh": 4927.074107176689,
+ "predicted_solar_curtailment_mwh": 1061.7740171894238,
+ "reconciliation_error_mwh": 0.0,
+ "predicted_wind_share_percent": 82.27,
+ "predicted_solar_share_percent": 17.73,
+ "capacity_proxy": {
+  "solar_mw": 1321.745,
+  "wind_mw": 4346.66,
+  "published_data_through_utc": "2026-07-31"
+ },
+ "summary": "For 2026-09-15 (UTC), V2 predicts 5,988.8 MWh of curtailment. This experimental model expects about 82% of it from wind (4,927.1 MWh) and 18% from solar (1,061.8 MWh).",
+ "compare_with_actual": "/actuals/curtailment/sources?target_date_utc=2026-09-15",
+ "notice": "Experimental and not yet confirmed on fresh data. The split can only be as good as V2's total, which can miss by thousands of MWh on a single day. Not a dispatch instruction."
+}
