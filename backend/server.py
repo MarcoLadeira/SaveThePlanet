@@ -823,7 +823,9 @@ class Handler(SimpleHTTPRequestHandler):
             elif name == 'day':
                 capacity = float(query.get('capacityMw', '100'))
                 number(capacity, 'capacity', minimum=0.001, maximum=10000)
-                action = partial(sources.day, date.fromisoformat(query.get('date', '')).isoformat(), capacity)
+                action = partial(sources.recorded_view, date.fromisoformat(query.get('date', '')).isoformat(), capacity)
+            elif name == 'forecast':
+                action = partial(sources.forecast_view, date.fromisoformat(query.get('date', '')).isoformat())
             elif name == 'month':
                 month = query.get('month', '')
                 date.fromisoformat(f'{month}-01')

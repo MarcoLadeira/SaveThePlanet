@@ -323,18 +323,33 @@ class SourcesHttpTests(SourcesTestCase):
             with error:
                 return error.code, error.read().decode()
 
-    def test_day_route_returns_recorded_forecast_and_derived(self):
+    def test_day_route_returns_the_recorded_day_without_waiting_for_the_forecast(self):
         status, text = self.get('day?date=2026-05-10&capacityMw=100')
         self.assertEqual(status, 200)
         body = json.loads(text)
-        self.assertEqual(set(body), {'date', 'recorded', 'forecast', 'derived'})
+        self.assertEqual(set(body), {'date', 'recorded', 'derived'})
         self.assertEqual(body['derived']['bestWindow']['absorbableMwh'], 400.0)
+        self.assertEqual(self.model.count('/predict/'), 0)  # the slow forecast is its own request
+
+    def test_forecast_route_returns_the_split_and_its_comparison(self):
+        status, text = self.get('forecast?date=2026-05-10')
+        self.assertEqual(status, 200)
+        body = json.loads(text)
+        self.assertEqual(body['forecast']['status'], 'ok')
+        self.assertEqual(body['comparison']['shareErrorPoints'], 8.45)
+        self.assertAlmostEqual(body['potentialRatio']['ratio'], 4.29, places=2)
+
+    def test_a_down_forecast_still_answers_200_with_its_status(self):
+        self.model.overrides['forecast'] = http_error(503, 'down')
+        status, text = self.get('forecast?date=2026-05-10')
+        self.assertEqual((status, json.loads(text)['forecast']['status']), (200, 'unavailable'))
 
     def test_bad_requests_are_rejected_before_reaching_the_model(self):
-        for path in ('day?date=10-05-2026', 'day?date=2026-05-10&capacityMw=0', 'month?month=2026-5', 'nope'):
+        for path in ('day?date=10-05-2026', 'day?date=2026-05-10&capacityMw=0', 'forecast?date=x', 'month?month=2026-5', 'nope'):
             status, _ = self.get(path)
             self.assertIn(status, (400, 404), path)
         self.assertEqual(self.get('day?date=2020-01-01')[0], 404)
+        self.assertEqual(self.get('forecast?date=2026-09-29')[0], 404)
         self.assertEqual(self.model.count('/predict/'), 0)
 
     def test_coverage_info_and_month_routes(self):
@@ -348,7 +363,7 @@ class SourcesHttpTests(SourcesTestCase):
     def test_the_api_key_never_reaches_the_browser(self):
         os.environ['GRID_TO_EV_API_KEY'], saved = 'secret-test-key-123', os.environ.get('GRID_TO_EV_API_KEY')
         try:
-            for path in ('coverage', 'info', 'day?date=2026-05-10', 'month?month=2026-05'):
+            for path in ('coverage', 'info', 'day?date=2026-05-10', 'forecast?date=2026-05-10', 'month?month=2026-05'):
                 self.assertNotIn('secret-test-key-123', self.get(path)[1])
         finally:
             if saved is None:

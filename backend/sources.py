@@ -336,10 +336,30 @@ def derived(recorded, forecast, info, capacity_mw):
 
 # ---------------------------------------------------------------- page routes
 def day(value, capacity_mw):
-    """Everything the page needs for one day, from one browser request."""
+    """Everything about one day in one answer: recorded, forecast and derived values."""
     day = validate_day(value)
     recorded, forecast, info = explorer.parallel(lambda: recorded_day(day), lambda: forecast_split(day), split_info)
     return {'date': day, 'recorded': recorded, 'forecast': forecast, 'derived': derived(recorded, forecast, info, capacity_mw)}
+
+
+# The page asks for the two halves separately: a recorded day takes ~0.6 s upstream, but a cold
+# forecast ~7 s (GridToEv fetches the archived weather), so the recorded figures never wait for it.
+def recorded_view(value, capacity_mw):
+    day = validate_day(value)
+    recorded = recorded_day(day)
+    halves = recorded.get('halfHours')
+    return {'date': day, 'recorded': recorded, 'derived': {
+        'profile': day_profile(halves) if halves else None,
+        'bestWindow': best_window(halves, capacity_mw) if halves else None,
+        'recordedEv': ev_equivalent(recorded.get('totalMwh')),
+    }}
+
+
+def forecast_view(value):
+    day = validate_day(value)
+    recorded, forecast, info = explorer.parallel(lambda: recorded_day(day), lambda: forecast_split(day), split_info)
+    return {'date': day, 'forecast': forecast, 'comparison': compare(recorded, forecast),
+            'potentialRatio': potential_ratio(forecast.get('windSharePercent'), info) if forecast.get('status') == 'ok' else None}
 
 
 def suggested_day():
