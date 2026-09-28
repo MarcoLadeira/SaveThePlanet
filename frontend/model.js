@@ -7,6 +7,8 @@ const modelState = {
     capacity: 100,
     totalDemandKwh: 1000,
     flexibleDemandKwh: 500,
+    kwhPerCharge: 30,
+    chargerKw: 22,
     health: null,
     healthChecking: false,
 };
@@ -207,6 +209,8 @@ async function loadModelForecast(live = false) {
             capacityMw: String(modelState.capacity),
             totalDemandKwh: String(modelState.totalDemandKwh),
             flexibleDemandKwh: String(modelState.flexibleDemandKwh),
+            kwhPerCharge: String(modelState.kwhPerCharge),
+            chargerKw: String(modelState.chargerKw),
         });
         const response = await fetch(`/api/v1/scenario?${query}`, {
             signal: controller.signal,
