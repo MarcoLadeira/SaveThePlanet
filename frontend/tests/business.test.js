@@ -125,13 +125,14 @@ test('where the € goes with no eligible savings: empty bar, no commission, bot
   assert.match(card, /Never breaks even/);
 });
 
-test('comparison: every strategy on one metric, with units, scale and the AI change', () => {
+test('comparison: every strategy on one metric, basic against normal and our AI against basic', () => {
   const run = load(), r = ready(run);
   run('bz.metric = "money"');
   let v = run('dashCharts.bzCompare.values()');
   assert.deepEqual(v.rows.map((row) => row.text), r.strategies.map((s) => `€${new Intl.NumberFormat('en-IE').format(s.annual.costEur)}`));
-  assert.equal(v.tone, 'good');
-  assert.match(v.delta, /^−\d+% vs normal$/);
+  // €57,485 → €28,415 → €25,662: the AI's chip is what it adds on top of the simple rule.
+  assert.deepEqual({ ...v.deltas.basic }, { text: '−51% vs normal', tone: 'good' });
+  assert.deepEqual({ ...v.deltas.ai }, { text: '−10% vs basic', tone: 'good' });
   run('bz.metric = "co2"');
   v = run('dashCharts.bzCompare.values()');
   assert.ok(v.rows.every((row) => / t$/.test(row.text) && /\.\d t$/.test(row.text)), 'tonnes with one decimal');
@@ -140,10 +141,18 @@ test('comparison: every strategy on one metric, with units, scale and the AI cha
   const ai = r.strategies.find((s) => s.id === 'ai');
   assert.equal(v.rows.find((row) => row.id === 'ai').w, ai.annual.renewableShare, 'a share is drawn out of 100%');
   assert.match(v.rows[0].text, /^\d+%$/);
-  assert.match(v.delta, /pts vs normal$/);
+  assert.equal(v.deltas.basic.text, '+27 pts vs normal');
+  assert.equal(v.deltas.ai.text, '+16 pts vs basic');
   const html = draw(run, 'bzCompare');
   assert.equal(html.match(/\d+\/\d+ on time</g).length, 3);
+  assert.equal(html.match(/class="bz-cmp-delta /g).length, 2, 'no chip on normal charging, the reference');
+  assert.match(html, /bz-cmp-delta is-basic is-good[^>]*>\+27 pts vs normal/);
   assert.doesNotMatch(html, /NaN|undefined/);
+  // Small changes keep a decimal; none at all reads "same as".
+  assert.equal(run('bzDelta("money", 99.6, 100, "basic").text'), '−0.4% vs basic');
+  assert.deepEqual({ ...run('bzDelta("money", 100, 100, "basic")') }, { text: 'same as basic', tone: 'same' });
+  const start = run('dashCharts.bzCompare.draw(dashCharts.bzCompare.start(dashCharts.bzCompare.values()))');
+  assert.match(start, /bz-cmp-delta[^>]*style="opacity:0.00"/, 'chips fade in as the bars land');
 });
 
 test('a worse AI result is flagged, and missed charging requirements are shown', () => {
@@ -153,9 +162,9 @@ test('a worse AI result is flagged, and missed charging requirements are shown',
   ai.requirements = { met: 137, total: 140, unmetKwh: 12.4, allMet: false };
   ready(run, r);
   run('bz.metric = "co2"');
-  assert.equal(run('dashCharts.bzCompare.values().tone'), 'bad');
+  assert.equal(run('dashCharts.bzCompare.values().deltas.ai.tone'), 'bad');
   const html = draw(run, 'bzCompare');
-  assert.match(html, /bz-cmp-delta is-bad/);
+  assert.match(html, /bz-cmp-delta is-ai is-bad[^>]*>\+53% vs basic/);
   assert.match(html, /3 of 140 van-nights short · 12 kWh/);
 });
 
@@ -259,13 +268,18 @@ test('energy proof stays apart from the money and labels what is hypothetical or
 });
 
 test('preparing, failed, empty and ready states render the right content', async () => {
-  const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: 3, total: 9, stage: 'Replaying historical forecasts' } }) });
+  const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: 3, total: 10, stage: 'Replaying historical forecasts' } }) });
+  run('bz.status = "loading"');
+  assert.match(run('renderBusiness()'), /Loading<\/span>[\s\S]*bz-layout is-loading is-waiting/, 'placeholders wait a moment before showing');
   await run('bzLoad()');
   assert.equal(run('bz.status'), 'preparing');
   let html = run('renderBusiness()');
-  assert.match(html, /Preparing · 4 of 9/);
-  assert.match(html, /step 4 of 9/);
-  assert.match(html, /aria-busy="true"/);
+  assert.match(html, /Preparing · 4 of 10/);
+  assert.match(html, /bz-layout is-loading" aria-busy="true"/, 'a known wait shows the placeholders at once');
+  assert.match(html, /<li class="is-active" data-state="active">[\s\S]*Replay a week of GridToEv forecasts<\/b><small>day 4 of 8</);
+  assert.equal(html.match(/data-state="pending"/g).length, 2);
+  assert.match(html, /aria-valuenow="35"/);
+  assert.match(html, /bz-progress-meta" aria-hidden="true">35%</);
   run('clearTimeout(bz.timer); bz.timer = null');
 
   run('bz.status = "failed"; bz.error = "The impact calculation failed. Try again."; bz.result = null');
@@ -279,12 +293,95 @@ test('preparing, failed, empty and ready states render the right content', async
 
   ready(run);
   html = run('renderBusiness()');
+  assert.match(html, /bz-layout is-ready is-intro/, 'the results rise in when they first appear');
+  assert.doesNotMatch(html, /aria-busy/);
   for (const text of ['<h1>Impact</h1>', 'Who saves and who earns from our AI.', 'Extra savings from our AI', 'Drivers saved',
     'Charging operator profit', 'Our operating profit', 'Where the € goes', 'Where does the money come from?', 'Is our AI making a difference?',
     'What if…?', 'Energy proof', 'Investment details', '>Money<', '>CO₂<', '>Renewable energy<', '>Replay<', '>400 sessions<', '>No spare energy<']) {
     assert.ok(html.includes(text), text);
   }
   assert.doesNotMatch(html, /Money earned|SaveThePlanet Rewards/);
+});
+
+test('loading steps follow the build: each day replayed, the observed year, then the scoring', () => {
+  const run = load();
+  const steps = (p) => JSON.parse(run(`JSON.stringify(bzLoadingSteps(${JSON.stringify(p)}))`));
+  const states = (p) => steps(p).map((s) => s.state).join(' ');
+  assert.equal(states({ done: 0, total: 0, stage: 'Starting' }), 'active pending pending');
+  assert.equal(steps({ done: 0, total: 0 })[0].detail, 'starting');
+  assert.equal(states({ done: 7, total: 10 }), 'active pending pending');
+  assert.equal(steps({ done: 7, total: 10 })[0].detail, 'day 8 of 8');
+  assert.equal(states({ done: 8, total: 10 }), 'done active pending');
+  assert.equal(steps({ done: 8, total: 10 })[0].detail, '8 days replayed');
+  assert.equal(states({ done: 9, total: 10 }), 'done done active');
+  assert.equal(steps({ done: 9, total: 10 })[2].label, 'Score the week and split the savings');
+  assert.equal(states(null), 'active pending pending');
+});
+
+test('time left is estimated for the replay, at the pace of the days seen so far', () => {
+  const run = load();
+  const eta = (p, since, now) => run(`bzEta(${JSON.stringify(p)}, ${JSON.stringify(since)}, ${now})`);
+  assert.equal(eta({ done: 2, total: 10 }, { at: 0, done: 2 }, 5000), '', 'nothing until a day has finished');
+  assert.equal(eta({ done: 4, total: 10 }, { at: 0, done: 2 }, 8000), 'about 20 s left', '4 s a day, 4 days to go');
+  assert.equal(eta({ done: 4, total: 10 }, { at: 0, done: 2 }, 60000), 'about 2 min left');
+  assert.equal(eta({ done: 7, total: 10 }, { at: 0, done: 2 }, 7000), 'a few seconds left');
+  assert.equal(eta({ done: 8, total: 10 }, { at: 0, done: 2 }, 7000), '', 'the observed year and the scoring take their own time');
+  run.set('bz.progressSince', { at: 0, done: 2, total: 10 });
+  assert.equal(JSON.parse(run('JSON.stringify(bzLoadingSteps({ done: 4, total: 10 }, 8000))'))[0].detail, 'day 5 of 8 · about 20 s left');
+  run.set('bz.progressSince', null);
+  run.set('bz.progress', { done: 3, total: 10 }); run('bz.status = "preparing"; bzTrackProgress(1000)');
+  assert.deepEqual({ ...run('bz.progressSince') }, { at: 1000, done: 3, total: 10 });
+  run.set('bz.progress', { done: 5, total: 10 }); run('bzTrackProgress(5000)');
+  assert.equal(run('bz.progressSince.at'), 1000, 'the first sighting is kept');
+  run.set('bz.progress', { done: 0, total: 10 }); run('bzTrackProgress(6000)');
+  assert.equal(run('bz.progressSince.at'), 6000, 'a build that starts again starts the estimate again');
+  run('bz.status = "ready"; bzTrackProgress(7000)');
+  assert.equal(run('bz.progressSince'), null);
+});
+
+test('polls while preparing update the loading card in place instead of re-rendering', async () => {
+  let done = 3;
+  const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: done++, total: 10, stage: 'Replaying historical forecasts' } }) });
+  await run('bzLoad()');
+  run('clearTimeout(bz.timer); bz.timer = null');
+  const before = run.renders.length;
+  assert.ok(before > 0);
+  run('var painted = 0; bzProgressPaint = () => { painted++; return true; }');
+  await run('bzLoad()');
+  run('clearTimeout(bz.timer); bz.timer = null');
+  assert.equal(run.renders.length, before, 'no full re-render between polls');
+  assert.equal(run('painted'), 2, 'the card is updated as the poll starts and when it answers');
+  assert.equal(run('bz.progress.done'), 4);
+  run('bzProgressPaint = () => false');
+  await run('bzLoad()');
+  run('clearTimeout(bz.timer); bz.timer = null');
+  assert.ok(run.renders.length > before, 'without a card on screen the page renders');
+});
+
+test('the entrance plays once, and a re-render while it plays continues it', () => {
+  const run = load(); ready(run);
+  assert.match(run('renderBusiness()'), /bz-scenario is-intro"\s[\s\S]*bz-layout is-ready is-intro"\s>[\s\S]*bz-provenance is-intro"/);
+  run('document.querySelector = (selector) => (selector.includes(".bz-layout.is-ready") ? {} : null)');
+  run('bz.introAt = Date.now() - 300');
+  assert.match(run('renderBusiness()'), /bz-layout is-ready is-intro" style="--bz-t:-3\d\dms">/, 'resumed 300 ms in');
+  run('bz.introAt = Date.now() - 2000');
+  assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'after the entrance the cards stay still');
+  run('document.querySelector = () => null; var liveRender = true');
+  assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'a live model update never starts it');
+});
+
+test('the calculator shows a spinner while a new estimate is on its way', () => {
+  const run = load(); ready(run);
+  assert.match(run('bzCalcCard(bz.result)'), /Our operating profit<i class="bz-out-spin motion-loop" aria-hidden="true"><\/i>/);
+});
+
+test('loading motion keeps running through live model refreshes', () => {
+  const run = load();
+  run('bz.status = "preparing"');
+  run.set('bz.progress', { done: 3, total: 10 });
+  const html = run('renderBusiness()');
+  for (const loop of ['bz-spin motion-loop', 'bz-progress-icon motion-loop', '<b class="motion-loop"></b>', 'bz-skel motion-loop']) assert.ok(html.includes(loop), loop);
+  assert.match(run('bzScenario()'), /bz-chip is-busy"><i class="motion-loop"><\/i>/);
 });
 
 test('simulated data and projections are labelled everywhere they could be mistaken for real data', () => {

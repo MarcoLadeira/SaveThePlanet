@@ -137,6 +137,7 @@
 .bz-cmp-row.is-ai .bz-cmp-track i{background:linear-gradient(180deg,var(--bz-blue-top),var(--bz-blue));box-shadow:0 6px 14px -6px rgba(47,123,224,.6)}
 .bz-cmp-track strong{position:absolute;top:50%;margin-left:10px;transform:translateY(-50%);font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s ease}
 .bz-cmp-delta{flex:0 0 auto;padding:2px 8px;border-radius:99px;background:var(--bz-blue);color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.bz-cmp-delta.is-basic.is-good{background:var(--green-deep)}
 .bz-cmp-delta.is-bad{background:var(--bz-bad)}
 .bz-cmp-delta.is-same{background:var(--grey-deep)}
 .bz-foot{display:flex;align-items:center;gap:7px;margin:0!important;font-size:12px;line-height:1.35;color:var(--ink-3)}
@@ -172,6 +173,9 @@
 .bz-link:hover{text-decoration:underline}
 .bz-out{display:flex;flex-direction:column;gap:2px;min-width:0;padding:12px 16px;border-radius:17px;background:linear-gradient(160deg,var(--green-soft),var(--surface-2))}
 .bz-out-label{font-size:12.5px;font-weight:750;color:var(--green-deep)}
+/* Spins while a new estimate is on its way; the figure then counts to the new answer. */
+.bz-out-spin{display:inline-block;width:10px;height:10px;margin-left:7px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-1px;opacity:0;transition:opacity .2s ease}
+.bz-calc.is-pending .bz-out-spin{opacity:1;animation:bz-spin .7s linear infinite}
 .bz-out-label small{display:block;font-size:11px;font-weight:650;color:var(--ink-3)}
 .bz-out-figure strong{display:block;font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.035em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s ease}
 .bz-out-figure small{margin-left:5px;font-size:13px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
@@ -268,19 +272,90 @@
 .bz-provenance{display:flex;align-items:center;gap:6px;margin:0!important;font-size:11.5px;line-height:1.4;color:var(--ink-3);cursor:help}
 .bz-provenance span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bz-provenance svg{flex:0 0 auto}
-.bz-skel{display:block;width:60%;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--grey-soft) 25%,var(--surface) 50%,var(--grey-soft) 75%) 0 0/200% 100%;animation:bz-shimmer 1.3s linear infinite}
-.bz-skel.is-short{width:36%}
-.bz-skel.is-block{width:42px;height:42px;border-radius:13px}
-.bz-skel.is-fill{flex:1;width:100%;min-height:40px;border-radius:14px}
-.bz-kpi.is-skeleton{display:flex;flex-direction:column;gap:10px}
-@keyframes bz-shimmer{to{background-position:-200% 0}}
-.bz-progress{align-items:center;justify-content:center;gap:10px;text-align:center}
-.bz-progress-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--bz-blue-soft);color:var(--bz-blue);animation:bz-pulse 1.6s ease-in-out infinite}
-.bz-progress h2{font-size:18px;font-weight:800;letter-spacing:-.02em}
-.bz-progress p{max-width:440px;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
-.bz-bar{display:block;width:min(360px,80%);height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
-.bz-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green));transition:width .4s ease}
-.bz-message{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;flex:1;padding:30px;border-radius:22px;text-align:center}
+/* Loading placeholders, shaped like the cards they stand for; a light sweeps across them. */
+.bz-skel{display:block;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--grey-soft) 30%,var(--surface-2) 50%,var(--grey-soft) 70%) 0 0/300% 100%;animation:bz-shimmer 1.6s ease-in-out infinite}
+/* A quick answer never shows the placeholders: they fade in only after a moment. */
+.bz-layout.is-waiting>*{animation:bz-fade-in .35s ease .2s backwards}
+@keyframes bz-fade-in{from{opacity:0}}
+.bz-skel-head{display:flex;align-items:center;gap:11px}
+.bz-skel-copy{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+.bz-skel.is-icon{flex:0 0 38px;width:38px;height:38px;border-radius:12px}
+.bz-skel.is-title{width:46%;height:13px}
+.bz-skel.is-sub{width:68%;height:10px}
+.bz-kpi.is-skeleton .is-kpi-icon{grid-column:1;grid-row:1/3;width:42px;height:42px;border-radius:13px}
+.bz-kpi.is-skeleton .bz-skel-copy{grid-column:2/4;grid-row:1/3;gap:9px}
+.bz-skel.is-label{width:66%;height:11px}
+.bz-skel.is-figure{width:52%;height:22px;border-radius:8px}
+.bz-skel.is-foot{grid-column:1/-1;grid-row:3;width:74%;height:10px;margin-top:8px}
+.bz-skel.is-stack{height:34px;margin-top:10px;border-radius:12px}
+.bz-skel-pair{flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-height:0}
+.bz-skel.is-block{height:auto;border-radius:14px}
+.bz-skel-bars{flex:1;display:flex;align-items:flex-end;justify-content:space-around;min-height:0;margin:16px 0 26px 44px;border-bottom:1.5px solid var(--grey-soft)}
+.bz-skel-bars .bz-skel{flex:0 0 min(46px,12%);border-radius:9px 9px 0 0}
+.bz-skel.is-seg{width:78%;height:38px;border-radius:12px}
+.bz-skel-rows{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:6px;min-height:0}
+.bz-skel-rows.is-tight{justify-content:flex-start;gap:14px;padding-top:6px}
+.bz-skel-row{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:15px;background:var(--surface-2)}
+.bz-skel.is-row-label{width:34%;height:11px}
+.bz-skel.is-row-bar{height:16px}
+.bz-skel-calc{flex:1;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;min-height:0}
+.bz-skel-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 12px;align-content:start;padding-top:18px}
+.bz-skel.is-field{height:36px;border-radius:11px}
+.bz-skel.is-out{height:auto;border-radius:17px}
+@keyframes bz-shimmer{from{background-position:100% 0}to{background-position:0 0}}
+/* The build's progress: three steps, a bar and the replay's time left. Updated in place between
+   polls, so the spinner and the bar keep moving rather than restarting. */
+.bz-progress{justify-content:center;gap:14px;padding:18px 22px}
+.bz-progress>*{width:100%;max-width:480px;margin-inline:auto}
+.bz-progress-head{display:flex;align-items:center;gap:14px}
+.bz-progress-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:15px;background:var(--bz-blue-soft);color:var(--bz-blue);animation:bz-breathe 2s ease-in-out infinite}
+@keyframes bz-breathe{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(47,123,224,.3)}50%{transform:scale(1.05);box-shadow:0 0 0 12px rgba(47,123,224,0)}}
+.bz-progress h2{font-size:17px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.bz-progress-head p{margin-top:3px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.bz-steps{display:flex;flex-direction:column;gap:3px;margin-block:0;padding:0;list-style:none}
+.bz-steps li{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:13px;transition:background-color .3s ease}
+.bz-steps li.is-active{background:var(--surface-2)}
+.bz-step-mark{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;border-radius:50%}
+.bz-steps li.is-done .bz-step-mark{background:var(--green);color:#fff;animation:bz-pop .4s cubic-bezier(.3,1.6,.5,1) backwards}
+.bz-steps li.is-pending .bz-step-mark{background:var(--surface-2)}
+.bz-step-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
+.bz-step-copy b{font-size:13px;font-weight:780;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-step-copy small{font-size:11.5px;font-weight:650;color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-steps li.is-pending b{color:var(--ink-3)}
+.bz-spin{display:block;width:18px;height:18px;border:2.5px solid var(--bz-blue-soft);border-top-color:var(--bz-blue);border-radius:50%;animation:bz-spin .8s linear infinite}
+.bz-dot{display:block;width:7px;height:7px;border-radius:50%;background:var(--grey)}
+@keyframes bz-spin{to{transform:rotate(1turn)}}
+@keyframes bz-pop{from{opacity:0;transform:scale(.4)}}
+.bz-progress-foot{display:flex;align-items:center;gap:14px}
+.bz-bar{display:block;flex:1;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bz-bar i{position:relative;display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green));overflow:hidden;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.bz-bar b{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:bz-sweep 1.6s ease-in-out infinite}
+@keyframes bz-sweep{to{transform:translateX(100%)}}
+.bz-progress-meta{flex:0 0 auto;font-size:12px;font-weight:750;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ---------- Entrance: the results rise in card by card when they first appear ----------
+   --d staggers the cards; --bz-t (negative, set by business.js) is how far the entrance has already
+   played, so a re-render while it plays continues it instead of cutting it short. That includes a
+   live model refresh (a first load, typically): those switch animations off (studio.css) so as not
+   to replay them, and this one is only continued, hence the !important. */
+.app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card{animation:bz-card-in .6s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.app-shell .bz-layout.is-intro .bz-kpi-icon,.app-shell .bz-layout.is-intro .bz-head-icon{animation:bz-pop .45s cubic-bezier(.3,1.5,.5,1) calc(var(--d,0s) + .18s + var(--bz-t,0s)) backwards!important}
+.bz-layout.is-intro .bz-kpi:nth-child(2){--d:.06s}
+.bz-layout.is-intro .bz-kpi:nth-child(3){--d:.12s}
+.bz-layout.is-intro .bz-kpi:nth-child(4){--d:.18s}
+.bz-layout.is-intro>.bz-split-card{--d:.14s}
+.bz-layout.is-intro>.bz-money,.bz-layout.is-intro>.bz-invest{--d:.2s}
+.bz-layout.is-intro>.bz-compare{--d:.26s}
+.bz-layout.is-intro>.bz-calc{--d:.3s}
+.bz-layout.is-intro>.bz-energy{--d:.36s}
+@keyframes bz-card-in{from{opacity:0;transform:translateY(16px) scale(.985)}}
+.app-shell .bz-scenario.is-intro>*{animation:bz-rise .5s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.bz-scenario.is-intro>:nth-child(2){--d:.08s}
+.bz-scenario.is-intro>:nth-child(3){--d:.16s}
+.bz-scenario.is-intro>:nth-child(4){--d:.24s}
+@keyframes bz-rise{from{opacity:0;transform:translateY(6px)}}
+.app-shell .bz-provenance.is-intro{animation:bz-fade-in .6s ease calc(.45s + var(--bz-t,0s)) backwards!important}
+.bz-message{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;flex:1;padding:30px;border-radius:22px;text-align:center;animation:bz-card-in .5s cubic-bezier(.16,.84,.38,1) backwards}
 .bz-message-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:var(--amber-soft);color:var(--amber-deep)}
 .bz-message.is-error .bz-message-icon{background:var(--bz-bad-soft);color:var(--bz-bad)}
 .bz-message h2{font-size:22px;font-weight:800;letter-spacing:-.02em}
@@ -340,7 +415,10 @@
 .app-shell.is-phone .bz-layout.is-loading .bz-card{min-height:160px}
 
 @media (prefers-reduced-motion:reduce){
-  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open{animation:none}
-  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-out-figure strong,.bz-details-btn,.bz-split b{transition:none}
+  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open,.bz-spin,.bz-out-spin,.bz-bar b,.bz-step-mark,.bz-message,
+  .bz-layout.is-waiting>*,.bz-calc.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
+  .app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card,.app-shell .bz-layout.is-intro .bz-kpi-icon,
+  .app-shell .bz-layout.is-intro .bz-head-icon,.app-shell .bz-scenario.is-intro>*,.app-shell .bz-provenance.is-intro{animation:none!important}
+  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-out-figure strong,.bz-details-btn,.bz-split b,.bz-steps li,.bz-out-spin{transition:none}
   .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:none}
 }

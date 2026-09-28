@@ -446,7 +446,7 @@
   "defaults": {
    "evs": 20,
    "shiftablePct": 97.6,
-   "priceDiffEurPerKwh": 0.1546,
+   "priceDiffEurPerKwh": 0.15461,
    "operatingDays": 260,
    "implementationEur": 15000,
    "annualEur": 2400
