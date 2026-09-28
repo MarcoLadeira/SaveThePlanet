@@ -64,9 +64,9 @@
 .dashboard-redesign .dash-hero:hover,.dashboard-redesign .dash-plan:hover{box-shadow:0 3px 0 #0a352e,0 15px 32px rgba(8,58,46,.18)}
 .dashboard-redesign .dash-hero .dash-head-copy p,.dashboard-redesign .dash-plan .dash-head-copy p{color:#bed8d0}
 .dashboard-redesign .dash-chip.is-amber{height:31px;background:#ffd069;color:#3a2b0b;font-size:12px;border-radius:14px;box-shadow:none}
-.dashboard-redesign>.dash-hero,.dashboard-redesign>.dash-recovery,.dashboard-redesign>.dash-fleet{padding:14px 18px 12px}
-.dashboard-redesign :is(.dash-hero,.dash-recovery,.dash-fleet)>.dash-card-head{flex:0 0 38px;gap:10px}
-.dashboard-redesign :is(.dash-hero,.dash-recovery,.dash-fleet)>.dash-card-head>.dash-tile{flex-basis:38px;width:38px;height:38px;border-radius:12px}
+.dashboard-redesign>.dash-hero,.dashboard-redesign>.dash-recovery{padding:14px 18px 12px}
+.dashboard-redesign :is(.dash-hero,.dash-recovery)>.dash-card-head{flex:0 0 38px;gap:10px}
+.dashboard-redesign :is(.dash-hero,.dash-recovery)>.dash-card-head>.dash-tile{flex-basis:38px;width:38px;height:38px;border-radius:12px}
 .dashboard-redesign .dash-hero-body{position:relative;display:grid;grid-template-columns:1fr auto;grid-template-rows:44px minmax(0,1fr);gap:5px;flex:1;min-height:0;margin:7px 0 6px}
 .dashboard-redesign .dash-hero-figure{position:static;grid-column:1;grid-row:1;align-items:baseline}
 .dashboard-redesign .dash-hero-figure strong{font-size:46px;letter-spacing:-.05em}
@@ -135,7 +135,7 @@
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-host svg text[fill="#627883"],.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-host svg text[fill="#435d65"]{fill:#bed9cc}
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-legend small,.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-insight span{color:#a9c9bc}
 @keyframes dash-card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media(max-aspect-ratio:4/3){.dashboard-main[data-current-page="overview"] .dashboard-redesign{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}.dashboard-redesign>.dash-outlook{grid-column:1/3;grid-row:2}.dashboard-redesign>.dash-plan{grid-column:3;grid-row:2}.dashboard-redesign>.dash-fleet{grid-column:3;grid-row:1}}
+@media(max-aspect-ratio:4/3){.dashboard-main[data-current-page="overview"] .dashboard-redesign{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}.dashboard-redesign>.dash-outlook{grid-column:1/3;grid-row:2}.dashboard-redesign>.dash-plan{grid-column:3;grid-row:2}}
 @media(prefers-reduced-motion:reduce){.dashboard-redesign>.dash-card,.dashboard-main.is-entering>*{animation:none}.dash-sidebar .nav-item,.dash-sidebar .nav-icon,.dash-sidebar .nav-icon:before,.dashboard-redesign>.dash-card,.dashboard-redesign .dash-tabs button{transition:none}}
 
 .main.dashboard-main{padding:0 20px 13px 28px;gap:11px}
