@@ -385,10 +385,10 @@ function fxDailyView() {
       fxPartitionMetric(r.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('orange', 'Your week ahead', 'Your day and the six after it · click a bar to see that day')}
-        <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span><span><i class="is-prob"></i>% = event probability</span></div>
+      <section class="dash-card studio-chart-card">${cardHead('orange', 'Your week ahead', 'Renewable energy curtailed per day (MWh), predicted vs observed, for your day and the six after it · click a bar to see that day')}
+        <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span><span><i class="is-prob"></i>% = chance of any curtailment that day</span></div>
         <div class="fx-chart-wrap">${fxWeekChart()}</div></section>
-      <section class="dash-card studio-side-card">${cardHead('green', fxDateLabel(r.date), 'Selected target day')}
+      <section class="dash-card studio-side-card">${cardHead('green', fxDateLabel(r.date), 'The day you picked: predicted vs observed curtailment')}
         <div class="fx-gauge"><svg viewBox="0 0 160 92" aria-hidden="true"><path class="fx-gauge-track" d="M18 82 A62 62 0 0 1 142 82"/><path class="fx-gauge-fill" d="M18 82 A62 62 0 0 1 142 82" stroke-dasharray="${circ * r.probability} ${circ}"/></svg><div><strong>${fxPercent(r.probability)}</strong><span>chance of curtailment</span></div></div>
         <div class="fx-verdict ${a.event === null || a.event === undefined ? '' : a.event === likely ? 'is-right' : 'is-wrong'}">${a.event === null || a.event === undefined ? 'Outcome not observed yet' : `${a.event ? 'Curtailment did happen' : 'No curtailment happened'} — the model ${a.event === likely ? 'called it' : 'missed it'}`}</div>
         <div class="studio-balance"><div><i class="is-amber"></i><span>Predicted total</span><strong>${n(Math.round(r.predictedMwh))} MWh</strong></div><div><i class="is-green"></i><span>Observed total</span><strong>${fxMwh(a.curtailmentMwh === null ? null : Math.round(a.curtailmentMwh))} MWh</strong></div></div>
@@ -423,10 +423,10 @@ function fxShortView() {
       fxPartitionMetric(p.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('orange', `Day replay · ${fxDateLabel(s.date)}`, 'Each target half-hour of the day, forecast vs reality · click the chart to pick a target', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
-        <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span>${settings.uncertainty ? '<span><i class="is-band"></i>P10–P90 range</span>' : ''}<span><i class="is-marker"></i>Your target</span></div>
+      <section class="dash-card studio-chart-card">${cardHead('orange', `Day replay · ${fxDateLabel(s.date)}`, 'Renewable energy switched off in each half-hour (MWh), forecast vs what actually happened · click the chart to pick a half-hour', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
+        <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span>${settings.uncertainty ? '<span><i class="is-band"></i>Likely range (P10–P90)</span>' : ''}<span><i class="is-marker"></i>Selected half-hour</span></div>
         <div class="fx-chart-wrap">${fxDayChart()}</div></section>
-      <section class="dash-card studio-side-card">${cardHead('green', `+${p.horizonMinutes} min forecast`, `Issued ${fxIssueLabel(p.issuedAt, s.date)} → target ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
+      <section class="dash-card studio-side-card">${cardHead('green', `+${p.horizonMinutes} min forecast`, `Made ${fxIssueLabel(p.issuedAt, s.date)} for the half-hour at ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
         <div class="fx-range"><div class="fx-range-head"><span>Prediction range</span><b>${n(Math.round(p.lowerMwh))}–${n(Math.round(p.upperMwh))} MWh</b></div>
           <div class="fx-range-track"><span class="fx-range-band" style="left:${pos(p.lowerMwh)};width:calc(${pos(p.upperMwh)} - ${pos(p.lowerMwh)})"></span><span class="fx-range-point" style="left:${pos(p.atRiskMwh)}" title="Predicted"></span>${actual === null || actual === undefined ? '' : `<span class="fx-range-actual" style="left:${pos(actual)}" title="Observed"></span>`}</div>
           <div class="fx-range-key"><span><i class="is-pred"></i>Predicted ${n(Math.round(p.atRiskMwh * 10) / 10)}</span>${actual === null || actual === undefined ? '' : `<span><i class="is-actual"></i>Observed ${n(Math.round(actual * 10) / 10)}</span>`}<span><i class="is-band"></i>P10–P90</span></div></div>

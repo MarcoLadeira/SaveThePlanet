@@ -69,7 +69,8 @@ console.log('pinned target', pinned);
 await shot('1-dashboard.png');
 
 await evaluate("location.hash='charging'");
-await until(`location.hash==='#charging' && !modelState.loading && modelState.target===${JSON.stringify(pinned)}`);
+await until(`location.hash==='#charging' && !modelState.loading && modelState.target===${JSON.stringify(pinned)}
+  && typeof cgDay!=='undefined' && cgDay.status==='ready' && cgDay.data.date===${JSON.stringify(pinned.slice(0, 10))}`, 120);
 await shot('2-charging.png');
 
 await evaluate("location.hash='impact'");
@@ -85,7 +86,7 @@ await until('document.querySelector(".volt-source")', 60);
 await shot('4-volt.png');
 
 const summary = await evaluate(`({pinned:modelState.target, dashboard:modelState.data.predictions[0].targetAt,
-  impactDay:impactDay.date, volt:[...document.querySelectorAll('.volt-source')].at(-1)?.innerText})`);
+  chargingDay:cgDay.data.date, impactDay:impactDay.date, volt:[...document.querySelectorAll('.volt-source')].at(-1)?.innerText})`);
 writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 console.log(summary);
 ws.close();

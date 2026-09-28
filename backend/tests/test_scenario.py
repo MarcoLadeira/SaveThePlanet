@@ -5,7 +5,7 @@ import test_server as support
 setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 from test_server import sample
 from server import normalize
-from scenario import build_scenario, validate_demand
+from scenario import build_day, build_scenario, validate_demand, validate_ev
 
 
 class ScenarioTests(unittest.TestCase):
@@ -82,6 +82,67 @@ class ScenarioTests(unittest.TestCase):
         self.assertNotEqual(first['id'], build_scenario(self.forecast(), 1000, 100)['id'])
 
 
+class EvTranslationTests(unittest.TestCase):
+    def forecast(self, recovery=None):
+        forecast = normalize(sample(), 100)
+        if recovery is not None:
+            for p in forecast['predictions']:
+                p['atRiskMwh'] = recovery
+        return forecast
+
+    def outcome(self, flexible_kwh=500, **ev):
+        return build_scenario(self.forecast(), 1000, flexible_kwh, **ev)['outcomes'][0]
+
+    def test_500_kwh_is_two_separate_readings(self):
+        o = self.outcome()
+        self.assertAlmostEqual(o['evChargesEquivalent'], 500 / 30)  # 16.7 x 30 kWh energy equivalents
+        self.assertEqual(o['minConcurrentPorts'], 46)  # 500 kWh / (22 kW x 0.5 h) = 45.5 -> 46
+        self.assertEqual(o['portKwhLimit'], 11)  # one 22 kW port gives at most 11 kWh per half-hour
+        self.assertAlmostEqual(o['kwhPerPort'], 500 / 46)
+        self.assertLessEqual(o['kwhPerPort'], o['portKwhLimit'])
+
+    def test_home_and_public_charger_power(self):
+        self.assertEqual(self.outcome(charger_kw=7)['minConcurrentPorts'], 143)  # 500 / 3.5
+        self.assertEqual(self.outcome(charger_kw=22)['minConcurrentPorts'], 46)
+        self.assertEqual(self.outcome(kwh_per_charge=50)['evChargesEquivalent'], 10)
+
+    def test_exact_port_boundary_does_not_round_up(self):
+        self.assertEqual(self.outcome(flexible_kwh=440)['minConcurrentPorts'], 40)  # 440 / 11 exactly
+        self.assertEqual(self.outcome(flexible_kwh=440.001)['minConcurrentPorts'], 41)
+
+    def test_zero_and_fractional_recovery(self):
+        zero = self.outcome(flexible_kwh=0)
+        self.assertEqual((zero['evChargesEquivalent'], zero['minConcurrentPorts'], zero['kwhPerPort']), (0, 0, 0))
+        small = self.outcome(flexible_kwh=5)
+        self.assertAlmostEqual(small['evChargesEquivalent'], 5 / 30)
+        self.assertEqual(small['minConcurrentPorts'], 1)
+
+    def test_assumptions_are_echoed_and_part_of_the_id(self):
+        default = build_scenario(self.forecast(), 1000, 500)
+        home = build_scenario(self.forecast(), 1000, 500, kwh_per_charge=50, charger_kw=7)
+        self.assertEqual(default['evAssumptions'], {'kwhPerCharge': 30, 'chargerKw': 22})
+        self.assertEqual(home['outcomes'][0]['potentialRecoveryMwh'], default['outcomes'][0]['potentialRecoveryMwh'])
+        self.assertNotEqual(home['id'], default['id'])
+
+    def test_no_time_window_is_claimed(self):
+        result = build_scenario(self.forecast(), 1000, 500)
+        self.assertNotIn('recommendedWindow', result)
+        self.assertNotIn('window', result['outcomes'][0])
+
+    def test_day_intervals_carry_probability_for_the_charging_scatter(self):
+        forecast = self.forecast()
+        replay = dict(date='2026-01-31', range={}, source='test', modelVersion='test', intervalMinutes=30,
+                      horizonMinutes=30, flexibleCapacityMw=100, predictions=forecast['predictions'])
+        day = build_day(replay, 1000, 500)
+        self.assertEqual([i['probability'] for i in day['intervals']], [.8, .8])
+        self.assertNotIn('probability', day['totals'])
+
+    def test_invalid_ev_assumptions(self):
+        for kwh, kw in ((0, 22), (201, 22), (30, 0), (30, 401), (float('nan'), 22), (True, 22)):
+            with self.subTest(kwh=kwh, kw=kw), self.assertRaises(ValueError):
+                validate_ev(kwh, kw)
+
+
 class ScenarioHttpTests(unittest.TestCase):
     setUpClass = classmethod(support.HttpTests.setUpClass.__func__)
     tearDownClass = classmethod(support.HttpTests.tearDownClass.__func__)
@@ -97,7 +158,16 @@ class ScenarioHttpTests(unittest.TestCase):
         fetch.assert_called_once_with(100, support.FIXED_TARGET)
 
     @patch('server.fetch_forecast')
+    def test_ev_assumptions_pass_through(self, fetch):
+        fetch.return_value = normalize(sample(), 100)
+        status, body = self.get('/api/v1/scenario?totalDemandKwh=1000&flexibleDemandKwh=500&kwhPerCharge=50&chargerKw=7')
+        self.assertEqual(status, 200)
+        self.assertEqual(body['scenario']['evAssumptions'], {'kwhPerCharge': 50, 'chargerKw': 7})
+        self.assertEqual(body['scenario']['outcomes'][0]['minConcurrentPorts'], 143)
+
+    @patch('server.fetch_forecast')
     def test_invalid_demand_rejected_before_model_call(self, fetch):
-        for query in ('totalDemandKwh=1&flexibleDemandKwh=2', 'totalDemandKwh=nan', 'flexibleDemandKwh=-1'):
+        for query in ('totalDemandKwh=1&flexibleDemandKwh=2', 'totalDemandKwh=nan', 'flexibleDemandKwh=-1',
+                      'kwhPerCharge=0', 'chargerKw=1000', 'kwhPerCharge=abc'):
             self.assertEqual(self.get('/api/v1/scenario?' + query)[0], 400)
         fetch.assert_not_called()

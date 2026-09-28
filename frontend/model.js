@@ -12,6 +12,8 @@ const modelState = {
     target: null,
     // How a new target is chosen: 'predicted' (model predicts >= 20 MWh) or 'unfiltered'.
     selectionMode: (() => { try { return localStorage.getItem('target-selection') === 'unfiltered' ? 'unfiltered' : 'predicted'; } catch { return 'predicted'; } })(),
+    kwhPerCharge: 30,
+    chargerKw: 22,
     health: null,
     healthChecking: false,
 };
@@ -212,6 +214,8 @@ async function loadModelForecast(live = false) {
             capacityMw: String(modelState.capacity),
             totalDemandKwh: String(modelState.totalDemandKwh),
             flexibleDemandKwh: String(modelState.flexibleDemandKwh),
+            kwhPerCharge: String(modelState.kwhPerCharge),
+            chargerKw: String(modelState.chargerKw),
         });
         if (modelState.target) query.set("target", modelState.target);
         else query.set("selection", modelState.selectionMode);
