@@ -6,7 +6,7 @@
 //     Each half-hour is a separate what-if with the same fleet, so charging is never added up across the day.
 //  3. cgWeek — seven days from the experimental daily model (GET /api/v1/explorer/daily/week), a different
 //     model from the half-hour forecasts, labelled as such, with EirGrid's observed values beside it.
-//  4. dw — discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
+//  4. dw — SaveThePlanet Rewards: discount windows at the example hub, from the Impact replay (GET/POST /api/v1/business/offers).
 // Nothing is invented: charts without data show a loading or "unavailable" state instead.
 
 const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '', retried: '' };
@@ -511,7 +511,7 @@ document.addEventListener('click', (event) => {
     render();
 });
 
-// ---------- discount windows (demo sign-up and booking) ----------
+// ---------- SaveThePlanet Rewards: discount windows (demo sign-up and booking) ----------
 // Offers, prices and quotes come from the server (backend/offers.py); the page only shows them. Joining
 // is a demo opt-in kept by the server under a random id: not a real account, reservation or payment.
 const dw = { status: 'idle', data: null, day: '', window: '', kwh: 20, busy: false, error: '', timer: null };
@@ -583,7 +583,7 @@ function dwDetail(o, booking, d) {
         return `<div class="dw-booked"><b>${icon('check', 15)} Reserved · ${n(booking.kwh)} kWh<button type="button" class="dw-link is-quiet" data-dw-act="cancel"${dw.busy ? ' disabled' : ''}>Cancel (no fee)</button></b>
             <span>Arrive ${escapeHtml(o.label)}, plug in, pick “Discount window” on the charger.</span>
             <span class="dw-price">You pay <b>${dwEur(booking.priceEur)}</b> instead of ${dwEur(booking.publicEur)} · save <b>${dwEur(booking.discountEur)}</b></span>
-            <span class="dw-share">Operator keeps ${dwEur(booking.split.operatorEur)} · our commission ${dwEur(booking.split.platformEur)}</span></div>`;
+            <span class="dw-share">Operator keeps ${dwEur(booking.split.operatorEur)} · SaveThePlanet commission ${dwEur(booking.split.platformEur)}</span></div>`;
     }
     const q = o.quotes.find((x) => x.kwh === dw.kwh) || o.quotes.at(-1);
     const sizes = o.quotes.map((x) => `<button type="button" class="${x.kwh === q.kwh ? 'is-on' : ''}" data-dw-kwh="${x.kwh}" aria-pressed="${x.kwh === q.kwh}">${n(x.kwh)}${x === o.quotes.at(-1) ? ' kWh' : ''}</button>`).join('');
@@ -595,17 +595,20 @@ function dwDetail(o, booking, d) {
 function dwCard() {
     if (dw.status === 'idle') queueMicrotask(dwLoad);
     const d = dw.data, joined = dw.status === 'ready' && d.member.joined;
-    const sub = d ? `${d.dataMode === 'simulated' ? 'Example data' : 'Replay'} · demo booking · ex VAT` : 'Cheaper charging when our AI has stored surplus';
+    // Once joined the header also holds the day switcher, so the programme name moves to the subtitle,
+    // which then runs under the switcher (charging.css) instead of being cut short.
+    const title = joined ? 'Discount windows' : 'SaveThePlanet Rewards';
+    const sub = d ? `${joined ? 'SaveThePlanet Rewards' : 'Discount windows'} · ${d.dataMode === 'simulated' ? 'example data' : 'replay'} · ex VAT` : 'Discount windows when our AI has stored surplus';
     let body, extra = '<span class="cg-tag is-demo">Demo</span>';
     if (joined) {
         const days = dwDays(), at = days.indexOf(dw.day);
         const step = (delta, label, glyph) => `<button type="button" class="dw-step" data-dw-step="${delta}" aria-label="${label}"${at + delta < 0 || at + delta >= days.length ? ' disabled' : ''}>${glyph}</button>`;
         extra = `<div class="dw-bar">${step(-1, 'Previous day', '‹')}<b>${escapeHtml(cgDayLabel(dw.day).replace(',', ''))}</b>${step(1, 'Next day', '›')}</div>`;
     }
-    const head = cgHead('green', 'charge', 'Discount windows', sub, extra);
+    const head = cgHead('green', 'charge', title, sub, extra);
     if (dw.status !== 'ready') {
         body = dw.status === 'error' || dw.status === 'empty'
-            ? `<div class="cg-empty" role="status">Discount windows are unavailable${dw.error ? `: ${escapeHtml(dw.error)}` : '.'}</div>`
+            ? `<div class="cg-empty" role="status">SaveThePlanet Rewards is unavailable${dw.error ? `: ${escapeHtml(dw.error)}` : '.'}</div>`
             : `<div class="cg-skeleton" role="status"><i></i><span>Preparing this week's offers…</span></div>`;
     } else if (!d.member.joined) {
         body = `<div class="dw-join"><p>Book a cheaper charge at <b>07:00–09:00</b> or <b>17:00–19:00</b> when our AI has stored surplus energy. You get half of the extra saving.</p>
@@ -620,7 +623,7 @@ function dwCard() {
         body = `<div class="dw-tiles">${windows.map((o) => dwWindowTile(o, booked(o))).join('')}</div>
             ${pick ? dwDetail(pick, booking, d) : ''}${dw.error ? `<p class="dw-error" role="alert">${escapeHtml(dw.error)}</p>` : ''}`;
     }
-    return `<section class="dash-card cg-card dw-card" aria-label="Discount windows (demo)">${head}${body}</section>`;
+    return `<section class="dash-card cg-card dw-card${joined ? ' is-joined' : ''}" aria-label="SaveThePlanet Rewards (demo)">${head}${body}</section>`;
 }
 document.addEventListener('click', (event) => {
     if (pageFromHash() !== 'charging') return;

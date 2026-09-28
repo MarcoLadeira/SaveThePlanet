@@ -4,8 +4,8 @@ The Impact page (`#business`, labelled **Impact** in the navigation after EV) an
 charging business: *who saves and who earns when our AI finds cheaper energy?* It has two views, one
 story each, so the two scenarios' figures never sit side by side:
 
-- **Who earns** (per month, the default): the discount-window business case
-  ([below](#discount-windows-who-saves-who-earns-issue-56)). The KPI row, labelled "Illustrative replay ·
+- **Who earns** (per month, the default): the SaveThePlanet Rewards business case
+  ([below](#savetheplanet-rewards-who-saves-who-earns-issue-56)). The KPI row, labelled "SaveThePlanet Rewards · illustrative replay ·
   projected revenue, simulated profit · ex VAT", then "where the € goes" as a what-if (presets and three
   inputs drive the 50/25/25 bar and both profit bridges) beside the energy proof.
 - **Depot savings** (per year): the depot's waterfall, the normal / basic smart / AI comparison and its
@@ -159,14 +159,14 @@ to five decimals), so the calculator starts where the page does, within a euro o
 input changes the result (tested). Inputs are validated in the browser for feedback and again on the
 server, which is authoritative.
 
-## Discount windows: who saves, who earns (issue #56)
+## SaveThePlanet Rewards: who saves, who earns (issue #56)
 
-The top of the Impact page is the business case for **discount windows** at a participating public
-charger: drivers join for free, book a 07:00-09:00 or 17:00-19:00 window, arrive and plug in. Our AI
-serves the booking from surplus renewable energy it stored earlier, and **only the extra saving over
-basic smart charging** is shared: 50% to the driver as a discount, 25% to the charging operator, 25% to
-us as a performance commission. It is a separate, optional scenario in
-[`backend/offers.py`](../backend/offers.py) (`discount-windows/v1`), run on the same replayed nights as
+The *Who earns* view of the Impact page is the business case for **SaveThePlanet Rewards** at a
+participating public charger: drivers join for free, book a 07:00-09:00 or 17:00-19:00 **discount
+window**, arrive and plug in. Our AI serves the booking from surplus renewable energy it stored earlier,
+and **only the extra saving over basic smart charging** is shared: 50% to the driver as a discount, 25%
+to the charging operator, 25% to SaveThePlanet as a performance commission. It is a separate, optional
+scenario in [`backend/offers.py`](../backend/offers.py) (`rewards/v1`), run on the same replayed nights as
 the depot; none of the depot figures above depend on it. Tests:
 [`backend/tests/test_offers.py`](../backend/tests/test_offers.py),
 [`frontend/tests/offers.test.js`](../frontend/tests/offers.test.js) and the Impact page tests.
@@ -206,14 +206,14 @@ get the same low price, so there is no extra saving to share (the energy proof s
 ### The split, profit and break-even
 
 ```
-driver     = half the pool (the odd cent goes to the driver)
-us         = a quarter of the pool, rounded down (our commission, paid by the operator)
-operator   = the rest; driver + operator + us = pool exactly
+driver         = half the pool (the odd cent goes to the driver)
+SaveThePlanet  = a quarter of the pool, rounded down (its commission, paid by the operator)
+operator       = the rest; driver + operator + SaveThePlanet = pool exactly
 
-our operating profit     = commission − our per-session cost × sessions − our monthly overhead
-operator's extra profit  = its 25% − its remaining monthly programme costs
-break-even (operator)    = ceil(operator costs ÷ operator share per session)
-break-even (us)          = ceil(our overhead ÷ (commission − our cost) per session); never, if ≤ 0
+SaveThePlanet operating profit = commission − its per-session cost × sessions − its monthly overhead
+operator's extra profit        = its 25% − its remaining monthly programme costs
+break-even (operator)          = ceil(operator costs ÷ operator share per session)
+break-even (SaveThePlanet)     = ceil(its overhead ÷ (commission − its cost) per session); never, if ≤ 0
 ```
 
 Costs already inside the pool (energy, losses, wear, network, session) are never subtracted again.
@@ -223,18 +223,18 @@ Costs already inside the pool (energy, losses, wear, network, session) are never
 | | Amount |
 |---|---:|
 | One session: 20 kWh, EUR 0.34 basic smart, EUR 0.24 AI all-in | pool **EUR 2.00** |
-| Driver discount / operator / our commission | **EUR 1.00 / 0.50 / 0.50** |
-| Our contribution after EUR 0.10 per-session cost | EUR 0.40 |
+| Driver discount / operator / SaveThePlanet commission | **EUR 1.00 / 0.50 / 0.50** |
+| SaveThePlanet contribution after EUR 0.10 per-session cost | EUR 0.40 |
 | A month: 400 sessions × 20 kWh × EUR 0.10 | pool **EUR 800** |
 | Drivers | EUR 400 |
 | Operator: EUR 200 − EUR 100 programme costs | **EUR 100** profit |
-| Us: EUR 200 − EUR 40 per-session − EUR 120 overhead | **EUR 40** operating profit |
-| Break-even | operator **200**, us **300** sessions a month |
-| No eligible spare energy | no commission; operator −EUR 100, us −EUR 120 a month |
+| SaveThePlanet: EUR 200 − EUR 40 per-session − EUR 120 overhead | **EUR 40** operating profit |
+| Break-even | operator **200**, SaveThePlanet **300** sessions a month |
+| No eligible spare energy | no commission; operator −EUR 100, SaveThePlanet −EUR 120 a month |
 
 The page's KPIs come from the replay, not from this example: in the simulated week the hub sells 94
 sessions (6 of 7 evenings, no mornings), which projects to 403 sessions a month, EUR 810 of extra savings,
-EUR 407 for drivers, EUR 101.50 operator profit and EUR 41.20 operating profit for us from EUR 201.50 gross
+EUR 407 for drivers, EUR 101.50 operator profit and EUR 41.20 operating profit for SaveThePlanet from EUR 201.50 gross
 commission. The month is the replayed sessions per day × 30, scaled like the depot by how often
 curtailment happens over a full year when that is known.
 
@@ -244,13 +244,13 @@ A window is offered only when all of these hold, using only what is known then:
 
 1. **Supply**: settled surplus is already stored. Energy bought on a forecast that turned out wrong
    (no observed curtailment) is conventional grid energy: it is sold at the normal price and never offered.
-2. **Economics**: the saving, rounded down to 0.1 cent/kWh, is positive and our per-session cost is
+2. **Economics**: the saving, rounded down to 0.1 cent/kWh, is positive and SaveThePlanet's per-session cost is
    covered, so both businesses have a non-negative unit contribution. If the +30 minute forecast calls
    surplus in the window itself, the saving is judged as if normal charging got the surplus price too.
 3. **Physics**: sessions = min(assumed demand, what the site fits, battery power, stored energy).
 
 Once locked, the driver's price is honoured. If the window turns out cheaper for normal charging after
-all, the settled pool is smaller: our commission is cut first to what is left after the driver, and the
+all, the settled pool is smaller: SaveThePlanet's commission is cut first to what is left after the driver, and the
 operator carries the rest as a recorded **shortfall**. Cancelled or failed sessions pay nothing to anyone.
 Only the +30 minute forecast is used; a +60 estimate of the same half-hour is never added (tested).
 
@@ -276,7 +276,7 @@ from one night to the next. `optimizer.py` still models real storage as 0.
 | Public price (everyone, no booking) | EUR 0.49/kWh | illustrative |
 | Network charges on stored energy, session costs | EUR 0.04 and 0.025/kWh | illustrative |
 | Operator programme costs | EUR 100/month | illustrative |
-| Our costs | EUR 0.10/session, EUR 120/month | illustrative |
+| SaveThePlanet costs | EUR 0.10/session, EUR 120/month | illustrative |
 | Demand | 20 drivers want each evening, 10 each morning | assumed |
 | Forecasts, curtailment | GridToEv +30 min replay, observed EirGrid | historical (or simulated when the model is down) |
 | Surplus credit deliverability | curtailment is system-wide; not confirmed with the system operator | conditional |
@@ -286,7 +286,7 @@ settlement data the page says *projected revenue* and *simulated profit*, never 
 
 ### Drivers and the EV page
 
-The EV page's **Discount windows** card is a demo: *Join free* stores a random id on the server
+The EV page's **SaveThePlanet Rewards** card is a demo: *Join free* stores a random id on the server
 (`backend/.cache/discount-window-bookings.json`), not an account; there is no reservation or payment.
 Joining is optional: anyone can charge at the public price without it, and prices are shown before
 charging ([AFIR Article 5](https://eur-lex.europa.eu/eli/reg/2023/1804/oj/eng)). A member steps through
