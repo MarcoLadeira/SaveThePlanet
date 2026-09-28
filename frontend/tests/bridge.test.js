@@ -71,6 +71,30 @@ test('battery shows routed energy split into battery and loss', () => {
   assert.doesNotMatch(empty, /NaN|Infinity/);
 });
 
+test('grid battery: stored energy, charge bar from its starting level, and its share of the used bar', () => {
+  const alt = alternative(30, { allocated: 65, eligible: 8000 });
+  Object.assign(alt.optimized.ledger, {
+    allocatedToRealStorageKwh: 2500, unallocatedOpportunityKwh: 5435,
+    storage: { gridKwh: 2500, storedKwh: 2250, lossKwh: 250, startKwh: 4000, endKwh: 6250, startFraction: 0.4, endFraction: 0.625,
+               capacityKwh: 10000, maxPowerKw: 5000, chargeEfficiency: 0.9, limitedBy: 'power-limit' },
+  });
+  const { dashCharts } = load(30, [alt]);
+  const values = dashCharts.bridgeBattery.values();
+  const html = dashCharts.bridgeBattery.draw(values);
+  assert.match(html, /Stored in the grid battery<\/span><strong>2250<small>kWh/);
+  assert.match(html, /2500 kWh taken from the grid, held to its 5000 kW power limit/);
+  assert.match(html, /is-start" style="width:40%/);
+  assert.match(html, /is-added" style="left:40%;width:22\.5/);
+  assert.match(html, /40% → 62\.5% full/);
+  // It fills from the starting charge, never from empty or past full.
+  const first = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values));
+  assert.match(first, /is-added" style="left:40%;width:0%/);
+  assert.doesNotMatch(first, /NaN|Infinity/);
+  const used = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
+  assert.match(used, /<b>32\.06%<\/b>/);  // (65 + 2500) / 8000
+  assert.match(used, /class="is-storage" style="left:0\.8125%;width:31\.25/);
+});
+
 test('used share is drawn to scale, never rounded up to 100%', () => {
   const { dashCharts } = load(30, [alternative(30, { allocated: 52.04, eligible: 16479.7 })]);
   const html = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());

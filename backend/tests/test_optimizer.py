@@ -15,6 +15,7 @@ import eligibility
 import fleet as fleets
 import optimizer
 import server
+import storage
 from server import Handler, normalize
 
 # Route tests pick a target without a model: use test_server's fixed target shortlist, never the network.
@@ -469,7 +470,12 @@ class OptimizeRouteTests(unittest.TestCase):
         self.assertEqual(body['forecast']['horizonMinutes'], body['selectedHorizonMinutes'])
         self.assertEqual(optimizer.check_ledger(body['ledger']), [])
         self.assertEqual(body['ledger']['predictedAtRiskKwh'], 42_000)
-        self.assertEqual(body['ledger']['allocatedToRealStorageKwh'], 0)
+        # The Dashboard's simulated grid battery takes what the EVs could not (backend/storage.py);
+        # the baseline stays EV-only.
+        self.assertGreater(body['ledger']['allocatedToRealStorageKwh'], 0)
+        self.assertEqual(storage.check_storage(body['ledger']), [])
+        self.assertEqual(body['gridBattery']['provenance'], 'simulated')
+        self.assertEqual(body['baselineLedger']['allocatedToRealStorageKwh'], 0)
         self.assertEqual(optimizer.check_ledger(body['baselineLedger']), [])
 
     @patch('server.fetch_forecast', side_effect=URLError('down'))
