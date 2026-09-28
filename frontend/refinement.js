@@ -68,15 +68,15 @@ function renderSettings(){
       </section>
     </div>
     <div class="settings-lower">
-      <section class="dash-card settings-section">${cardHead('orange','Charging inputs','Values used by the backend for Charging and Impact')}
+      <section class="dash-card settings-section">${cardHead('orange','Charging inputs','Assumptions used by Charging and Impact')}
         <div class="settings-facts"><div><span>Flexible capacity</span><strong>${n(capacity)} MW</strong></div><div><span>Total demand</span><strong>${n(total)} kWh</strong></div><div><span>Flexible demand</span><strong>${n(flexible)} kWh</strong></div>${s?`<div><span>Scenario ID</span><strong>${escapeHtml(s.id)}</strong></div>`:''}</div>
         <button class="settings-link" type="button" data-page="charging">Edit charging inputs ${icon('arrow',17)}</button>
       </section>
-      <section class="dash-card settings-section">${cardHead('green','Model connection','Live status reported by the backend')}
+      <section class="dash-card settings-section">${cardHead('green','Model connection','Whether the forecast model is connected and working')}
         ${healthGrid()}
         <div class="settings-actions"><button class="settings-link" id="model-health-check" type="button" ${modelState.healthChecking?'disabled':''}>${modelState.healthChecking?'Checking…':'Check connection'} ${icon('pulse',17)}</button><button class="settings-link" id="model-retry" type="button" ${modelState.loading?'disabled':''}>Reload forecast ${icon('arrow',17)}</button></div>
       </section>
-      <section class="dash-card settings-section">${cardHead('green','About this workspace','How the backend calculates the figures')}
+      <section class="dash-card settings-section">${cardHead('green','About this workspace','How the figures on each page are calculated')}
         <div class="settings-methodology">${methodology}</div>
       </section>
     </div>

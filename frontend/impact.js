@@ -17,7 +17,7 @@ const IMPACT_METRICS={
 };
 // Series for the "Impact over time" dropdown; each is plotted on its own scale.
 const IMPACT_SERIES={
-  recovery:{label:'Potential recovery',field:'potentialRecoveryMwh',unit:'MWh',tone:'green',format:v=>`${n(v)} MWh`},
+  recovery:{label:'Energy that could be used',field:'potentialRecoveryMwh',unit:'MWh',tone:'green',format:v=>`${n(v)} MWh`},
   range:{label:'EV range equivalent',field:'evRangeKm',unit:'km',tone:'blue',format:v=>`${n(Math.round(v))} km`},
   risk:{label:'Energy at risk',field:'atRiskMwh',unit:'MWh',tone:'amber',format:v=>`${n(v)} MWh`}
 };
@@ -157,10 +157,10 @@ function impactStats(o){
   const scope=`+${o.horizonMinutes} min · ${impactLabel().toLowerCase()}`;
   const note=(field,fallback)=>dayDelta(field)||fallback;
   return `<section class="impact-kpis${drawIn('kpis',`${impactDay.status}|${impactDay.key}`)}" aria-label="Selected scenario impact">
-    ${impactKpi('bolt','green','Potential renewable recovery','impactRecovery',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of at-risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
-    ${impactKpi('battery','blue','Potential EV charging','impactCharging',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
-    ${impactKpi('leaf','green','Est. emissions avoided','impactCo2',note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
-    ${impactKpi('car','blue','EV range equivalent','impactRange',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
+    ${impactKpi('bolt','green','Renewables saved','impactRecovery',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of energy at risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
+    ${impactKpi('battery','blue','Clean EV charging','impactCharging',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of charging demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
+    ${impactKpi('leaf','green','Est. CO₂ avoided','impactCo2',note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
+    ${impactKpi('car','blue','EV driving range','impactRange',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
   </section>`;
 }
 
@@ -199,8 +199,8 @@ function flowScene(){
 function impactFlow(p,o){
   const callout=(cls,tone,iconName,figure,name,label)=>`<div class="flow-callout ${cls} is-${tone}">${tile(iconName,tone)}<div>${figureSlot(figure,name)}<span>${label}</span></div></div>`;
   return `<section class="dash-card impact-flow ${impactFlowPaused?'is-motion-paused':''} ${o.potentialRecoveryMwh>0?'':'is-flow-idle'}" aria-labelledby="impact-flow-title">
-    <div class="impact-card-head"><div><h2 id="impact-flow-title">Energy flow</h2><p>From renewables at risk to potential EV charging · +${o.horizonMinutes} min target</p></div>
-      <ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-blue"></i>Potential EV charging</li><li><small>Illustrative, not to scale</small></li><li><button class="flow-motion-toggle" type="button" data-flow-pause aria-pressed="${impactFlowPaused}">${impactFlowPaused?'Play animation':'Pause animation'}</button></li></ul></div>
+    <div class="impact-card-head"><div><h2 id="impact-flow-title">Energy flow</h2><p>At-risk renewables → EV charging · +${o.horizonMinutes} min forecast</p></div>
+      <ul class="impact-legend"><li><i class="is-green"></i>Could be used for charging</li><li><i class="is-blue"></i>Potential EV charging</li><li><small>Illustrative, not to scale</small></li><li><button class="flow-motion-toggle" type="button" data-flow-pause aria-pressed="${impactFlowPaused}">${impactFlowPaused?'Play animation':'Pause animation'}</button></li></ul></div>
     <div class="flow-stage"><div class="flow-canvas">${flowScene()}
       ${callout('at-source','green','turbine','impactFlowRisk','Renewables at risk',`at risk · up to ${n(o.potentialRecoveryMwh)} MWh recoverable`)}
       ${callout('at-battery','blue','bolt','impactFlowCharging','Potential EV charging','potential EV charging')}
@@ -244,22 +244,22 @@ function seriesSelect(){
   return `<label class="impact-select"><span class="visually-hidden">Series</span><select id="impact-time-metric">${Object.entries(IMPACT_SERIES).map(([k,m])=>`<option value="${k}" ${impactDay.timeMetric===k?'selected':''}>${m.label}</option>`).join('')}</select></label>`;
 }
 function impactOverTime(s){
-  const day=impactDayReady(),legend=`<ul class="impact-legend"><li><i class="is-green"></i>Potential recovery</li><li><i class="is-amber"></i>Still at risk</li></ul>`;
+  const day=impactDayReady(),legend=`<ul class="impact-legend"><li><i class="is-green"></i>Could be used for charging</li><li><i class="is-amber"></i>Still at risk</li></ul>`;
   if(impactDayLoading()){drawIn('time','loading');return `<section class="dash-card impact-time" aria-labelledby="impact-time-title" aria-busy="true">
-    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(impactDateLabel(impactDay.date))} replay · MWh per half-hour</p></div>${legend}</div>${impactSkeleton(48)}</section>`}
+    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>MWh per half-hour on ${escapeHtml(impactDateLabel(impactDay.date))} (past data)</p></div>${legend}</div>${impactSkeleton(48)}</section>`}
   let rows,sub,table;
   if(day){
     const series=IMPACT_SERIES[impactDay.timeMetric];
     rows=impactDay.data.intervals;
     table=`<table><caption>${escapeHtml(series.label)} per half-hour</caption><thead><tr><th>Half-hour</th><th>${escapeHtml(series.label)}</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(modelTime(r.targetAt))}</td><td>${escapeHtml(series.format(r[series.field]))}</td></tr>`).join('')}</tbody></table>`;
     return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
-    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${escapeHtml(shortDate(impactDay.date))} replay · ${series.unit} per half-hour</p></div>${seriesSelect()}</div>
+    <div class="impact-card-head"><div><h2 id="impact-time-title">Impact over time</h2><p>${series.unit} per half-hour on ${escapeHtml(shortDate(impactDay.date))} (past data)</p></div>${seriesSelect()}</div>
     <div class="impact-chart-wrap${drawIn('time',`${impactDay.key}|${impactDay.timeMetric}`)}">${areaChart(rows,series)}<div class="impact-tooltip" role="status" aria-live="polite"></div></div>
     <details class="impact-data-table"><summary>View data</summary>${table}</details>
   </section>`;
   }else{
     rows=s.outcomes.map(o=>({...o,label:`+${o.horizonMinutes} min (${modelTime(o.targetAt)})`,tick:`${modelTime(o.targetAt)} · +${o.horizonMinutes}`,horizon:o.horizonMinutes,selected:o.horizonMinutes===modelState.horizon}));
-    sub='Two forecast targets · MWh per half-hour · select a bar';
+    sub='Energy that could be used vs still at risk for the two forecast half-hours (MWh) · select a bar';
   }
   table=`<table><caption>Impact over time data</caption><thead><tr><th>Target</th><th>At risk MWh</th><th>Recoverable MWh</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td>${n(r.atRiskMwh)}</td><td>${n(r.potentialRecoveryMwh)}</td></tr>`).join('')}</tbody></table>`;
   return `<section class="dash-card impact-time" aria-labelledby="impact-time-title">
@@ -284,7 +284,7 @@ function impactEvents(s){
     <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))} ${eventDriver(o.horizonMinutes)}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?' · <em>Recommended</em>':''}</small></span>
     <span><small>At risk</small>${n(o.atRiskMwh)} MWh</span><span class="is-green"><small>Recoverable</small>${n(o.potentialRecoveryMwh)} MWh</span><span class="is-blue"><small>EV charging</small>${n(o.potentialRecoveryMwh*1000)} kWh</span><span><small>CO₂ avoided</small>${impactCo2Text(o.avoidedEmissionsTco2)}</span></button>`}).join('');
   return `<section class="dash-card impact-events" aria-labelledby="impact-events-title">
-    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact by forecast event</h2><p>Both targets use the <b>same</b> flexible demand — alternatives, never summed</p></div></div>
+    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact per forecast half-hour</h2><p>The +30 and +60 min forecasts share the <b>same</b> flexible demand, so they are alternatives, not added together</p></div></div>
     <div class="impact-event-list">${rows}</div>
   </section>`;
 }
@@ -307,11 +307,11 @@ function allocationBars(o,s){
 }
 function impactCumulative(o,s){
   if(impactDayLoading()){drawIn('cum','loading');return `<section class="dash-card impact-cumulative" aria-labelledby="impact-cum-title" aria-busy="true">
-    <div class="impact-card-head"><div><h2 id="impact-cum-title">Cumulative impact</h2><p>Running total · ${escapeHtml(impactDateLabel(impactDay.date))} replay</p></div></div>${impactSkeleton(16)}</section>`}
+    <div class="impact-card-head"><div><h2 id="impact-cum-title">Cumulative impact</h2><p>Running total over ${escapeHtml(impactDateLabel(impactDay.date))} (past data)</p></div></div>${impactSkeleton(16)}</section>`}
   const day=impactDayReady();
   const tabs=day?`<div class="studio-segment" role="group" aria-label="Cumulative metric">${Object.entries(IMPACT_METRICS).map(([k,m])=>`<button type="button" data-impact-metric="${k}" class="${impactDay.metric===k?'active':''}" aria-pressed="${impactDay.metric===k}">${m.label}</button>`).join('')}</div>`:'';
   return `<section class="dash-card impact-cumulative" aria-labelledby="impact-cum-title">
-    <div class="impact-card-head"><div><h2 id="impact-cum-title">${day?'Cumulative impact':'Energy allocation'}</h2><p>${day?`Running total · ${escapeHtml(impactDay.date)} replay`:`Selected +${o.horizonMinutes} min scenario`}</p></div>${tabs||`<button class="impact-link" data-page="charging" type="button">Adjust scenario ${icon('arrow',15)}</button>`}</div>
+    <div class="impact-card-head"><div><h2 id="impact-cum-title">${day?'Cumulative impact':'Energy allocation'}</h2><p>${day?`Running total over ${escapeHtml(impactDay.date)} (past data)`:`Where the at-risk energy goes · selected +${o.horizonMinutes} min forecast`}</p></div>${tabs||`<button class="impact-link" data-page="charging" type="button">Adjust scenario ${icon('arrow',15)}</button>`}</div>
     ${day?cumulativeChart(impactDay.metric):allocationBars(o,s)}
   </section>`;
 }
