@@ -77,6 +77,38 @@ test('confidence rows order targets, scale to P90 and mark the selection', () =>
   assert.doesNotMatch(context.dashCharts.confidence.draw(context.dashCharts.confidence.start(values)), /NaN|Infinity/);
 });
 
+function planAlt(horizonMinutes, overrides = {}) {
+  return {
+    horizonMinutes, window: { startAt: '2026-09-27T17:00:00Z', endAt: '2026-09-27T17:30:00Z' },
+    opportunity: { availableKwh: 620 }, improvement: { claimedKwh: 3.7 },
+    baseline: { window: { claimedKwh: 61.3 }, unmetKwh: 0 },
+    optimized: { window: { claimedKwh: 65 }, unmetKwh: 4.25, vehiclesMet: 17, vehiclesMissed: 1 }, ...overrides,
+  };
+}
+
+test('next move uses the fleet plan for the selected horizon once it has loaded', () => {
+  const context = load([prediction(30), prediction(60)]);
+  context.fpState = { data: { selectedHorizonMinutes: 60, alternatives: [planAlt(30), planAlt(60)] } };
+  vm.runInContext('var fpState = this.fpState', context);
+  const headline = context.dashCharts.planHeadline.draw(context.dashCharts.planHeadline.values());
+  assert.match(headline, /Plan <em>65 kWh<\/em> of fleet charging at <em>17:00–17:30<\/em>/);
+  assert.match(headline, /17 of 18 simulated vehicles fully charged · <b>\+3\.7 kWh<\/b> vs charging on arrival · \+60 min window recommended/);
+  const bars = context.dashCharts.planBars.draw(context.dashCharts.planBars.values());
+  assert.match(bars, /is-flex" style="--plan-h:0\.943[\d]*"><span class="plan-bar-value"><strong>61\.3<\/strong>kWh/);
+  assert.match(bars, /is-recovery" style="--plan-h:1"><span class="plan-bar-value"><strong>65<\/strong>kWh/);
+  assert.match(bars, /<strong>4\.3<\/strong>kWh/);
+  assert.match(bars, /On arrival.*Optimized.*Still needed/);
+});
+
+test('next move says to charge as usual when nothing is at risk', () => {
+  const context = load([prediction(30), prediction(60)]);
+  context.fpState = { data: { selectedHorizonMinutes: 30, alternatives: [planAlt(30, { opportunity: { availableKwh: 0 } }), planAlt(60)] } };
+  vm.runInContext('var fpState = this.fpState', context);
+  const headline = context.dashCharts.planHeadline.draw(context.dashCharts.planHeadline.values());
+  assert.match(headline, /Nothing is forecast to be wasted/);
+  assert.doesNotMatch(headline, /NaN|undefined/);
+});
+
 test('next move bars rise from the baseline and scale to the largest value', () => {
   const { dashCharts } = load([prediction(30, { atRiskMwh: .7 }), prediction(60)]);
   const values = dashCharts.planBars.values();

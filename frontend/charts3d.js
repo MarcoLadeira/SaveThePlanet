@@ -206,25 +206,55 @@ dashCharts.fleetSplit = {
     + fleetStat('orange', 'clock', left, 'Flexibility left', fleetShare(left, flexible)),
 };
 
+// The fleet plan for the selected horizon (fleet-plan.js), or null until it has loaded.
+function planAlternative() {
+  if (typeof fpState === 'undefined' || !fpState.data) return null;
+  return fpState.data.alternatives.find((a) => a.horizonMinutes === modelState.horizon) || null;
+}
+
 dashCharts.planHeadline = {
-  values: () => ({ energy: scenarioNow().potentialRecoveryMwh, time: modelTime(selectedPrediction().targetAt) }),
-  start: (target) => ({ ...target, energy: 0 }),
-  draw: ({ energy, time }) => `<h3 class="plan-headline">Use up to <em>${n(energy)} MWh</em> of flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
+  values() {
+    const alt = planAlternative();
+    if (!alt) return { fleet: false, energy: scenarioNow().potentialRecoveryMwh, time: modelTime(selectedPrediction().targetAt) };
+    const o = alt.optimized;
+    return {
+      fleet: true, energy: o.window.claimedKwh, gain: alt.improvement.claimedKwh, met: o.vehiclesMet, total: o.vehiclesMet + o.vehiclesMissed,
+      time: `${modelTime(alt.window.startAt)}–${modelTime(alt.window.endAt)}`, atRisk: alt.opportunity.availableKwh,
+      recommended: fpState.data.selectedHorizonMinutes,
+    };
+  },
+  start: (target) => ({ ...target, energy: 0, gain: 0 }),
+  draw(v) {
+    if (!v.fleet) return `<h3 class="plan-headline">Use up to <em>${n(v.energy)} MWh</em> of flexible charging at <em>${escapeHtml(v.time)}</em>.</h3>`;
+    if (!(v.atRisk > 0)) return `<h3 class="plan-headline">Nothing is forecast to be wasted at <em>${escapeHtml(v.time)}</em>. Charge as usual.</h3><p class="plan-sub">${v.met} of ${v.total} simulated vehicles fully charged.</p>`;
+    const gain = v.gain > 0.05 ? ` · <b>+${n(Math.round(v.gain * 10) / 10)} kWh</b> vs charging on arrival` : ' · same as charging on arrival';
+    const other = v.recommended !== modelState.horizon ? ` · +${v.recommended} min window recommended` : '';
+    return `<h3 class="plan-headline">Plan <em>${n(Math.round(v.energy * 10) / 10)} kWh</em> of fleet charging at <em>${escapeHtml(v.time)}</em>.</h3><p class="plan-sub">${v.met} of ${v.total} simulated vehicles fully charged${gain}${other}</p>`;
+  },
 };
 
 dashCharts.planBars = {
   values() {
+    const alt = planAlternative();
+    if (alt) {
+      return { rise: 1, unit: 'kWh', bars: [
+        { key: 'flex', label: 'On arrival', value: alt.baseline.window.claimedKwh },
+        { key: 'recovery', label: 'Optimized', value: alt.optimized.window.claimedKwh },
+        { key: 'risk', label: 'Still needed', value: alt.optimized.unmetKwh },
+      ] };
+    }
     const p = selectedPrediction();
-    return { rise: 1, bars: [
+    return { rise: 1, unit: 'MWh', bars: [
       { key: 'risk', label: 'At risk', value: p.atRiskMwh },
       { key: 'flex', label: 'Flexible', value: modelState.data.scenario.flexibleDemandMwh },
       { key: 'recovery', label: 'Absorbable', value: scenarioNow().potentialRecoveryMwh },
     ] };
   },
   start: (target) => ({ ...target, rise: 0 }),
-  draw({ rise, bars }) {
+  draw({ rise, bars, unit }) {
     const max = Math.max(...bars.map((bar) => bar.value));
-    return `<div class="plan-bars">${bars.map((bar) => `<div class="plan-bar is-${bar.key}" style="--plan-h:${max > 0 ? (bar.value / max) * rise : 0}"><span class="plan-bar-value"><strong>${n(bar.value)}</strong>MWh</span><i></i></div>`).join('')}</div>
+    const round = (value) => unit === 'kWh' ? Math.round(value * 10) / 10 : value;
+    return `<div class="plan-bars">${bars.map((bar) => `<div class="plan-bar is-${bar.key}" style="--plan-h:${max > 0 ? (bar.value / max) * rise : 0}"><span class="plan-bar-value"><strong>${n(round(bar.value))}</strong>${unit}</span><i></i></div>`).join('')}</div>
       <div class="plan-labels">${bars.map((bar) => `<span>${bar.label}</span>`).join('')}</div>`;
   },
 };

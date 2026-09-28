@@ -27,11 +27,17 @@ function dashboardRecoveryChannel(p,o){
 }
 
 function dashboardPlan(p,o){
-  const label=`At risk ${n(p.atRiskMwh)} MWh, flexible ${n(modelState.data.scenario.flexibleDemandMwh)} MWh, absorbable ${n(o.potentialRecoveryMwh)} MWh`;
-  return `<section class="dash-card dash-plan">${cardHead('tricolour','Your next move','Suggested action for the selected half-hour')}
+  // The simulated fleet plan (fleet-plan.js) shared with Charging; until it loads, the aggregate scenario.
+  fpEnsure();
+  const alt=planAlternative();
+  const label=alt
+    ?`Charging in the forecast window: ${n(alt.baseline.window.claimedKwh)} kWh on arrival, ${n(alt.optimized.window.claimedKwh)} kWh optimized; ${n(alt.optimized.unmetKwh)} kWh still needed`
+    :`At risk ${n(p.atRiskMwh)} MWh, flexible ${n(modelState.data.scenario.flexibleDemandMwh)} MWh, absorbable ${n(o.potentialRecoveryMwh)} MWh`;
+  const sub=alt?'Simulated fleet · projected, not measured':'Suggested action for the selected half-hour';
+  return `<section class="dash-card dash-plan">${cardHead('tricolour','Your next move',sub)}
     ${chartSlot('planHeadline','Recommendation','plan-headline-slot','group')}
     ${chartSlot('planBars',label,'plan-chart')}
-    <button class="plan-cta" type="button" data-page="charging">Review charging scenario ${icon('arrow',20)}</button>
+    <button class="plan-cta" type="button" data-page="charging">${alt?'Review the fleet plan':'Review charging scenario'} ${icon('arrow',20)}</button>
   </section>`;
 }
 
