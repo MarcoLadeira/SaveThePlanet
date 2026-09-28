@@ -82,8 +82,8 @@
 
 /* Charging mix */
 [data-current-page="charging"] .cg-mix-body{display:flex;align-items:center;gap:16px;flex:1;min-height:0}
-[data-current-page="charging"] .cg-donut{flex:0 0 112px;height:112px}
-[data-current-page="charging"] .cg-donut svg{width:100%;height:100%}
+[data-current-page="charging"] .cg-donut{flex:0 0 156px;height:122px}
+[data-current-page="charging"] .cg-donut svg{width:100%;height:100%;overflow:visible}
 [data-current-page="charging"] .cg-ring-track{fill:none;stroke:var(--cg-gridline);stroke-opacity:.45;stroke-width:22}
 [data-current-page="charging"] .cg-ring{fill:none;stroke:var(--cg-risk);stroke-width:22;stroke-linecap:round}
 [data-current-page="charging"] .cg-ring-value{font-size:30px;font-weight:800;fill:var(--ink)}
@@ -194,3 +194,18 @@
 [data-current-page="charging"] .cg-bar-shine{fill:rgba(255,255,255,.38)}
 [data-current-page="charging"] .cg-bar-glow{fill:rgba(22,155,98,.22);filter:blur(4px)}
 [data-current-page="charging"] .cg-bar3d.is-orange .cg-bar-glow{fill:rgba(255,136,62,.3)}
+/* 3D charging mix ring (same construction as the Dashboard's causes ring). */
+[data-current-page="charging"] .cg-donut-shadow{fill:rgba(20,70,60,.22)}
+[data-current-page="charging"] .cg-donut-hole{fill:var(--surface)}
+[data-current-page="charging"] .cg-donut-top{stroke:rgba(255,255,255,.6);stroke-width:.6}
+[data-current-page="charging"] .cg-donut-inner.is-green{fill:#0a5a37}
+[data-current-page="charging"] .cg-donut-inner.is-grey{fill:#6d7f75}
+[data-current-page="charging"] .cg-donut-value{font-size:19px;font-weight:800;letter-spacing:-.03em;fill:var(--green-deep);paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+[data-current-page="charging"] .cg-donut-label{font-size:11px;fill:var(--cg-text)}
+[data-current-page="charging"][data-theme="dark"] .cg-donut-value{fill:var(--green-top)}
+[data-current-page="charging"][data-theme="dark"] .cg-donut-shadow{fill:rgba(0,0,0,.45)}
+[data-current-page="charging"] .cg-mix-body{gap:12px}
+[data-current-page="charging"] .cg-mix-legend{flex:1 1 0;min-width:0;gap:12px}
+[data-current-page="charging"] .cg-mix-legend li{display:grid;grid-template-columns:10px minmax(0,1fr);align-items:center;gap:1px 8px}
+[data-current-page="charging"] .cg-mix-legend li b{grid-column:2;margin:0;font-size:16px}
+[data-current-page="charging"] .cg-donut{flex:0 0 150px;height:117px}

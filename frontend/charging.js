@@ -239,16 +239,49 @@ function cgChartState(status, loading, failed) {
         : `<div class="cg-empty" role="status">${failed}</div>`;
 }
 
+// 3D ring in the style of the Dashboard's "What drives the risk" chart (charts3d.js helpers,
+// used read-only): renewable share in green, grid share in grey, with depth walls and a soft shadow.
 dashCharts.cgDonut = {
     values() {
         const o = scenarioOutcome(), total = modelState.data.scenario.totalDemandMwh;
-        return { share: total > 0 ? Math.min(1, o.potentialRecoveryMwh / total) : 0 };
+        return { share: total > 0 ? Math.min(1, o.potentialRecoveryMwh / total) : 0, sweep: 1 };
     },
-    start: () => ({ share: 0 }),
-    draw({ share }) {
-        const r = 70, c = 2 * Math.PI * r;
-        return `<svg viewBox="0 0 180 180" aria-hidden="true"><circle class="cg-ring-track" cx="90" cy="90" r="${r}"/><circle class="cg-ring" cx="90" cy="90" r="${r}" stroke-dasharray="${(c * share).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 90 90)"/>
-            <text class="cg-ring-value" x="90" y="92" text-anchor="middle">${n(Math.round(share * 100))}%</text><text class="cg-ring-label" x="90" y="114" text-anchor="middle">renewable</text></svg>`;
+    start: (t) => ({ ...t, sweep: 0 }),
+    draw({ share, sweep }) {
+        const cx = 96, cy = 56, outer = 86, inner = 57, squash = 0.5, depth = 14;
+        const gap = share > 0 && share < 1 ? 4 : 0, start = -Math.PI / 2;
+        const split = start + 2 * Math.PI * share * sweep, end = start + 2 * Math.PI * sweep;
+        const clip = (from, to, lo, hi) => [Math.max(from, lo), Math.min(to, hi)];
+        const layers = { inner: '', outer: '', top: '' };
+        for (const [tone, from, to] of [['green', start, split], ['grey', split, end]]) {
+            if (to - from < 0.001) continue;
+            const mid = (from + to) / 2, ox = Math.cos(mid) * gap, oy = Math.sin(mid) * gap * squash;
+            const wall = (radius, a, b) => {
+                const edge = chartArc(cx + ox, cy + oy, radius, radius * squash, a, b);
+                return chartPath([...edge, ...edge.slice().reverse().map(([x, y]) => [x, y + depth])]);
+            };
+            for (const [lo, hi] of [[-Math.PI / 2, 0], [Math.PI, 1.5 * Math.PI]]) {
+                const [a, b] = clip(from, to, lo, hi);
+                if (b > a) layers.inner += `<path class="cg-donut-inner is-${tone}" d="${wall(inner, a, b)}"/>`;
+            }
+            const [a, b] = clip(from, to, 0, Math.PI);
+            if (b > a) layers.outer += `<path fill="url(#cg-donut-${tone}-wall)" d="${wall(outer, a, b)}"/>`;
+            layers.top += `<path class="cg-donut-top" fill="url(#cg-donut-${tone}-top)" d="${chartBand(cx + ox, cy + oy, outer, inner, from, to, squash)}"/>`;
+        }
+        return `<svg class="cg-donut3d" viewBox="0 0 192 150" aria-hidden="true">
+            <defs>
+                <linearGradient id="cg-donut-green-top" x2="0" y2="1"><stop stop-color="#5fd89d"/><stop offset="1" stop-color="#1fae6c"/></linearGradient>
+                <linearGradient id="cg-donut-green-wall" x2="0" y2="1"><stop stop-color="#169b62"/><stop offset="1" stop-color="#0c6b42"/></linearGradient>
+                <linearGradient id="cg-donut-grey-top" x2="0" y2="1"><stop stop-color="#dfe7e2"/><stop offset="1" stop-color="#b9c6be"/></linearGradient>
+                <linearGradient id="cg-donut-grey-wall" x2="0" y2="1"><stop stop-color="#a3b2a9"/><stop offset="1" stop-color="#7f9187"/></linearGradient>
+                <filter id="cg-donut-blur" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+            </defs>
+            <ellipse class="cg-donut-shadow" cx="${cx}" cy="${cy + depth + 16}" rx="${outer - 6}" ry="${outer * squash * 0.55}" filter="url(#cg-donut-blur)"/>
+            <ellipse class="cg-donut-hole" cx="${cx}" cy="${cy}" rx="${inner + 2}" ry="${(inner + 2) * squash}"/>
+            ${layers.inner}${layers.outer}${layers.top}
+            <text class="cg-donut-value" x="${cx}" y="${cy + 6}" text-anchor="middle">${n(Math.round(share * 100))}%</text>
+            <text class="cg-donut-label" x="${cx}" y="${cy + 20}" text-anchor="middle">renewable</text>
+        </svg>`;
     },
 };
 
