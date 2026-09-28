@@ -12,10 +12,12 @@ const FP_LIMITS = {
 
 function fpKey() {
     const issued = modelState.data?.predictions?.[0]?.issuedAt || '';
-    return [fpState.preset, fpState.mode, modelState.capacity, issued, modelState.data?.dataMode].join('|');
+    return [fpState.preset, fpState.mode, modelState.capacity, modelState.target, issued, modelState.data?.dataMode].join('|');
 }
 function fpEnsure() {
     if (!modelState.data || fpState.key === fpKey()) return;
+    // Wait for the pinned target: without it the server would sample a new random half-hour.
+    if (!modelState.target && modelState.data.dataMode !== 'simulated') return;
     fpLoad();
 }
 async function fpLoad() {
@@ -25,7 +27,7 @@ async function fpLoad() {
     try {
         const response = await fetch('/api/v1/charging/optimize', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ preset: fpState.preset, uncertainty: fpState.mode, capacityMw: modelState.capacity }),
+            body: JSON.stringify({ preset: fpState.preset, uncertainty: fpState.mode, capacityMw: modelState.capacity, ...(modelState.target ? { target: modelState.target } : {}) }),
         });
         const body = await response.json();
         if (request !== fpState.request) return; // inputs changed while this was in flight
@@ -69,24 +71,24 @@ function fpRecommendation(d, alt) {
     const o = best.optimized, total = o.vehiclesMet + o.vehiclesMissed;
     const nothing = d.alternatives.every((a) => a.opportunity.availableKwh <= 0);
     const headline = nothing
-        ? 'No renewable energy is forecast to be wasted in either window, so there is nothing to move charging into. Charge as usual.'
+        ? `No renewable energy is forecast to be wasted ${d.sharedTarget ? 'in this half-hour' : 'in either window'}, so there is nothing to move charging into. Charge as usual.`
         : o.window.claimedKwh > 0
             ? `Plan <b>${fpKwh(o.window.claimedKwh)}</b> of charging between <b>${fpClock(best.window.startAt)}–${fpClock(best.window.endAt)}</b>, when renewable energy is forecast to be wasted.`
             : 'None of this fleet\'s charging can be moved into a forecast window.';
     const vehicles = total ? `${o.vehiclesMet} of ${total} simulated vehicles fully charged by their departure.` : 'This fleet has no vehicles.';
     const other = nothing ? '' : alt.horizonMinutes !== best.horizonMinutes
-        ? `<button type="button" class="fp-link" data-horizon="${best.horizonMinutes}">Show the recommended +${best.horizonMinutes} min plan</button>`
-        : '<span class="fp-badge">Recommended window</span>';
+        ? `<button type="button" class="fp-link" data-horizon="${best.horizonMinutes}">${d.sharedTarget ? `Show the plan on the latest (+${best.horizonMinutes} min) forecast` : `Show the recommended +${best.horizonMinutes} min plan`}</button>`
+        : `<span class="fp-badge">${d.sharedTarget ? 'Latest forecast' : 'Recommended window'}</span>`;
     return `<div class="fp-reco"><p class="fp-headline">${headline}</p><p class="fp-sub">${vehicles}</p>${other}</div>`;
 }
 function fpAlternatives(d) {
-    return `<div class="fp-alts" role="group" aria-label="Forecast window">${d.alternatives.map((a) => {
+    return `<div class="fp-alts" role="group" aria-label="${d.sharedTarget ? 'Forecast used' : 'Forecast window'}">${d.alternatives.map((a) => {
         const active = a.horizonMinutes === modelState.horizon;
         const rec = a.horizonMinutes === d.selectedHorizonMinutes && d.alternatives.some((x) => x.opportunity.availableKwh > 0);
         return `<button type="button" data-horizon="${a.horizonMinutes}" class="fp-alt${active ? ' is-active' : ''}" aria-pressed="${active}">
-            <span>+${a.horizonMinutes} min · ${fpClock(a.window.startAt)}–${fpClock(a.window.endAt)}${rec ? ' <em>Recommended</em>' : ''}</span>
+            <span>${d.sharedTarget ? `+${a.horizonMinutes} min forecast · issued ${fpClock(a.issuedAt)}` : `+${a.horizonMinutes} min · ${fpClock(a.window.startAt)}–${fpClock(a.window.endAt)}`}${rec ? ` <em>${d.sharedTarget ? 'Latest' : 'Recommended'}</em>` : ''}</span>
             <b>${fpKwh(a.optimized.window.claimedKwh)}</b><small>of ${fpKwh(a.opportunity.availableKwh)} forecast at risk</small></button>`;
-    }).join('')}<p class="fp-note">Alternatives for the same fleet: pick one. Their energy is never added together.</p></div>`;
+    }).join('')}<p class="fp-note">${d.sharedTarget ? `Two forecasts of the same half-hour (${fpClock(d.alternatives[0].window.startAt)}–${fpClock(d.alternatives[0].window.endAt)}), made at different times. The plan follows the latest; never add them.` : 'Alternatives for the same fleet: pick one. Their energy is never added together.'}</p></div>`;
 }
 function fpCompare(alt) {
     const b = alt.baseline, o = alt.optimized, total = o.vehiclesMet + o.vehiclesMissed;
@@ -106,7 +108,7 @@ function fpCompare(alt) {
 function fpTimeline(alt) {
     const d = fpState.data, plan = fpState.view === 'baseline' ? alt.baseline : alt.optimized, slots = d.fleet.planSlots;
     if (!plan.vehicles.length) return '<div class="cg-empty" role="status">This fleet has no vehicles to schedule.</div>';
-    const step = 30 * 60000, issued = new Date(d.forecast.issuedAt).getTime(), slotAt = (i) => new Date(issued + i * step).toISOString();
+    const step = 30 * 60000, issued = new Date(d.forecast.planStartAt).getTime(), slotAt = (i) => new Date(issued + i * step).toISOString();
     const order = [...plan.vehicles].sort((a, b) => (a.met - b.met) || a.departAt.localeCompare(b.departAt) || a.id.localeCompare(b.id));
     const head = Array.from({ length: slots }, (_, i) => `<span class="fp-slot-head${i === alt.window.slot ? ' is-window' : ''}">${i % 2 === 0 || slots <= 10 ? fpClock(slotAt(i)) : ''}</span>`).join('');
     const rows = order.map((v) => {
@@ -127,7 +129,7 @@ function fpTimeline(alt) {
 function fpTimelineCard(alt) {
     const view = (id, label) => `<button type="button" data-fp-view="${id}" class="${fpState.view === id ? 'active' : ''}" aria-pressed="${fpState.view === id}">${label}</button>`;
     const legend = '<ul class="cg-legend fp-legend"><li><i class="is-window-charge"></i>Charging during the forecast window</li><li><i class="is-charge"></i>Charging at other times</li><li><i class="is-idle"></i>Plugged in, waiting</li></ul>';
-    return `<section class="dash-card cg-card fp-card fp-timeline-card">${cgHead('green', 'clock', 'Charging schedule per vehicle', 'Each half-hour after the forecast was issued · vehicles that miss their charge are listed first', `<div class="studio-segment fp-segment" role="group" aria-label="Plan shown">${view('optimized', 'Optimized')}${view('baseline', 'Baseline')}</div>`)}${legend}${fpTimeline(alt)}</section>`;
+    return `<section class="dash-card cg-card fp-card fp-timeline-card">${cgHead('green', 'clock', 'Charging schedule per vehicle', 'Each half-hour from the earliest forecast · vehicles that miss their charge are listed first', `<div class="studio-segment fp-segment" role="group" aria-label="Plan shown">${view('optimized', 'Optimized')}${view('baseline', 'Baseline')}</div>`)}${legend}${fpTimeline(alt)}</section>`;
 }
 function fpMethod(d) {
     const sites = d.fleet.sites.map((s) => `<li><b>${escapeHtml(s.name)}</b>: ${s.chargers} × ${n(s.chargerKw)} kW chargers, ${n(s.sitePowerKw)} kW site limit. Constraint energy ${escapeHtml(s.claims.constraint.status)}: ${escapeHtml(s.claims.constraint.reason)}</li>`).join('');

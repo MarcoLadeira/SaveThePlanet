@@ -41,19 +41,21 @@ def forecast(at_risk=0.5, curtailment=None, lower=None):
 
 
 class UnitsAndIntervalTests(unittest.TestCase):
-    def test_target_label_end_and_start(self):
-        issued = '2026-01-31T22:00:00+00:00'
-        self.assertEqual(optimizer.target_slot(issued, '2026-01-31T22:30:00+00:00'), 0)
-        self.assertEqual(optimizer.target_slot(issued, '2026-01-31T23:00:00+00:00'), 1)
-        self.assertEqual(optimizer.target_slot(issued, '2026-01-31T22:30:00+00:00', label='start'), 1)
-        for bad in ('2026-01-31T22:00:00+00:00', '2026-01-31T22:45:00+00:00'):
+    def test_target_label_start_and_end(self):
+        # V1 contract: target T labels [T, T + 30 min), counted from the plan start.
+        start = '2026-01-31T22:00:00+00:00'
+        self.assertEqual(optimizer.INTERVAL_LABEL, 'start')
+        self.assertEqual(optimizer.target_slot(start, '2026-01-31T22:00:00+00:00'), 0)
+        self.assertEqual(optimizer.target_slot(start, '2026-01-31T23:00:00+00:00'), 2)
+        self.assertEqual(optimizer.target_slot(start, '2026-01-31T23:00:00+00:00', label='end'), 1)
+        for bad in ('2026-01-31T21:30:00+00:00', '2026-01-31T22:45:00+00:00'):
             with self.assertRaises(ValueError):
-                optimizer.target_slot(issued, bad)
+                optimizer.target_slot(start, bad)
 
     def test_dst_change_uses_utc_arithmetic(self):
         # Irish clocks go back at 01:00 UTC on 25 October 2026; UTC slots stay 30 minutes apart.
-        self.assertEqual(optimizer.target_slot('2026-10-25T00:30:00+00:00', '2026-10-25T01:30:00+00:00'), 1)
-        self.assertEqual(optimizer.target_slot('2026-10-25T01:30:00+01:00', '2026-10-25T01:30:00+00:00'), 1)
+        self.assertEqual(optimizer.target_slot('2026-10-25T00:30:00+00:00', '2026-10-25T01:30:00+00:00'), 2)
+        self.assertEqual(optimizer.target_slot('2026-10-25T01:30:00+01:00', '2026-10-25T01:30:00+00:00'), 2)
 
     def test_kw_times_half_hour_and_mwh_pools(self):
         plan = optimizer.run_policy(make_fleet([ev('a', kwh=100, kw=22)]), 4, 'arrival-order')
@@ -106,19 +108,31 @@ class HardConstraintTests(unittest.TestCase):
 
 
 class ObjectiveTests(unittest.TestCase):
-    def test_two_horizons_are_alternatives_not_summed(self):
-        # The same 11 kWh can go in either window, but only once: each alternative plans it independently.
-        result = optimizer.optimize(make_fleet([ev('a', kwh=11, depart=60)]), forecast())
+    def test_two_vintages_of_one_half_hour_are_never_summed(self):
+        # sample(): +60 issued 22:00 and +30 issued 22:30 both forecast 23:00-23:30 (slot 2 from 22:00).
+        result = optimizer.optimize(make_fleet([ev('a', kwh=11, depart=120)]), forecast())
         thirty, sixty = result['alternatives']
-        self.assertEqual(thirty['optimized']['window']['claimedKwh'], 11)
-        self.assertEqual(sixty['optimized']['window']['claimedKwh'], 11)
-        for alternative in result['alternatives']:
-            self.assertEqual(alternative['optimized']['gridKwh'], 11)
-        # A car that leaves at +30 cannot use the +60 window.
-        early = optimizer.optimize(make_fleet([ev('a', kwh=11, depart=30)]), forecast())
-        self.assertEqual(early['alternatives'][1]['optimized']['window']['claimedKwh'], 0)
+        self.assertTrue(result['sharedTarget'])
+        self.assertEqual(result['selectionBasis'], 'most-recent-forecast')
         self.assertEqual(result['selectedHorizonMinutes'], 30)
+        self.assertEqual(result['forecast']['planStartAt'], '2026-01-31T22:00:00+00:00')
+        for alternative in (thirty, sixty):
+            self.assertEqual(alternative['window']['slot'], 2)
+            self.assertEqual(alternative['window']['startAt'], '2026-01-31T23:00:00+00:00')
+            self.assertEqual(alternative['optimized']['gridKwh'], 11)  # the same 11 kWh, planned once per estimate
+        self.assertEqual(thirty['optimized']['window']['claimedKwh'], 11)
         self.assertNotIn('totalClaimedKwh', result)
+        # A car that leaves when the half-hour starts cannot use it.
+        early = optimizer.optimize(make_fleet([ev('a', kwh=11, depart=60)]), forecast())
+        self.assertEqual(early['alternatives'][0]['optimized']['window']['claimedKwh'], 0)
+
+    def test_distinct_targets_pick_the_best_plan(self):
+        distinct = forecast()
+        distinct['predictions'][0]['targetAt'] = '2026-01-31T22:30:00+00:00'  # an earlier, separate window
+        result = optimizer.optimize(make_fleet([ev('a', kwh=11, arrive=60, depart=120)]), distinct)
+        self.assertFalse(result['sharedTarget'])
+        self.assertEqual(result['selectionBasis'], 'best-plan')
+        self.assertEqual(result['selectedHorizonMinutes'], 60)  # the car only arrives for the 23:00 window
 
     def test_optimizer_shifts_flexible_charging_into_window(self):
         # One charger; the baseline fills slot 0 on arrival, so the +60 window (slot 1) sees less.

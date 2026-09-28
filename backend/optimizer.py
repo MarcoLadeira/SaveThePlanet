@@ -16,11 +16,10 @@ import fleet as fleets
 
 SLOT_HOURS = fleets.SLOT_MINUTES / 60
 EPS = 1e-9
-# GridToEv labels a half-hour by its END: the interval labelled T is the one completed at T
-# (the model uses "the latest completed interval" at issue time as a feature and attaches
-# every label to a strictly later target). So target T covers [T - 30 min, T).
-# Documented in docs/CHARGING_OPTIMIZER.md; flip to 'start' if GridToEv confirms otherwise.
-INTERVAL_LABEL = 'end'
+# A target timestamp labels the START of its half-hour: target T covers [T, T + 30 min)
+# (the V1 dataset contract, see backend/README.md). Both horizons forecast the same target,
+# each from its own issue time (+60 issued at T - 60, +30 at T - 30).
+INTERVAL_LABEL = 'start'
 SOLVER_ID = 'greedy-lexicographic-v1'
 POLICIES = {
     'arrival-order': 'Charge on arrival, first come first served (baseline)',
@@ -33,11 +32,11 @@ def _parse(value):
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
-def target_slot(issued_at, target_at, label=INTERVAL_LABEL):
-    """Plan slot index of the forecast target half-hour."""
-    minutes = (_parse(target_at) - _parse(issued_at)).total_seconds() / 60
-    if minutes <= 0 or minutes % fleets.SLOT_MINUTES:
-        raise ValueError('Target must be a whole number of half-hours after the issue time')
+def target_slot(plan_start, target_at, label=INTERVAL_LABEL):
+    """Plan slot index of the forecast target half-hour, counted from the plan start."""
+    minutes = (_parse(target_at) - _parse(plan_start)).total_seconds() / 60
+    if minutes < (0 if label == 'start' else fleets.SLOT_MINUTES) or minutes % fleets.SLOT_MINUTES:
+        raise ValueError('Target must be a whole number of half-hours after the plan start')
     index = int(minutes // fleets.SLOT_MINUTES)
     return index - 1 if label == 'end' else index
 
@@ -288,9 +287,9 @@ def rank(summary):
 PREFERENCE = ('opportunity-first', 'deadline-first', 'arrival-order')  # tie-break between equal plans
 
 
-def plan_alternative(fleet, prediction, mode):
+def plan_alternative(fleet, prediction, mode, plan_start):
     slots = fleets.slot_count(fleet)
-    slot = target_slot(prediction['issuedAt'], prediction['targetAt'])
+    slot = target_slot(plan_start, prediction['targetAt'])
     pools = eligibility.opportunity_pools(prediction, mode)
     results = {}
     for policy in POLICIES:
@@ -298,16 +297,15 @@ def plan_alternative(fleet, prediction, mode):
         problems = check_plan(plan)
         if problems:  # a bug, never a user error: refuse rather than show an infeasible plan
             raise RuntimeError(f'{policy} produced an infeasible plan: {problems[0]}')
-        results[policy] = summarize(plan, policy, slot, pools, prediction['issuedAt'])
+        results[policy] = summarize(plan, policy, slot, pools, plan_start)
     baseline = results['arrival-order']
     # The optimized plan is the best candidate; the baseline is a candidate too, so it is never worse.
     chosen = min(results.values(), key=lambda s: (rank(s), PREFERENCE.index(s['policy'])))
-    issued = _parse(prediction['issuedAt'])
-    start = issued + timedelta(minutes=fleets.SLOT_MINUTES * slot)
+    start = _parse(plan_start) + timedelta(minutes=fleets.SLOT_MINUTES * slot)
     base_claim, opt_claim = baseline['window']['claimedKwh'], chosen['window']['claimedKwh']
     available = sum(pools.values())
     return dict(
-        horizonMinutes=prediction['horizonMinutes'], targetAt=prediction['targetAt'],
+        horizonMinutes=prediction['horizonMinutes'], targetAt=prediction['targetAt'], issuedAt=prediction['issuedAt'],
         window=dict(slot=slot, startAt=start.isoformat(), endAt=(start + timedelta(minutes=fleets.SLOT_MINUTES)).isoformat(),
                     intervalLabel=INTERVAL_LABEL, inPlan=0 <= slot < slots),
         opportunity=dict(
@@ -327,13 +325,24 @@ def plan_alternative(fleet, prediction, mode):
 
 
 def optimize(fleet, forecast, mode='expected', fixture=None):
-    """Plans for each forecast target as ALTERNATIVE uses of the same fleet; recoveries are never summed."""
+    """One plan per forecast, from the same fleet and the same plan start; never summed.
+
+    When both horizons forecast the same half-hour (the V1 dataset contract) they are two
+    estimates of one window, and the plan follows the most recent one, like the scenario.
+    Distinct targets are alternative windows and the best plan wins.
+    """
     fleet = fleets.validate(fleet)
     predictions = sorted(forecast['predictions'], key=lambda p: p['horizonMinutes'])
-    alternatives = [plan_alternative(fleet, p, mode) for p in predictions]
-    best = min(alternatives, key=lambda a: (rank(a['optimized']), a['horizonMinutes']))
+    # Fleet times are minutes from the plan start: the earliest issue time, so both plans share the same fleet timeline.
+    plan_start = min((p['issuedAt'] for p in predictions), key=_parse) if predictions else None
+    alternatives = [plan_alternative(fleet, p, mode, plan_start) for p in predictions]
+    shared = len({_parse(p['targetAt']) for p in predictions}) == 1
+    if shared:
+        best = alternatives[0]  # shortest horizon = most recent forecast of the same half-hour
+    else:
+        best = min(alternatives, key=lambda a: (rank(a['optimized']), a['horizonMinutes']))
     other = [a for a in alternatives if a is not best]
-    reason = _selection_reason(best, other[0] if other else None)
+    reason = _selection_reason(best, other[0] if other else None, shared)
     identity = dict(fleet=fleet, mode=mode, predictions=predictions, solver=SOLVER_ID, label=INTERVAL_LABEL)
     return dict(
         id=hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:12],
@@ -341,19 +350,23 @@ def optimize(fleet, forecast, mode='expected', fixture=None):
         fleet=dict(schemaVersion=fleet['schemaVersion'], fixture=fixture, provenance='simulated',
                    vehicles=len(fleet['vehicles']), sites=[dict(s, claims=eligibility.site_claims(s)) for s in fleet['sites']],
                    chargingEfficiency=fleet['chargingEfficiency'], planSlots=fleets.slot_count(fleet)),
-        forecast=dict(issuedAt=predictions[0]['issuedAt'] if predictions else None, modelVersion=forecast.get('modelVersion'),
+        forecast=dict(planStartAt=plan_start, targetAt=forecast.get('targetAt'), modelVersion=forecast.get('modelVersion'),
                       source=forecast.get('source'), dataMode=forecast.get('dataMode'), fallback=forecast.get('fallback')),
         dataMode='simulated' if forecast.get('dataMode') == 'simulated' else 'simulated-fleet-on-historical-forecast',
         selectedHorizonMinutes=best['horizonMinutes'], selectionReason=reason, alternatives=alternatives,
+        selectionBasis='most-recent-forecast' if shared else 'best-plan', sharedTarget=shared,
         assumptions=ASSUMPTIONS, limitations=LIMITATIONS)
 
 
-def _selection_reason(best, other):
+def _selection_reason(best, other, shared=False):
     opt = best['optimized']
     text = (f'+{best["horizonMinutes"]} min: {opt["window"]["claimedKwh"]:g} kWh charged in the forecast window, '
             f'{opt["vehiclesMet"]} of {opt["vehiclesMet"] + opt["vehiclesMissed"]} vehicles fully charged.')
     if other is None:
         return text
+    if shared:
+        return text + (f' Planned on the most recent forecast; the +{other["horizonMinutes"]} min forecast is an earlier '
+                       f'estimate of the same half-hour ({other["optimized"]["window"]["claimedKwh"]:g} kWh).')
     o = other['optimized']
     if rank(o) == rank(opt):
         return text + f' +{other["horizonMinutes"]} min gives the same result; the earlier window is preferred.'
@@ -364,12 +377,13 @@ def _selection_reason(best, other):
 
 ASSUMPTIONS = [
     'The fleet is simulated: no real vehicles, chargers or telemetry.',
-    f'A forecast target labels the half-hour ending at that time (interval label: {INTERVAL_LABEL}).',
+    f'A forecast target labels the half-hour starting at that time (interval label: {INTERVAL_LABEL}).',
+    'Fleet times are minutes from the plan start: the earliest forecast issue time.',
     'Vehicles only charge in whole half-hours they are plugged in for: arrivals round up, departures round down.',
     'Charging rate is the lower of the vehicle and charger limits, drawn as constant power for the half-hour.',
     'Battery energy = grid energy x charging efficiency. Required kWh is energy into the battery.',
     'Each charger serves one vehicle per half-hour; the site power limit caps all its chargers together.',
-    'The +30 and +60 minute targets are alternative plans for the same fleet from the same starting state. Never add them.',
+    'When +30 and +60 forecast the same half-hour, they are two estimates of one window: the plan follows the most recent (+30 min). Never add them.',
     'Conservative mode scales the forecast down to its P10 quantity. P10 is a model estimate, not a guaranteed minimum.',
 ]
 LIMITATIONS = [

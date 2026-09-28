@@ -23,14 +23,15 @@ Tests: [`backend/tests/test_optimizer.py`](../backend/tests/test_optimizer.py).
 ## Time and interval semantics
 
 - Everything is UTC in the backend. The UI converts using its timezone setting.
-- **A target timestamp labels the half-hour that ends at that time.** GridToEv uses "the latest
-  completed dispatch-down interval" at the issue time as a feature and attaches every label to a
-  strictly later target, which fits end-labelling. So target `T` covers `[T - 30 min, T)`: the +30
-  window starts at the issue time and the +60 window starts 30 minutes after it. This is inferred
-  from the GridToEv README, not confirmed by its authors; it is the single constant
+- **A target timestamp labels the half-hour that starts at that time** (the V1 dataset contract in
+  [backend/README.md](../backend/README.md)): target `T` covers `[T, T + 30 min)`. The constant is
   `optimizer.INTERVAL_LABEL`, and tests cover both settings.
-- Plan slot `i` covers `[issue + 30i, issue + 30(i+1))`. Fleet times are minutes relative to the
-  issue time, so a fixture can be replayed against any historical forecast and DST never applies.
+- Both horizons forecast the **same** target half-hour, each from its own issue time (+60 issued
+  at `T - 60`, +30 at `T - 30`). The plan starts at the earliest issue time, so the target window
+  is slot 2, and fleet times are minutes from that plan start.
+- Plan slot `i` covers `[start + 30i, start + 30(i+1))`. DST never applies: everything is UTC.
+- The route uses the page's pinned `target`, so the plan, the Dashboard, Charging, Impact and
+  Volt all describe the same half-hour.
 - A vehicle is only scheduled in whole half-hours it is plugged in for: arrival rounds **up**,
   departure rounds **down**. Charging before the issue time is outside the plan.
 - Plans run to the last departure, at most 48 half-hours.
@@ -115,8 +116,12 @@ external dependencies and runs in milliseconds for 200 vehicles x 48 slots, so n
 solver fallback is needed. An LP/MILP solver (e.g. OR-Tools) can replace the policies behind the
 same interface later.
 
-**Alternatives.** +30 and +60 are planned separately from the same starting fleet, and one is
-selected by the same objective (earlier window on ties). Their energies are **never added**.
+**Forecasts of the same half-hour.** When +30 and +60 share a target (the normal case) they are two
+estimates of one window. Each gets its own plan from the same fleet, the plan follows the most
+recent (+30 min) forecast (`selectionBasis: most-recent-forecast`, matching the scenario's
+`recommendationBasis`), and the +60 plan is shown as the earlier estimate. If the targets ever
+differ, they are alternative windows and the best plan by the objective wins (`best-plan`).
+Energies are **never added**.
 
 ## API
 
@@ -125,10 +130,11 @@ selected by the same objective (earlier window on ties). Their energies are **ne
 `POST /api/v1/charging/optimize`
 
 ```json
-{"preset": "depot-and-retail", "uncertainty": "expected", "capacityMw": 100}
+{"preset": "depot-and-retail", "uncertainty": "expected", "capacityMw": 100, "target": "2026-01-31T23:00:00Z"}
 ```
 
-or `{"fleet": {...fleet/v1...}}` instead of `preset`. The forecast always comes from the server's
+or `{"fleet": {...fleet/v1...}}` instead of `preset`. `target` is the page's pinned half-hour
+(optional; validated like Volt's). The forecast always comes from the server's
 own cached forecast (shared with the other pages and Volt). A forecast sent by the browser is
 ignored.
 
@@ -137,9 +143,9 @@ The response has these top-level keys:
 - `id`: hash of the inputs.
 - `solver`: `id`, `kind` and `elapsedMs`.
 - `fleet`: `fixture`, `provenance: simulated`, and the sites with their claim statuses.
-- `forecast`: `issuedAt`, `modelVersion`, `dataMode` and `fallback`.
+- `forecast`: `planStartAt`, `targetAt`, `modelVersion`, `dataMode` and `fallback`.
 - `dataMode`: `simulated-fleet-on-historical-forecast`, or `simulated` when the forecast fell back to demo data.
-- `selectedHorizonMinutes` and `selectionReason`.
+- `selectedHorizonMinutes`, `selectionReason`, `selectionBasis` and `sharedTarget`.
 - `alternatives`, each with:
   - `window`: UTC start/end and slot.
   - `opportunity`: available kWh, P10/P90 and event probability.
@@ -185,4 +191,3 @@ the hosted model before quoting them.
 - Charging page UI, Dashboard "Your next move", Impact labels and Volt intents that use this route.
 - Historical backtest across many issue times (issue section 6), using the Forecast explorer's
   prediction-vs-observed data without hindsight in plan selection.
-- Confirming the interval label with GridToEv.
