@@ -483,7 +483,19 @@ def opportunity_allocations(plan, sites, ledger):
         return []  # check_ledger reports the mismatch
     grid = apportion(plan.share, ledger['allocatedToChargersGridKwh'])
     battery = apportion({vid: kwh * plan.eff for vid, kwh in grid.items()}, ledger['batteryDeliveredKwh'])
-    return [dict(vehicle=vid, site=sites[vid], gridKwh=grid[vid], batteryKwh=battery[vid], lossKwh=r3(grid[vid] - battery[vid]))
+    vehicles = {v['id']: v for v in plan.fleet['vehicles']}
+
+    def limited_by(vid):
+        """Why a vehicle got this much: its own charger rate, its own need, or the site's equal share."""
+        share, vehicle = plan.share[vid], vehicles[vid]
+        if share >= plan.rate(vehicle) * SLOT_HOURS - 1e-6:
+            return 'charger-rate'
+        if share >= vehicle['requiredKwh'] / plan.eff - 1e-6:
+            return 'full'
+        return 'equal-share'
+
+    return [dict(vehicle=vid, site=sites[vid], gridKwh=grid[vid], batteryKwh=battery[vid], lossKwh=r3(grid[vid] - battery[vid]),
+                 limitedBy=limited_by(vid), chargerKw=plan.rate(vehicles[vid]))
             for vid in sorted(grid)]
 
 

@@ -2,7 +2,7 @@
 // The battery, flexible charging and next-move cards and their charts are in bridge.js.
 function dashboardHero(p){
   return `<section class="dash-card dash-hero">${cardHead('orange','Renewable energy at risk','Forecast of renewable energy that may be switched off and wasted')}
-    <div class="hero-body"><div class="hero-figure"><strong>${n(p.atRiskMwh)}<small>MWh</small></strong><p>At risk of being wasted<br>+${p.horizonMinutes} min · ${escapeHtml(targetWindow(p))}</p></div>${chartSlot('likelihood',`${Math.round(p.probability*100)}% likelihood of dispatch-down, ${p.risk} risk`,'hero-gauge')}</div>
+    <div class="hero-body"><div class="hero-figure"><strong>${n(p.atRiskMwh)}<small>MWh</small></strong><span class="hero-kwh">= ${n(Math.round(p.atRiskMwh*1000))} kWh</span><p>At risk of being wasted<br>+${p.horizonMinutes} min · ${escapeHtml(targetWindow(p))}</p></div>${chartSlot('likelihood',`${Math.round(p.probability*100)}% likelihood of dispatch-down, ${p.risk} risk`,'hero-gauge')}</div>
     <div class="dash-hero-stats"><div><span>Forecast for</span><strong>${escapeHtml(modelTime(p.targetAt,true))}</strong></div><div><span>How far ahead</span><strong>+${p.horizonMinutes} min</strong></div><div><span>Likely range</span><strong>${n(p.lowerMwh)}–${n(p.upperMwh)} MWh</strong></div></div>
   </section>`;
 }

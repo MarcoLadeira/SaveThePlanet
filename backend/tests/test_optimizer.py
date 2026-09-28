@@ -337,8 +337,13 @@ class EnergyLedgerTests(unittest.TestCase):
         cars = [ev('small', kwh=2, depart=240), ev('slow', kwh=50, kw=7.4, depart=240)] + \
                [ev(f'big{i}', kwh=50, depart=240) for i in range(3)]
         result = optimizer.optimize(make_fleet(cars, [site(chargers=5, sitePowerKw=500)]), window_forecast(30))
-        shares = {s['vehicle']: s['gridKwh'] for s in selected(result)['opportunityAllocations']}
+        rows = selected(result)['opportunityAllocations']
+        shares = {s['vehicle']: s['gridKwh'] for s in rows}
         self.assertEqual((shares['small'], shares['slow']), (2, 3.7))
+        # Each row says why it got that much, so the page can show it.
+        self.assertEqual({s['vehicle']: s['limitedBy'] for s in rows},
+                         dict(small='full', slow='charger-rate', big0='equal-share', big1='equal-share', big2='equal-share'))
+        self.assertEqual({s['vehicle']: s['chargerKw'] for s in rows}['slow'], 7.4)
         self.assertEqual({shares[f'big{i}'] for i in range(3)}, {round((30 - 2 - 3.7) / 3, 3)})
         self.assertEqual(result['ledger']['allocatedToChargersGridKwh'], 30)
 

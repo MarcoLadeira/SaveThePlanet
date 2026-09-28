@@ -94,15 +94,12 @@ function dashboardBattery() {
 
 function dashboardFlexible() {
   const alt = planAlternative();
-  const head = cardHead('green', 'Flexible charging', 'The window energy shared equally between the plugged-in cars');
+  const head = cardHead('green', 'Flexible charging', 'Shared equally per site · simulated fleet');
   if (!alt) return `<section class="dash-card dash-flexible">${head}${planPlaceholder('Fleet plan')}</section>`;
-  const o = alt.optimized, shares = o.opportunityAllocations || [];
-  const total = o.vehiclesMet + o.vehiclesMissed;
-  return `<section class="dash-card dash-flexible">${head}
-    <div class="flex-summary"><div><strong>${shares.length}</strong><span>of ${total} cars share the window</span></div><div><strong>${escapeHtml(targetWindow(alt))}</strong><span>forecast half-hour</span></div></div>
-    ${shares.length ? chartSlot('bridgeCars', `Per-car share of the window energy: ${shares.map((s) => `${s.vehicle} ${n(s.gridKwh)} kWh`).join(', ')}`, 'bridge-cars')
-      : `<p class="bridge-empty-line">No car takes energy in this half-hour. ${escapeHtml(o.window.limitedBy[0]?.message || '')}</p>`}
-    <p class="flex-foot"><span class="${o.vehiclesMissed ? 'is-warn' : 'is-ok'}">${o.vehiclesMet} of ${total} cars fully charged by departure</span><span class="flex-key"><i class="is-battery"></i>into battery <i class="is-loss"></i>loss</span></p>
+  return `<section class="dash-card dash-fleet dash-flexible">${head}
+    <div class="fleet-body">${chartSlot('fleetDemand', `${n(alt.optimized.ledger.allocatedToChargersGridKwh)} kWh charged into the cars`, 'fleet-demand', 'group')}<span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
+    ${chartSlot('fleetPower', 'Charging power used', 'fleet-meter', 'group')}
+    ${chartSlot('fleetSplit', 'Equal share per car at each site', 'fleet-stats', 'group')}
   </section>`;
 }
 
@@ -112,8 +109,9 @@ function dashboardNextMove() {
   if (!alt) return `<section class="dash-card dash-plan">${head}${planPlaceholder('Plan')}</section>`;
   return `<section class="dash-card dash-plan">${head}
     ${chartSlot('planHeadline', 'Recommendation', 'plan-headline-slot', 'group')}
+    <p class="plan-units">Bars in kWh (1 MWh = 1,000 kWh): ${kwh(alt.optimized.ledger.unallocatedOpportunityKwh)} more is at risk than this fleet can take.</p>
     ${chartSlot('planBars', `Charging on arrival ${n(alt.baseline.window.claimedKwh)} kWh, equal share ${n(alt.optimized.window.claimedKwh)} kWh, into batteries ${n(alt.optimized.ledger.batteryDeliveredKwh)} kWh`, 'plan-chart')}
-    <p class="plan-caveat">A recommendation for a simulated fleet: no charger is controlled. Assumes the chargers can use this energy where it is at risk (network eligibility unverified).</p>
+    <p class="plan-caveat">Simulated fleet, no charger is controlled; network eligibility unverified.</p>
     <button class="plan-cta" type="button" data-page="charging">Review EV charging ${icon('arrow', 20)}</button>
   </section>`;
 }
@@ -122,10 +120,10 @@ function dashboardNextMove() {
 dashCharts.bridgeBattery = {
   values() {
     const L = planAlternative().optimized.ledger;
-    return { routed: L.allocatedToChargersGridKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
+    return { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
   },
   start: (target) => ({ ...target, rise: 0 }),
-  draw({ routed, battery, loss, rise }) {
+  draw({ routed, eligible, battery, loss, rise }) {
     const top = 34, bottom = 196, h = bottom - top;
     const lossH = routed > 0 ? Math.max(loss > 0 ? 6 : 0, (loss / routed) * h) * rise : 0;
     const batteryH = routed > 0 ? (h - (loss / routed) * h) * rise : 0;
@@ -142,7 +140,7 @@ dashCharts.bridgeBattery = {
       </g>
       <path class="bridge-bolt" d="M82 70 62 118h15l-6 38 22-52H78l4-34Z"/>
     </svg>
-    <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong>
+    <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong><span class="bridge-of">of ${n(eligible)} kWh eligible</span>
       <em><i class="is-battery"></i>${n(battery)} kWh into EV batteries</em><em><i class="is-loss"></i>${n(loss)} kWh charging loss</em></div>`;
   },
 };
@@ -155,20 +153,58 @@ dashCharts.bridgeUsed = {
     <div class="bridge-used-track"><i style="width:${Math.min(100, used * 100)}%"></i><b style="left:${Math.min(100, used * 100)}%"></b></div>`,
 };
 
-dashCharts.bridgeCars = {
+// Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
+// move between sites), so the two simple bars show each site's share per car.
+function fleetSites() {
+  const plan = modelState.plan, shares = planAlternative().optimized.opportunityAllocations || [];
+  return (plan.fleet?.sites || []).map((site) => {
+    const cars = shares.filter((s) => s.site === site.id);
+    const equal = cars.filter((c) => c.limitedBy === 'equal-share').map((c) => c.gridKwh);
+    return { name: String(site.name).replace(/\s*\(hypothetical\)\s*$/i, ''), powerKw: site.sitePowerKw, cars: cars.length,
+             total: cars.reduce((sum, c) => sum + c.gridKwh, 0), each: equal.length ? Math.max(...equal) : Math.max(0, ...cars.map((c) => c.gridKwh)),
+             capped: cars.filter((c) => c.limitedBy === 'charger-rate').length };
+  }).filter((site) => site.cars);
+}
+
+function fleetStat(tone, glyph, value, label, fill, title = '') {
+  return `<div class="fleet-stat is-${tone}" title="${escapeHtml(title)}"><span class="fleet-stat-icon">${icon(glyph, 18)}</span><div class="fleet-stat-copy"><strong>${value}</strong><small>${escapeHtml(label)}</small><span class="fleet-stat-bar" role="img" aria-label="${Math.round(fill * 100)}%" style="--fleet-fill:${Math.min(1, Math.max(0, fill))}"><i></i></span></div></div>`;
+}
+
+dashCharts.fleetDemand = {
   values() {
-    const shares = planAlternative().optimized.opportunityAllocations || [];
-    return { rise: 1, cars: shares.map((s) => ({ id: s.vehicle, grid: s.gridKwh, battery: s.batteryKwh })) };
+    const o = planAlternative().optimized;
+    return { energy: o.ledger.allocatedToChargersGridKwh, cars: (o.opportunityAllocations || []).length, total: o.vehiclesMet + o.vehiclesMissed };
   },
-  start: (target) => ({ ...target, rise: 0 }),
-  draw({ cars, rise }) {
-    const max = Math.max(...cars.map((c) => c.grid), 0.001);
-    return `<div class="car-bars" style="--cars:${cars.length}">${cars.map((c) => `<div class="car-bar" title="${escapeHtml(c.id)}: ${n(c.grid)} kWh from the grid, ${n(c.battery)} kWh into its battery">
-      <span class="car-bar-value">${n(c.grid)}</span>
-      <span class="car-bar-col" style="--h:${(c.grid / max) * rise};--b:${c.grid > 0 ? c.battery / c.grid : 0}"><i class="is-loss"></i><i class="is-battery"></i></span>
-      <small>${escapeHtml(String(c.id).replace(/^EV-/, ''))}</small></div>`).join('')}</div>
-      <p class="car-bars-caption">kWh per car from the window (grid side)</p>`;
+  start: (target) => ({ ...target, energy: 0 }),
+  draw: ({ energy, cars, total }) => `<p class="fleet-figure"><strong>${n(energy)}</strong><span>kWh</span></p><p class="fleet-caption">charged into ${Math.round(cars)} of ${Math.round(total)} cars</p>`,
+};
+
+dashCharts.fleetPower = {
+  values() {
+    const used = planAlternative().optimized.ledger.allocatedToChargersGridKwh / 0.5;
+    return { used, limit: (modelState.plan.fleet?.sites || []).reduce((sum, s) => sum + s.sitePowerKw, 0) };
   },
+  start: (target) => ({ ...target, used: 0 }),
+  draw: ({ used, limit }) => `<div class="fleet-meter-head"><span>Charging power used</span><span><b>${n(used)}</b> of ${n(limit)} kW</span></div>
+    <div class="fleet-track" role="meter" aria-label="Charging power used" aria-valuemin="0" aria-valuemax="${limit}" aria-valuenow="${used}" aria-valuetext="${n(used)} of ${n(limit)} kW" style="--fleet-fill:${limit > 0 ? Math.min(1, used / limit) : 0}"><i></i><b></b></div>`,
+};
+
+dashCharts.fleetSplit = {
+  values() {
+    const o = planAlternative().optimized, sites = fleetSites();
+    const routed = o.ledger.allocatedToChargersGridKwh;
+    const stats = sites.slice(0, 2).map((site, i) => ({
+      tone: i ? 'orange' : 'green', glyph: 'charge', value: site.each, unit: 'kWh each',
+      label: `${site.name} · ${site.cars} car${site.cars === 1 ? '' : 's'}`, fill: routed > 0 ? site.total / routed : 0,
+      title: `${site.name}: ${n(site.total)} kWh shared by ${site.cars} cars under its ${n(site.powerKw)} kW limit${site.capped ? `; ${site.capped} held back by their own charger` : ''}`,
+    }));
+    const total = o.vehiclesMet + o.vehiclesMissed;
+    if (stats.length < 2) stats.push({ tone: 'orange', glyph: 'clock', value: o.vehiclesMet, unit: `of ${total}`,
+      label: 'cars fully charged', fill: total ? o.vehiclesMet / total : 0, title: '' });
+    return { stats };
+  },
+  start: (target) => ({ stats: target.stats.map((s) => ({ ...s, value: 0, fill: 0 })) }),
+  draw: ({ stats }) => stats.map((s) => fleetStat(s.tone, s.glyph, `${n(s.value)} ${escapeHtml(s.unit)}`, s.label, s.fill, s.title)).join(''),
 };
 
 // "Your next move" now follows the fleet plan rather than the aggregate upper bound.
