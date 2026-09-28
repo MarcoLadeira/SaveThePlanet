@@ -19,9 +19,11 @@ function chartNiceMax(value) {
   return (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 2.5 ? 2.5 : ratio <= 5 ? 5 : 10) * step;
 }
 
+// The API's target timestamp is the START of the predicted half-hour ("the half-hour beginning
+// 30 or 60 minutes after issue"), matching PR #26's charging_window.
 function targetWindow(p) {
-  const end = new Date(p.targetAt);
-  const start = new Date(end.getTime() - (modelState.data?.intervalMinutes || 30) * 60000);
+  const start = new Date(p.targetAt);
+  const end = new Date(start.getTime() + (modelState.data?.intervalMinutes || 30) * 60000);
   return `${modelTime(start)}–${modelTime(end)}`;
 }
 
@@ -202,14 +204,14 @@ dashCharts.fleetSplit = {
     return { absorbed: o.potentialRecoveryMwh, left: o.remainingFlexibleMwh, flexible: modelState.data.scenario.flexibleDemandMwh };
   },
   start: (target) => ({ ...target, absorbed: 0, left: 0 }),
-  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Absorbable', fleetShare(absorbed, flexible))
+  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Upper bound', fleetShare(absorbed, flexible))
     + fleetStat('orange', 'clock', left, 'Flexibility left', fleetShare(left, flexible)),
 };
 
 dashCharts.planHeadline = {
   values: () => ({ energy: scenarioNow().potentialRecoveryMwh, time: modelTime(selectedPrediction().targetAt) }),
   start: (target) => ({ ...target, energy: 0 }),
-  draw: ({ energy, time }) => `<h3 class="plan-headline">Use up to <em>${n(energy)} MWh</em> of flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
+  draw: ({ energy, time }) => `<h3 class="plan-headline">At most <em>${n(energy)} MWh</em> for flexible charging at <em>${escapeHtml(time)}</em>.</h3>`,
 };
 
 dashCharts.planBars = {
@@ -218,7 +220,7 @@ dashCharts.planBars = {
     return { rise: 1, bars: [
       { key: 'risk', label: 'At risk', value: p.atRiskMwh },
       { key: 'flex', label: 'Flexible', value: modelState.data.scenario.flexibleDemandMwh },
-      { key: 'recovery', label: 'Absorbable', value: scenarioNow().potentialRecoveryMwh },
+      { key: 'recovery', label: 'Upper bound', value: scenarioNow().potentialRecoveryMwh },
     ] };
   },
   start: (target) => ({ ...target, rise: 0 }),
@@ -234,7 +236,7 @@ dashCharts.confidence = {
     const rows = [...modelState.data.predictions]
       .sort((a, b) => a.horizonMinutes - b.horizonMinutes)
       .map((p) => ({
-        horizon: String(p.horizonMinutes), window: targetWindow(p), risk: p.risk,
+        horizon: String(p.horizonMinutes), issued: modelTime(p.issuedAt), window: targetWindow(p), risk: p.risk,
         probability: p.probability, low: p.lowerMwh, high: p.upperMwh, expected: p.atRiskMwh,
       }));
     return { rows, max: chartNiceMax(Math.max(...rows.map((row) => Math.max(row.high, row.expected)))), selected: String(modelState.horizon) };
@@ -243,7 +245,7 @@ dashCharts.confidence = {
   draw({ rows, max, selected }) {
     const at = (value) => `${Math.min(100, Math.max(0, (value / max) * 100)).toFixed(2)}%`;
     return `<div class="conf-rows">${rows.map((row) => `<button type="button" class="conf-row is-${escapeHtml(row.risk)}${row.horizon === selected ? ' is-selected' : ''}" data-horizon="${row.horizon}" aria-pressed="${row.horizon === selected}">
-        <span class="conf-when"><small>+${row.horizon} min</small><b>${escapeHtml(row.window)}</b></span>
+        <span class="conf-when"><small>+${row.horizon} min · issued ${escapeHtml(row.issued)}</small><b>${escapeHtml(row.window)}</b></span>
         <span class="conf-track"><span class="conf-glass"></span><span class="conf-band" style="left:${at(row.low)};width:calc(${at(row.high)} - ${at(row.low)})"></span>
           <span class="conf-end" style="left:${at(row.low)}">${n(row.low)}</span><span class="conf-end is-high" style="left:${at(row.high)}">${n(row.high)}</span>
           <span class="conf-dot" style="left:${at(row.expected)}"><em>${n(row.expected)} MWh</em></span></span>

@@ -8,10 +8,10 @@ const fx = {
   picker: null, // {month:'YYYY-MM'} while the date picker is open
   caveatsOpen: { daily: true, short: false }, // survives re-renders
   daily: { info: null, infoLoading: false, infoError: '', date: null, result: null, loading: false, error: '', week: null, weekLoading: false },
-  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', day: null, dayLoading: false, horizon: 30, targets: null, byDate: null, issueSet: null },
+  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', replays: {}, observed: {}, horizon: 30, targets: null, byDate: null, issueSet: null },
 };
 try { if (localStorage.getItem('forecast-model') === 'short') fx.model = 'short'; } catch {}
-const fxTokens = { daily: 0, short: 0, week: 0, day: 0 };
+const fxTokens = { daily: 0, short: 0, week: 0 };
 const fxChevron = (dir) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${dir === 'left' ? 'm15 5-7 7 7 7' : dir === 'right' ? 'm9 5 7 7-7 7' : 'm6 9 6 6 6-6'}"/></svg>`;
 const fxPartitions = {
   train: ['Train', 'Seen while fitting · in-sample'],
@@ -32,6 +32,8 @@ function fxMonthLabel(month) { return new Intl.DateTimeFormat('en-IE', { timeZon
 function fxShiftMonth(month, delta) { const d = new Date(`${month}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + delta); return d.toISOString().slice(0, 7); }
 function fxAddDays(day, delta) { const d = new Date(`${day}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + delta); return d.toISOString().slice(0, 10); }
 function fxMwh(value) { return value === null || value === undefined ? '—' : n(value); }
+// "Model was 12 MWh high" / "+30 min forecast matched": rounded to the precision shown on the card.
+function fxMiss(who, error, scale) { const size = Math.round(Math.abs(error) * scale) / scale; return size === 0 ? `${who} matched` : `${who} was ${n(size)} MWh ${error > 0 ? 'high' : 'low'}`; }
 function fxPercent(value, digits = 0) { return value === null || value === undefined ? '—' : `${(value * 100).toFixed(digits)}%`; }
 function fxPartitionOf(stamp, partitions) {
   for (const name of ['train', 'validation', 'test']) { const p = partitions?.[name]; if (p && p.from <= stamp && stamp <= p.to) return name; }
@@ -60,9 +62,10 @@ async function fxLoadInfo(kind) {
   try {
     s.info = await fxGet(`/api/v1/explorer/${kind === 'daily' ? 'daily' : 'short-term'}`);
     if (kind === 'short') {
-      // A target is selectable when the dataset has its +30 or +60 minute issue time.
+      // Selectable targets come from the server: only half-hours the model has a dataset row
+      // for at +30 or +60 min (e.g. not 31 Jan 23:30, which is past the last labelled target).
       s.issueSet = new Set(s.info.times);
-      s.targets = [...new Set(s.info.times.flatMap((t) => [fxShift(t, 30), fxShift(t, 60)]))].sort();
+      s.targets = s.info.targets;
       s.byDate = new Map();
       for (const t of s.targets) { const d = t.slice(0, 10); if (!s.byDate.has(d)) s.byDate.set(d, []); s.byDate.get(d).push(t); }
     }
@@ -103,19 +106,60 @@ async function fxLoadWeek(day) {
 async function fxSelectShort(target) {
   const s = fx.short, token = ++fxTokens.short, day = target.slice(0, 10);
   s.target = target; s.date = day; s.loading = true; s.error = ''; fxRerender();
-  if (s.day?.date !== day) fxLoadDay(day);
+  fxLoadObserved(day); // ~0.3 s: lets the chart show reality while the forecast replay (~13 s) runs
+  const shown = s.horizon;
+  // The horizon on screen first; the other is prefetched afterwards (if the day is still shown).
+  fxEnsureReplay(day, shown).then(() => { if (s.date === day) fxEnsureReplay(day, shown === 30 ? 60 : 30, true); });
   try {
     const result = await fxGet(`/api/v1/explorer/short-term/predict?target=${encodeURIComponent(target)}&capacityMw=${modelState.capacity}`);
     if (token === fxTokens.short) s.result = result;
   } catch (error) { if (token === fxTokens.short) { s.error = error.message; s.result = null; } }
   if (token === fxTokens.short) { s.loading = false; fxRerender(); }
 }
-async function fxLoadDay(day) {
-  const s = fx.short, token = ++fxTokens.day;
-  s.day = { date: day, points: null }; s.dayLoading = true; fxRerender();
-  try { const replay = await fxGet(`/api/v1/explorer/short-term/day?date=${day}`); if (token === fxTokens.day) s.day = replay; }
-  catch { if (token === fxTokens.day) s.day = { date: day, points: null, failed: true }; }
-  if (token === fxTokens.day) { s.dayLoading = false; fxRerender(); }
+// Day replays are heavy for the hosted model (~13 s each, much slower when two overlap). The
+// server's replay gate runs one at a time for all viewers, puts on-screen requests before
+// prefetches and drops this tab's superseded work, identified by fxClient and fxSeq. It answers
+// 503 (busy: retry with backoff) or 409 (superseded: ignore).
+const fxClient = (globalThis.crypto?.randomUUID?.() || `tab-${Math.random().toString(36).slice(2)}`).slice(0, 64);
+let fxSeq = 0;
+const fxSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function fxFetchReplay(day, horizon, seq, prefetch) {
+  const query = new URLSearchParams({ date: day, horizon: String(horizon), client: fxClient, seq: String(seq) });
+  if (prefetch) query.set('prefetch', '1');
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`/api/v1/explorer/short-term/day?${query}`);
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 409) throw Object.assign(new Error('superseded'), { superseded: true });
+    if (response.status === 503 && attempt < 3) {
+      await fxSleep((Number(response.headers.get('Retry-After')) || 2) * 1000 * 2 ** attempt);
+      if (seq < fxSeq && !prefetch) throw Object.assign(new Error('superseded'), { superseded: true });
+      continue;
+    }
+    if (!response.ok) throw new Error(body.error?.message || 'The model request failed.');
+    return body;
+  }
+}
+async function fxLoadObserved(day) {
+  const s = fx.short;
+  if (s.observed[day] && s.observed[day].status !== 'error') return;
+  s.observed[day] = { status: 'loading' };
+  try { s.observed[day] = { status: 'ok', data: await fxGet(`/api/v1/explorer/short-term/observed?date=${day}`) }; }
+  catch (error) { s.observed[day] = { status: 'error', error: error.message }; }
+  fxRerender();
+}
+function fxReplay(day = fx.short.date, horizon = fx.short.horizon) { return fx.short.replays[`${day}|${horizon}`]; }
+function fxEnsureReplay(day, horizon, prefetch = false) {
+  const s = fx.short, key = `${day}|${horizon}`;
+  const existing = s.replays[key];
+  if (existing && existing.status !== 'error' && !(existing.prefetch && !prefetch)) return existing.promise || Promise.resolve();
+  if (!prefetch) fxSeq += 1; // a new on-screen request supersedes this tab's older queued work
+  const seq = fxSeq, entry = { status: 'loading', prefetch };
+  entry.promise = fxFetchReplay(day, horizon, seq, prefetch).then(
+    (data) => { if (s.replays[key] === entry) s.replays[key] = { status: 'ok', data }; },
+    (error) => { if (s.replays[key] === entry) { if (error.superseded) delete s.replays[key]; else s.replays[key] = { status: 'error', error: error.message }; } },
+  ).then(fxRerender);
+  s.replays[key] = entry;
+  return entry.promise;
 }
 
 // Step to the previous/next selectable target without opening the picker.
@@ -225,13 +269,21 @@ function fxWeekChart() {
 
 function fxDayChart() {
   const s = fx.short, h = s.horizon;
-  if (!s.day?.points) return `<div class="fx-chart-empty">${s.dayLoading ? '<span class="studio-spinner"></span>Replaying every half-hour of this day… (can take ~15 s)' : 'Day replay unavailable.'}</div>`;
-  const pts = s.day.points.filter((p) => p.horizonMinutes === h).sort((a, b) => a.targetAt.localeCompare(b.targetAt));
-  if (!pts.length) return '<div class="fx-chart-empty">No replay points for this horizon.</div>';
+  const replay = fxReplay(), fast = s.observed[s.date], ready = replay?.status === 'ok';
+  const retry = replay?.status === 'error' ? `<span>Forecast replay unavailable: ${escapeHtml(replay.error)}</span><button type="button" class="studio-ghost" data-fx-replay-retry>Retry replay</button>` : '';
+  if (!ready && fast?.status !== 'ok') {
+    if (retry) return `<div class="fx-chart-empty is-error" role="alert">${retry}</div>`;
+    return `<div class="fx-chart-empty"><span class="studio-spinner"></span>Loading this day's observed values…</div>`;
+  }
+  // Until the forecast replay arrives, draw the observed values on their own.
+  const day = ready ? replay.data : { date: s.date, points: [], observed: fast.data.observed };
+  const pts = day.points.filter((p) => p.horizonMinutes === h).sort((a, b) => a.targetAt.localeCompare(b.targetAt));
+  if (ready && !pts.length) return '<div class="fx-chart-empty">No replay points for this horizon.</div>';
+  const status = ready ? '' : `<div class="fx-chart-status ${retry ? 'is-error' : ''}" role="status">${retry || `<span class="fx-dot-spin"></span>Observed values shown · replaying the +${h} min forecast (about 15 s)…`}</div>`;
   // The x-axis is the day's 48 target half-hours (00:00-23:30 UTC); observed values cover every slot.
-  const observed = (s.day.observed || []).filter((o) => o.actualMwh !== null);
-  const W = 720, H = 270, left = 52, right = 12, top = 18, base = 228;
-  const start = Date.parse(`${s.day.date}T00:00:00Z`);
+  const observed = (day.observed || []).filter((o) => o.actualMwh !== null);
+  const W = 720, H = 270, left = 52, right = 84, top = 18, base = 228; // right margin holds the direct line labels
+  const start = Date.parse(`${day.date}T00:00:00Z`);
   const x = (stamp) => left + ((Date.parse(stamp) - start) / 18e5 / 47) * (W - left - right);
   const max = Math.max(1, ...pts.map((p) => p.upperMwh), ...observed.map((o) => o.actualMwh)) * 1.08;
   const y = (v) => base - (v / max) * (base - top);
@@ -241,13 +293,18 @@ function fxDayChart() {
   const path = (rows, key) => runsOf(rows).map((run) => run.map((p, i) => `${i ? 'L' : 'M'}${x(p.targetAt).toFixed(1)} ${y(p[key]).toFixed(1)}`).join(' ')).join(' ');
   const band = runs.map((run) => `M${run.map((p) => `${x(p.targetAt).toFixed(1)} ${y(p.upperMwh).toFixed(1)}`).join(' L')} L${run.slice().reverse().map((p) => `${x(p.targetAt).toFixed(1)} ${y(p.lowerMwh).toFixed(1)}`).join(' L')} Z`).join(' ');
   const grid = [0, 0.5, 1].map((f) => `<line class="fx-gridline" x1="${left}" x2="${W - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text class="fx-axis" x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(Math.round(max * f))}</text>`).join('');
-  const hours = ['00:00', '06:00', '12:00', '18:00', '23:30'].map((clock) => `<text class="fx-axis" x="${x(`${s.day.date}T${clock}:00Z`)}" y="${base + 20}" text-anchor="middle">${clock}</text>`).join('');
+  const hours = ['00:00', '06:00', '12:00', '18:00', '23:30'].map((clock) => `<text class="fx-axis" x="${x(`${day.date}T${clock}:00Z`)}" y="${base + 20}" text-anchor="middle">${clock}</text>`).join('');
   const selected = pts.find((p) => p.targetAt === s.target);
-  const marker = s.target?.startsWith(s.day.date) ? `<line class="fx-marker" x1="${x(s.target)}" x2="${x(s.target)}" y1="${top - 6}" y2="${base}"/>${selected ? `<circle class="fx-marker-dot" cx="${x(s.target)}" cy="${y(selected.atRiskMwh)}" r="6"/>` : ''}` : '';
+  const marker = s.target?.startsWith(day.date) ? `<line class="fx-marker" x1="${x(s.target)}" x2="${x(s.target)}" y1="${top - 6}" y2="${base}"/>${selected ? `<circle class="fx-marker-dot" cx="${x(s.target)}" cy="${y(selected.atRiskMwh)}" r="6"/>` : ''}` : '';
   const hitW = (W - left - right) / 47;
-  const hits = pts.map((p) => `<rect class="fx-hit" data-fx-target="${p.targetAt}" x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${fxIssueLabel(p.issuedAt, s.day.date)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
+  const hits = pts.map((p) => `<rect class="fx-hit" data-fx-target="${p.targetAt}" x="${x(p.targetAt) - hitW / 2}" y="${top}" width="${hitW}" height="${base - top}"><title>Issued ${fxIssueLabel(p.issuedAt, day.date)} → target ${fxClock(p.targetAt)} UTC · predicted ${n(p.atRiskMwh)} MWh · observed ${fxMwh(p.actualMwh)} MWh</title></rect>`).join('');
   const actualDots = observed.map((o) => `<circle class="fx-actual-dot" cx="${x(o.targetAt).toFixed(1)}" cy="${y(o.actualMwh).toFixed(1)}" r="2.4"/>`).join('');
-  return `<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(s.day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${hours}${hits}</svg>`;
+  // Direct labels at the end of each line (readable without the legend), nudged apart if they collide.
+  const lastPred = pts.at(-1), lastObs = observed.at(-1);
+  let predY = lastPred ? y(lastPred.atRiskMwh) : null, obsY = lastObs ? y(lastObs.actualMwh) : null;
+  if (predY !== null && obsY !== null && Math.abs(predY - obsY) < 14) { const mid = (predY + obsY) / 2; predY = mid - 7; obsY = mid + 7; }
+  const direct = `${lastPred ? `<text class="fx-direct is-pred" x="${(x(lastPred.targetAt) + 6).toFixed(1)}" y="${(predY + 4).toFixed(1)}">Predicted +${h}</text>` : ''}${lastObs ? `<text class="fx-direct is-actual" x="${(x(lastObs.targetAt) + 6).toFixed(1)}" y="${(obsY + 4).toFixed(1)}">Observed</text>` : ''}`;
+  return `<div class="fx-chart-stack">${status}<svg class="fx-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted and observed dispatch-down for each target half-hour of ${fxDateLabel(day.date)}, ${h} minutes ahead"><text class="fx-axis" x="8" y="12">MWh / half-hour</text>${grid}${settings.uncertainty ? `<path class="fx-band" d="${band}"/>` : ''}<path class="fx-line-pred" d="${path(pts, 'atRiskMwh')}"/><path class="fx-line-actual" d="${path(observed, 'actualMwh')}"/>${actualDots}${marker}${direct}${hours}${hits}</svg></div>`;
 }
 
 // ---------------------------------------------------------------- model information
@@ -263,7 +320,7 @@ function fxDailyInfo() {
   const { model, dataset } = fx.daily.info, t = model.test;
   const gain = t.zeroBaselineMaeMwh ? 1 - t.dailyMaeMwh / t.zeroBaselineMaeMwh : null;
   const regions = ['West · Galway', 'South · Cork', 'East · Dublin', 'North · Belfast'];
-  return `<section class="dash-card fx-info-card">${cardHead('pulse', 'blue', `About the daily model <span class="fx-badge">v${escapeHtml(model.version)}</span>${model.experimental ? '<span class="fx-badge is-amber">Experimental</span>' : ''}`, 'What it predicts, what it looks at and how well it did on unseen days')}
+  return `<section class="dash-card fx-info-card">${cardHead('tricolour', `About the daily model <span class="fx-badge">v${escapeHtml(model.version)}</span>${model.experimental ? '<span class="fx-badge is-amber">Experimental</span>' : ''}`, 'What it predicts, what it looks at and how well it did on unseen days')}
     <div class="fx-info-grid">
       ${fxInfoTile('What it predicts', `<p>The chance that <b>any curtailment</b> happens in Ireland on a UTC day, and the <b>total MWh</b> curtailed. It is issued at 00:00 UTC using the previous day's weather forecast — one number for the whole day, not hourly.</p>`)}
       ${fxInfoTile('What it looks at', `<p>${model.features.length} features from day-ahead weather forecasts: wind speed (mean, max, P75), solar radiation and temperature in four regions, plus season and weekend.</p><div class="fx-chips">${regions.map((r) => `<span>${r}</span>`).join('')}</div>`)}
@@ -276,7 +333,7 @@ function fxDailyInfo() {
 function fxShortInfo() {
   const { model, dataset } = fx.short.info, t = model.test;
   const mlOff = Object.values(model.mlWeightByHorizon || {}).every((w) => w === 0);
-  return `<section class="dash-card fx-info-card">${cardHead('pulse', 'blue', `About the short-term model <span class="fx-badge">v${escapeHtml(model.version)}</span>`, 'What it predicts, how the number is produced and how well it did on unseen half-hours')}
+  return `<section class="dash-card fx-info-card">${cardHead('tricolour', `About the short-term model <span class="fx-badge">v${escapeHtml(model.version)}</span>`, 'What it predicts, how the number is produced and how well it did on unseen half-hours')}
     <div class="fx-info-grid">
       ${fxInfoTile('What it predicts', `<p><b>Dispatch-down</b> — renewable energy turned down for grid <b>constraints</b> or system-wide <b>curtailment</b> — in one half-hour, <b>30 or 60 minutes</b> after the issue time. It also gives the event probability and a P10–P90 range.</p>`)}
       ${fxInfoTile('How the number is made', `<p>${n(model.featureCount)} live grid signals (ENTSO-E generation, load and price; EirGrid wind, solar, SNSP and interconnectors, plus lags and rolling stats) feed ${model.estimators.length} gradient-boosted models.</p>${mlOff ? '<p class="fx-fine">The MWh estimate currently comes from a tuned <b>trend baseline</b> (ML blend weight 0); the ML models supply the probability, split and range.</p>' : ''}`)}
@@ -317,7 +374,7 @@ function fxDailyView() {
   const r = s.result, a = r.actual, likely = r.probability >= 0.5;
   const observed = a.curtailmentMwh === null
     ? metric('Observed (EirGrid)', a.status === 'pending' ? 'Pending' : 'Missing', '', 'No complete observation yet')
-    : metric('Observed (EirGrid)', n(Math.round(a.curtailmentMwh)), 'MWh', `Model was ${n(Math.round(Math.abs(r.predictedMwh - a.curtailmentMwh)))} MWh ${r.predictedMwh > a.curtailmentMwh ? 'high' : 'low'}`, 'green');
+    : metric('Observed (EirGrid)', n(Math.round(a.curtailmentMwh)), 'MWh', fxMiss('Model', r.predictedMwh - a.curtailmentMwh, 1), 'green');
   const gaugeR = 62, circ = Math.PI * gaugeR;
   return `<div class="fx-content ${s.loading ? 'is-loading' : ''}">
     ${fxReplayNote('daily')}
@@ -328,10 +385,10 @@ function fxDailyView() {
       fxPartitionMetric(r.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', 'Your week ahead', 'Renewable energy curtailed per day (MWh), predicted vs observed, for your day and the six after it · click a bar to see that day')}
+      <section class="dash-card studio-chart-card">${cardHead('orange', 'Your week ahead', 'Renewable energy curtailed per day (MWh), predicted vs observed, for your day and the six after it · click a bar to see that day')}
         <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span><span><i class="is-prob"></i>% = chance of any curtailment that day</span></div>
         <div class="fx-chart-wrap">${fxWeekChart()}</div></section>
-      <section class="dash-card studio-side-card">${cardHead('calendar', 'green', fxDateLabel(r.date), 'The day you picked: predicted vs observed curtailment')}
+      <section class="dash-card studio-side-card">${cardHead('green', fxDateLabel(r.date), 'The day you picked: predicted vs observed curtailment')}
         <div class="fx-gauge"><svg viewBox="0 0 160 92" aria-hidden="true"><path class="fx-gauge-track" d="M18 82 A62 62 0 0 1 142 82"/><path class="fx-gauge-fill" d="M18 82 A62 62 0 0 1 142 82" stroke-dasharray="${circ * r.probability} ${circ}"/></svg><div><strong>${fxPercent(r.probability)}</strong><span>chance of curtailment</span></div></div>
         <div class="fx-verdict ${a.event === null || a.event === undefined ? '' : a.event === likely ? 'is-right' : 'is-wrong'}">${a.event === null || a.event === undefined ? 'Outcome not observed yet' : `${a.event ? 'Curtailment did happen' : 'No curtailment happened'} — the model ${a.event === likely ? 'called it' : 'missed it'}`}</div>
         <div class="studio-balance"><div><i class="is-amber"></i><span>Predicted total</span><strong>${n(Math.round(r.predictedMwh))} MWh</strong></div><div><i class="is-green"></i><span>Observed total</span><strong>${fxMwh(a.curtailmentMwh === null ? null : Math.round(a.curtailmentMwh))} MWh</strong></div></div>
@@ -362,20 +419,20 @@ function fxShortView() {
     ${statStrip([
       horizonMetric(30),
       horizonMetric(60),
-      actual === null || actual === undefined ? metric('Observed at target', r.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(r.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', `+${p.horizonMinutes} min forecast was ${n(Math.round(Math.abs(p.atRiskMwh - actual) * 10) / 10)} MWh ${p.atRiskMwh > actual ? 'high' : 'low'}`, 'green'),
+      actual === null || actual === undefined ? metric('Observed at target', r.actual?.status === 'pending' ? 'Pending' : '—', '', 'No observation available') : metric(`Observed at ${fxClock(r.targetAt)}`, n(Math.round(actual * 10) / 10), 'MWh', fxMiss(`+${p.horizonMinutes} min forecast`, p.atRiskMwh - actual, 10), 'green'),
       fxPartitionMetric(p.partition),
     ])}
     <div class="studio-page-grid fx-grid">
-      <section class="dash-card studio-chart-card">${cardHead('forecast', 'amber', `Day replay · ${fxDateLabel(s.date)}`, 'Renewable energy switched off in each half-hour (MWh), forecast vs what actually happened · click the chart to pick a half-hour', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
+      <section class="dash-card studio-chart-card">${cardHead('orange', `Day replay · ${fxDateLabel(s.date)}`, 'Renewable energy switched off in each half-hour (MWh), forecast vs what actually happened · click the chart to pick a half-hour', `<div class="studio-segment fx-horizon" role="group" aria-label="Chart horizon"><button type="button" data-fx-horizon="30" class="${s.horizon === 30 ? 'active' : ''}">+30 min</button><button type="button" data-fx-horizon="60" class="${s.horizon === 60 ? 'active' : ''}">+60 min</button></div>`)}
         <div class="fx-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-actual"></i>Observed</span>${settings.uncertainty ? '<span><i class="is-band"></i>Likely range (P10–P90)</span>' : ''}<span><i class="is-marker"></i>Selected half-hour</span></div>
         <div class="fx-chart-wrap">${fxDayChart()}</div></section>
-      <section class="dash-card studio-side-card">${cardHead('clock', 'green', `+${p.horizonMinutes} min forecast`, `Made ${fxIssueLabel(p.issuedAt, s.date)} for the half-hour at ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
+      <section class="dash-card studio-side-card">${cardHead('green', `+${p.horizonMinutes} min forecast`, `Made ${fxIssueLabel(p.issuedAt, s.date)} for the half-hour at ${fxClock(p.targetAt)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
         <div class="fx-range"><div class="fx-range-head"><span>Prediction range</span><b>${n(Math.round(p.lowerMwh))}–${n(Math.round(p.upperMwh))} MWh</b></div>
           <div class="fx-range-track"><span class="fx-range-band" style="left:${pos(p.lowerMwh)};width:calc(${pos(p.upperMwh)} - ${pos(p.lowerMwh)})"></span><span class="fx-range-point" style="left:${pos(p.atRiskMwh)}" title="Predicted"></span>${actual === null || actual === undefined ? '' : `<span class="fx-range-actual" style="left:${pos(actual)}" title="Observed"></span>`}</div>
           <div class="fx-range-key"><span><i class="is-pred"></i>Predicted ${n(Math.round(p.atRiskMwh * 10) / 10)}</span>${actual === null || actual === undefined ? '' : `<span><i class="is-actual"></i>Observed ${n(Math.round(actual * 10) / 10)}</span>`}<span><i class="is-band"></i>P10–P90</span></div></div>
         <div class="studio-component"><div><span>Grid constraint</span><b>${n(Math.round(p.constraintMwh * 10) / 10)} MWh</b></div><progress max="${Math.max(p.atRiskMwh, 0.001)}" value="${p.constraintMwh}"></progress></div>
         <div class="studio-component"><div><span>Curtailment</span><b>${n(Math.round(p.curtailmentMwh * 10) / 10)} MWh</b></div><progress max="${Math.max(p.atRiskMwh, 0.001)}" value="${p.curtailmentMwh}"></progress></div>
-        <div class="studio-side-number"><span>Absorbable with ${n(r.capacityMw)} MW flexible load</span><strong>${n(Math.round(p.recoverableMwh * 10) / 10)} MWh</strong><small>min(predicted energy, capacity × 0.5 h) · set capacity on the Dashboard</small></div>
+        <div class="studio-side-number"><span>Upper bound with ${n(r.capacityMw)} MW flexible load</span><strong>${n(Math.round(p.recoverableMwh * 10) / 10)} MWh</strong><small>min(predicted energy, capacity × 0.5 h). Assumes chargers are connected where and when the dispatch-down happens; location, local grid constraints, fleet connection, charging power and response time can reduce it.</small></div>
       </section>
     </div>
     ${fxShortInfo()}
@@ -445,7 +502,8 @@ document.addEventListener('click', (event) => {
   if ((el = pick('data-fx-target'))) { fx.picker = null; fxSelectShort(el.dataset.fxTarget); return; }
   if ((el = pick('data-fx-day'))) { if ('fxInWeek' in el.dataset) fxSelectDaily(el.dataset.fxDay, true); else fxChooseDay(el.dataset.fxDay); return; }
   if ((el = pick('data-fx-step'))) { fxStep(Number(el.dataset.fxStep)); return; }
-  if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); render(); return; }
+  if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); fxEnsureReplay(fx.short.date, fx.short.horizon); render(); return; }
+  if (pick('data-fx-replay-retry')) { fxEnsureReplay(fx.short.date, fx.short.horizon); render(); return; }
   if ((el = pick('data-fx-retry'))) {
     const s = fx[fx.model];
     if (el.dataset.fxRetry === 'info') { s.infoError = ''; fxLoadInfo(fx.model); }

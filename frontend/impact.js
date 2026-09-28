@@ -35,13 +35,16 @@ function impactSkeleton(bars=24){
 }
 
 // ---------- day replay loading ----------
-// The replay day follows the live forecast (chosen by the backend), so only the scenario inputs
-// identify a request.
-function impactDayKey(){return [modelState.capacity,modelState.totalDemandKwh,modelState.flexibleDemandKwh].join('|')}
+// The replay day follows the dashboard's current forecast target (a random high-MWh dataset
+// half-hour chosen by the backend), so a new target also loads a new day.
+// The pinned target, not whatever data is on screen: an offline example has its own unrelated time.
+function impactTargetDay(){const t=modelState.target;return t?t.slice(0,10):null}
+function impactDayKey(){return [impactTargetDay(),modelState.capacity,modelState.totalDemandKwh,modelState.flexibleDemandKwh].join('|')}
 async function loadImpactDay(){
   const request=++impactDay.request;
   impactDay.key=impactDayKey();impactDay.status='loading';
   const query=new URLSearchParams({capacityMw:String(modelState.capacity),totalDemandKwh:String(modelState.totalDemandKwh),flexibleDemandKwh:String(modelState.flexibleDemandKwh)});
+  if(impactTargetDay())query.set('date',impactTargetDay());
   try{
     const response=await fetch(`/api/v1/impact/day?${query}`);
     if(request!==impactDay.request)return;

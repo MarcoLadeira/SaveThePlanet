@@ -80,6 +80,19 @@ class HelperTests(unittest.TestCase):
         runs = explorer.contiguous_runs(['2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z'])
         self.assertEqual([len(run) for run in runs], [2, 1])
 
+    def test_forecast_rows_stop_at_the_last_labelled_target(self):
+        times = {'2026-01-31T22:00:00Z', '2026-01-31T22:30:00Z'}
+        # The final 22:30 issue has a +30 row (23:00) but no +60 row (23:30).
+        self.assertEqual(explorer.forecast_issues('2026-01-31T23:00:00Z', times),
+                         {30: '2026-01-31T22:30:00Z', 60: '2026-01-31T22:00:00Z'})
+        self.assertEqual(explorer.forecast_issues('2026-01-31T23:30:00Z', times), {})
+        self.assertEqual(explorer.valid_targets(times), ['2026-01-31T22:30:00Z', '2026-01-31T23:00:00Z'])
+
+    def test_targets_beside_a_dataset_gap_keep_their_remaining_horizon(self):
+        times = {'2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z', '2026-01-14T16:30:00Z'}
+        self.assertEqual(explorer.forecast_issues('2026-01-14T15:30:00Z', times), {60: '2026-01-14T14:30:00Z'})
+        self.assertEqual(explorer.forecast_issues('2026-01-14T16:00:00Z', times), {})
+
     def test_partition_lookup(self):
         self.assertEqual(explorer.partition_of('2026-03-15', V2_INFO['dataset']['partitions']), 'test')
         self.assertIsNone(explorer.partition_of('2025-03-15', V2_INFO['dataset']['partitions']))
@@ -150,8 +163,9 @@ class ModelCallTests(unittest.TestCase):
     @patch('explorer.short_term_info', return_value=V1_INFO)
     @patch('explorer.call')
     def test_target_without_dataset_issue_time_never_calls_model(self, call, _info):
-        with self.assertRaises(LookupError):
-            explorer.short_term_predict('2026-01-31T12:00:00Z', 100)
+        for target in ('2026-01-31T12:00:00Z', '2026-01-31T23:30:00Z'):  # 23:30 is past the last labelled target
+            with self.subTest(target=target), self.assertRaises(LookupError):
+                explorer.short_term_predict(target, 100)
         call.assert_not_called()
 
     @patch('explorer.call')
@@ -167,17 +181,44 @@ class ModelCallTests(unittest.TestCase):
                 horizon = body['forecast_horizons_minutes'][0]
                 return {'predictions': [v1_row(explorer.iso(first + explorer.timedelta(minutes=30 * i)), horizon)
                                         for i in range(int(body['duration_hours'] * 2))]}
-            return {'actuals': [{'status': 'available', 'target_timestamp_utc': t, 'actual_dispatch_down_mwh': 1.0}
-                                for t in body['target_timestamps_utc']]}
+            self.assertEqual(path, '/actuals/v1/window')  # observed values: one window call per day
+            first = explorer.utc(body['start_target_timestamp_utc'])
+            return {'actuals': [{'status': 'available', 'actual_dispatch_down_mwh': 1.0,
+                                 'target_timestamp_utc': explorer.iso(first + explorer.timedelta(minutes=30 * i))}
+                                for i in range(int(body['duration_hours'] * 2))]}
+        call.side_effect = fake
+        for horizon, start in ((30, '2026-01-08T23:30:00Z'), (60, '2026-01-08T23:00:00Z')):
+            with self.subTest(horizon=horizon), patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
+                requests.clear()
+                day = explorer.short_term_day('2026-01-09', horizon)
+                # One window per request, for this horizon only: the hosted service slows down badly
+                # when replays run in parallel.
+                self.assertEqual([(r['start_timestamp_utc'], r['forecast_horizons_minutes']) for r in requests], [(start, [horizon])])
+                targets = sorted(p['targetAt'] for p in day['points'])
+                self.assertEqual({p['horizonMinutes'] for p in day['points']}, {horizon})
+                self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
+                self.assertEqual(len(day['observed']), 48)
+
+    @patch('explorer.RETRY_BACKOFF_SECONDS', 0)
+    @patch('explorer.call')
+    def test_day_replay_retries_a_timed_out_window_once(self, call):
+        start = explorer.utc('2026-01-08T00:00:00Z')
+        times = [explorer.iso(start + explorer.timedelta(minutes=30 * i)) for i in range(96)]
+        attempts = []
+
+        def fake(path, body=None):
+            if path == '/predict/window/from-dataset':
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise TimeoutError()
+                first = explorer.utc(body['start_timestamp_utc'])
+                return {'predictions': [v1_row(explorer.iso(first + explorer.timedelta(minutes=30 * i)), 30)
+                                        for i in range(int(body['duration_hours'] * 2))]}
+            return {'actuals': []}
         call.side_effect = fake
         with patch('explorer.short_term_info', return_value={**V1_INFO, 'times': times}):
-            day = explorer.short_term_day('2026-01-09')
-        self.assertEqual(sorted((r['start_timestamp_utc'], r['forecast_horizons_minutes'][0]) for r in requests),
-                         [('2026-01-08T23:00:00Z', 60), ('2026-01-08T23:30:00Z', 30)])
-        for horizon in (30, 60):
-            targets = sorted(p['targetAt'] for p in day['points'] if p['horizonMinutes'] == horizon)
-            self.assertEqual((len(targets), targets[0], targets[-1]), (48, '2026-01-09T00:00:00Z', '2026-01-09T23:30:00Z'))
-        self.assertEqual(len(day['observed']), 48)
+            day = explorer.short_term_day('2026-01-09', 30)
+        self.assertEqual((len(attempts), len(day['points'])), (2, 48))
 
     @patch('explorer.daily_info', return_value=V2_INFO)
     @patch('explorer.call')
@@ -192,16 +233,90 @@ class ModelCallTests(unittest.TestCase):
         self.assertIsNone(result['actual']['curtailmentMwh'])
 
     @patch('explorer.daily_info', return_value=V2_INFO)
-    @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
-    def test_week_starts_on_the_selected_day(self, _one, _info):
+    @patch('explorer._daily_actuals', side_effect=lambda days: {d: None for d in days})
+    @patch('explorer._daily_prediction', side_effect=lambda day: {'date': day})
+    def test_week_starts_on_the_selected_day(self, _prediction, _actuals, _info):
         days = [d['date'] for d in explorer.daily_week('2025-06-10')['days']]
         self.assertEqual((days[0], days[-1], len(days)), ('2025-06-10', '2025-06-16', 7))
 
     @patch('explorer.daily_info', return_value=V2_INFO)
-    @patch('explorer._daily_one', side_effect=lambda day: {'date': day})
-    def test_week_is_clipped_to_dataset_end(self, _one, _info):
+    @patch('explorer.call')
+    def test_week_actuals_come_from_one_window_call_and_are_reused(self, call, _info):
+        def fake(path, body=None):
+            if path == '/predict/curtailment/day':
+                return {'model_version': '2', 'curtailment_event_probability': .5, 'predicted_curtailment_mwh': 10.0}
+            self.assertEqual(path, '/actuals/daily-curtailment/window')
+            start = explorer.date.fromisoformat(body['start_date_utc'])
+            return {'actuals': [{'status': 'available', 'actual_curtailment_mwh': 100.0 + i, 'actual_curtailment_event': True,
+                                 'target_date_utc': (start + explorer.timedelta(days=i)).isoformat()} for i in range(body['days'])]}
+        call.side_effect = fake
+        week = explorer.daily_week('2025-06-10')
+        actual_calls = [c for c in call.call_args_list if c.args[0].startswith('/actuals')]
+        self.assertEqual(len(actual_calls), 1)
+        self.assertEqual([d['actual']['curtailmentMwh'] for d in week['days']], [100.0 + i for i in range(7)])
+        call.reset_mock()
+        self.assertEqual(explorer.daily_predict('2025-06-12')['actual']['curtailmentMwh'], 102.0)
+        call.assert_not_called()  # clicking a day in the week needs no further requests
+
+    @patch('explorer.daily_info', return_value=V2_INFO)
+    @patch('explorer._daily_actuals', side_effect=lambda days: {d: None for d in days})
+    @patch('explorer._daily_prediction', side_effect=lambda day: {'date': day})
+    def test_week_is_clipped_to_dataset_end(self, _prediction, _actuals, _info):
         days = [d['date'] for d in explorer.daily_week('2026-08-30')['days']]
         self.assertEqual(days, ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30'])
+
+    def _actuals_api(self, calls, skip=()):
+        """A fake actuals API that records every call; dates in `skip` are omitted from windows."""
+        def fake(path, body=None):
+            calls.append((path, body))
+            if path.startswith('/actuals/daily-curtailment?'):
+                day = path.rsplit('=', 1)[1]
+                return {'status': 'available', 'target_date_utc': day, 'actual_curtailment_mwh': float(day[-2:]),
+                        'actual_curtailment_event': True}
+            start = explorer.date.fromisoformat(body['start_date_utc'])
+            days = [(start + explorer.timedelta(days=i)).isoformat() for i in range(body['days'])]
+            return {'actuals': [{'status': 'available', 'target_date_utc': d, 'actual_curtailment_mwh': float(d[-2:]),
+                                 'actual_curtailment_event': True} for d in days if d not in skip]}
+        return fake
+
+    def test_interleaved_cache_fetches_each_uncached_run(self):
+        # Review repro: cache Wednesday, then request Tuesday-Thursday.
+        calls = []
+        with patch('explorer.call', side_effect=self._actuals_api(calls)):
+            explorer._daily_actuals(['2025-06-11'])
+            calls.clear()
+            result = explorer._daily_actuals(['2025-06-10', '2025-06-11', '2025-06-12'])
+        self.assertEqual({d: a['curtailmentMwh'] for d, a in result.items()},
+                         {'2025-06-10': 10.0, '2025-06-11': 11.0, '2025-06-12': 12.0})
+        self.assertEqual(sorted(path for path, _ in calls),
+                         ['/actuals/daily-curtailment?target_date_utc=2025-06-10',
+                          '/actuals/daily-curtailment?target_date_utc=2025-06-12'])
+
+    def test_single_day_then_week_and_week_then_single_day(self):
+        week = [f'2025-06-{d:02d}' for d in range(10, 17)]
+        for order in (('single', 'week'), ('week', 'single')):
+            with self.subTest(order=order):
+                explorer._cache.clear()
+                calls = []
+                with patch('explorer.call', side_effect=self._actuals_api(calls)):
+                    for step in order:
+                        result = explorer._daily_actuals(['2025-06-13'] if step == 'single' else week)
+                with patch('explorer.call', side_effect=AssertionError('everything should be cached')):
+                    final = explorer._daily_actuals(week)
+                self.assertEqual([final[d]['curtailmentMwh'] for d in week], [float(d[-2:]) for d in week])
+                # single -> week: the day, then the runs either side of it (10-12, 14-16); week -> single: one window.
+                self.assertEqual(sum(1 for path, _ in calls if path.startswith('/actuals/daily-curtailment')), 3 if order == ('single', 'week') else 1)
+
+    def test_unanswered_dates_are_reported_missing_but_not_cached(self):
+        calls = []
+        days = ['2025-06-10', '2025-06-11', '2025-06-12']
+        with patch('explorer.call', side_effect=self._actuals_api(calls, skip={'2025-06-12'})):
+            first = explorer._daily_actuals(days)
+        self.assertEqual(first['2025-06-12']['status'], 'missing')
+        with patch('explorer.call', side_effect=self._actuals_api(calls)):
+            second = explorer._daily_actuals(days)
+        self.assertEqual(second['2025-06-12']['curtailmentMwh'], 12.0)  # asked again, not stuck as missing
+        self.assertEqual(calls[-1][0], '/actuals/daily-curtailment?target_date_utc=2025-06-12')
 
     @patch('explorer.daily_info', return_value=V2_INFO)
     def test_daily_rejects_dates_outside_dataset(self, _info):
@@ -249,6 +364,22 @@ class ExplorerHttpTests(unittest.TestCase):
     def test_upstream_failure_is_502_with_diagnosis(self, _info):
         status, body = self.get('/api/v1/explorer/daily')
         self.assertEqual((status, body['error']['code']), (502, 'MODEL_TIMEOUT'))
+
+    def test_busy_gate_is_503_with_retry_after(self):
+        from gate import Busy
+        with patch('explorer.short_term_day', side_effect=Busy()):
+            try:
+                urlopen(self.url + '/api/v1/explorer/short-term/day?date=2026-01-20&horizon=30&client=tab-1&seq=3')
+                self.fail('expected 503')
+            except HTTPError as error:
+                self.assertEqual((error.code, error.headers['Retry-After'], json.load(error)['error']['code']), (503, '5', 'MODEL_BUSY'))
+
+    def test_superseded_request_is_409_and_passes_viewer_identity(self):
+        from gate import Superseded
+        with patch('explorer.short_term_day', side_effect=Superseded()) as replay:
+            status, body = self.get('/api/v1/explorer/short-term/day?date=2026-01-20&horizon=60&client=tab-1&seq=4&prefetch=1')
+        self.assertEqual((status, body['error']['code']), (409, 'SUPERSEDED'))
+        replay.assert_called_once_with('2026-01-20', 60, 'tab-1', 4, True)
 
     def test_unknown_explorer_route_is_404(self):
         self.assertEqual(self.get('/api/v1/explorer/nope')[0], 404)

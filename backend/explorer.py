@@ -14,8 +14,10 @@ import math
 import os
 import threading
 import time
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from gate import FOREGROUND, PREFETCH, gate
 
 # Window replays can take ~15 s on the hosted service, and a sleeping service
 # can take up to a minute to wake, so explorer calls get a longer budget.
@@ -134,8 +136,9 @@ def _verify_by_replay(candidates):
     while i < len(candidates):
         chunk = candidates[i:i + 48]  # the window route accepts at most 24 hours
         try:
-            rows = call('/predict/window/from-dataset', {'start_timestamp_utc': iso(chunk[0]), 'duration_hours': len(chunk) / 2,
-                                                         'forecast_horizons_minutes': [30]}).get('predictions', [])
+            body = {'start_timestamp_utc': iso(chunk[0]), 'duration_hours': len(chunk) / 2, 'forecast_horizons_minutes': [30]}
+            rows = gate.run(('verify', iso(chunk[0]), len(chunk)),
+                            lambda body=body: call('/predict/window/from-dataset', body).get('predictions', []), PREFETCH)
             verified += [utc(r['issue_timestamp_utc']) for r in rows]
             i += len(chunk)
         except HTTPError as error:
@@ -168,6 +171,29 @@ def _available_times(dataset, listed):
         return [iso(t) for t in candidates + listed], 'count'
     key = ('v1-verified', iso(earliest), iso(listed[0]), dataset.get('available_issue_timestamp_count'))
     return [iso(t) for t in cached(key, None, lambda: _verify_by_replay(candidates)) + listed], 'replay'
+
+
+def forecast_issues(target, times, last_issue=None):
+    """{horizon: issue time} for each forecast the model can make for this target half-hour.
+
+    A dataset row exists for (issue, horizon) only when the issue time is in the dataset and
+    the target is no later than the last labelled target (last issue time + 30 minutes); e.g.
+    the final 22:30 issue has a +30 row (23:00) but no +60 row (23:30).
+    """
+    available = times if isinstance(times, set) else set(times)
+    last_target = utc(last_issue or max(available)) + timedelta(minutes=30)
+    moment = utc(target)
+    if moment > last_target:
+        return {}
+    issues = {h: iso(moment - timedelta(minutes=h)) for h in (30, 60)}
+    return {h: t for h, t in issues.items() if t in available}
+
+
+def valid_targets(times):
+    """Every target half-hour with at least one forecast row in the dataset."""
+    available, last = set(times), max(times)
+    candidates = {iso(utc(t) + timedelta(minutes=h)) for t in times for h in (30, 60)}
+    return sorted(t for t in candidates if forecast_issues(t, available, last))
 
 
 def short_term_info():
@@ -211,6 +237,7 @@ def short_term_info():
                         'verification': verification,
                         'intervalMinutes': dataset.get('interval_minutes', 30)},
             'times': times,
+            'targets': valid_targets(times),
         }
     return cached('v1-info', INFO_CACHE_SECONDS, build)
 
@@ -239,6 +266,24 @@ def _v1_actual(row):
             'constraintMwh': finite(row.get('actual_constraint_mwh'), 'actual', optional=True)}
 
 
+def day_observed(day):
+    """The 48 observed half-hours (00:00-23:30 UTC) of a day from one /actuals/v1/window call.
+
+    This takes ~0.3 s, while replaying the model's predictions for the same day takes ~13 s,
+    so the page can draw reality immediately and add the forecast line when it arrives.
+    """
+    day = date.fromisoformat(day).isoformat()
+    if not any(t.startswith(day) for t in short_term_info()['times']):
+        raise LookupError('That date is not in the short-term model dataset.')
+
+    def build():
+        body = call('/actuals/v1/window', {'start_target_timestamp_utc': f'{day}T00:00:00Z', 'duration_hours': 24})
+        actuals = {a['targetAt']: a for a in map(_v1_actual, body.get('actuals', []))}
+        return {'date': day, 'observed': [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None}
+                                          for t in day_targets(day)]}
+    return cached(('v1-observed', day), None, build)
+
+
 def _v1_actuals(targets):
     if not targets:
         return {}
@@ -255,8 +300,7 @@ def short_term_predict(target, capacity):
     """
     info = short_term_info()
     target, available = iso(utc(target)), set(info['times'])
-    issues = {h: iso(utc(target) - timedelta(minutes=h)) for h in (30, 60)}
-    issues = {h: t for h, t in issues.items() if t in available}
+    issues = forecast_issues(target, available)
     if not issues:
         raise LookupError('No dataset issue time forecasts that target half-hour.')
 
@@ -310,34 +354,53 @@ def day_targets(day):
     return [iso(start + timedelta(minutes=30 * i)) for i in range(48)]
 
 
-def short_term_day(day):
-    """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at both horizons, with actuals.
+RETRY_BACKOFF_SECONDS = 1.5
+
+
+def _with_retry(fn):
+    """One retry, after a short backoff, for a timeout or 5xx from the hosted service."""
+    try:
+        return fn()
+    except HTTPError as error:
+        if error.code < 500:
+            raise
+    except (URLError, TimeoutError, OSError):
+        pass
+    time.sleep(RETRY_BACKOFF_SECONDS)
+    return fn()
+
+
+def short_term_day(day, horizon=30, client=None, seq=None, prefetch=False):
+    """Replay the 48 target half-hours (00:00-23:30 UTC) of one day at one horizon, with actuals.
 
     A target at 00:00 is predicted from 23:30 (+30) or 23:00 (+60) the day before, so each
-    horizon replays its own issue times, shifted back by the horizon.
+    horizon replays its own issue times, shifted back by the horizon. The hosted service
+    processes replays one at a time (a 24 h window takes ~13 s alone, ~39 s when two run
+    together), so one horizon is replayed per request and its runs are fetched sequentially.
     """
+    if horizon not in (30, 60):
+        raise ValueError('Horizon must be 30 or 60 minutes')
     day = date.fromisoformat(day).isoformat()
     info = short_term_info()
     if not any(t.startswith(day) for t in info['times']):
         raise LookupError('That date is not in the short-term model dataset.')
     available, targets = set(info['times']), day_targets(day)
-
-    def issues(horizon):
-        shifted = (iso(utc(t) - timedelta(minutes=horizon)) for t in targets)
-        return [t for t in shifted if t in available]
+    last = max(available)
+    issues = [i for i in (forecast_issues(t, available, last).get(horizon) for t in targets) if i]
 
     def build():
-        jobs = [lambda r=r, h=h: _window(r, h) for h in (30, 60) for r in contiguous_runs(issues(h))]
-        rows = [row for batch in parallel(*jobs) for row in batch]
+        rows = [row for run in contiguous_runs(issues) for row in _with_retry(lambda run=run: _window(run, horizon))]
         points = [p for p in map(_v1_point, rows) if p['targetAt'].startswith(day)]
-        actuals = _v1_actuals(targets)
+        observed = day_observed(day)['observed']  # usually already cached by the page's fast request
+        by_target = {o['targetAt']: o['actualMwh'] for o in observed}
         for p in points:
-            actual = actuals.get(p['targetAt'])
-            p['actualMwh'] = actual['dispatchDownMwh'] if actual else None
-        observed = [{'targetAt': t, 'actualMwh': actuals[t]['dispatchDownMwh'] if t in actuals else None} for t in targets]
-        return {'date': day, 'modelVersion': rows[0].get('model_version') if rows else None,
+            p['actualMwh'] = by_target.get(p['targetAt'])
+        return {'date': day, 'horizonMinutes': horizon, 'modelVersion': rows[0].get('model_version') if rows else None,
                 'points': points, 'observed': observed}
-    return cached(('v1-day', day), None, build)
+    # Every replay goes through the server-wide gate (one upstream replay at a time, shared
+    # across clients, foreground before prefetch, superseded work dropped).
+    key = ('v1-day', day, horizon)
+    return cached(key, None, lambda: gate.run(key, build, PREFETCH if prefetch else FOREGROUND, client, seq))
 
 
 # ---------------------------------------------------------------- V2 daily
@@ -409,22 +472,67 @@ def validate_day(value):
     return day, info
 
 
-def _daily_one(day):
+def _daily_actual(row):
+    return {'status': row.get('status'),
+            'curtailmentMwh': finite(row.get('actual_curtailment_mwh'), 'actual', optional=True),
+            'event': row.get('actual_curtailment_event')}
+
+
+def _consecutive_runs(days, limit=7):
+    """Split sorted ISO dates into runs of consecutive days (at most `limit` long)."""
+    runs = []
+    for day in sorted(days):
+        if runs and len(runs[-1]) < limit and date.fromisoformat(day) - date.fromisoformat(runs[-1][-1]) == timedelta(days=1):
+            runs[-1].append(day)
+        else:
+            runs.append([day])
+    return runs
+
+
+def _daily_actuals(days):
+    """{day: actual}. Uncached days are fetched per run of consecutive days: one
+    /actuals/daily-curtailment/window call per run (or the single-day route for a run of one).
+
+    Only dates the API actually answered are cached. A date that was not answered is
+    reported as missing for this response but never cached, so it is queried again later.
+    """
+    with _cache_lock:
+        uncached = [d for d in days if ('v2-actual', d) not in _cache]
+
+    def fetch(run):
+        if len(run) == 1:
+            row = call(f'/actuals/daily-curtailment?target_date_utc={run[0]}')
+            return {row.get('target_date_utc') or run[0]: row}
+        body = call('/actuals/daily-curtailment/window', {'start_date_utc': run[0], 'days': len(run)})
+        return {row.get('target_date_utc'): row for row in body.get('actuals', [])}
+    runs = _consecutive_runs(uncached)
+    answered = {}
+    for found in (parallel(*[lambda r=r: fetch(r) for r in runs]) if runs else []):
+        answered.update(found)
+    for day in uncached:
+        if day in answered:
+            cached(('v2-actual', day), None, lambda row=answered[day]: _daily_actual(row))
+    unanswered = {'status': 'missing', 'curtailmentMwh': None, 'event': None}
+    with _cache_lock:
+        return {d: _cache[('v2-actual', d)][1] if ('v2-actual', d) in _cache else dict(unanswered) for d in days}
+
+
+def _daily_prediction(day):
     def build():
-        prediction, actual = parallel(
-            lambda: call('/predict/curtailment/day', {'target_date_utc': day}),
-            lambda: call(f'/actuals/daily-curtailment?target_date_utc={day}'))
+        prediction = call('/predict/curtailment/day', {'target_date_utc': day})
         return {
             'date': day, 'modelVersion': prediction.get('model_version'),
             'issuedAt': prediction.get('issue_timestamp_utc'),
             'weatherAvailableAt': prediction.get('forecast_max_available_at_utc'),
             'probability': finite(prediction['curtailment_event_probability'], 'probability', 0, 1),
             'predictedMwh': finite(prediction['predicted_curtailment_mwh'], 'energy', 0),
-            'actual': {'status': actual.get('status'),
-                       'curtailmentMwh': finite(actual.get('actual_curtailment_mwh'), 'actual', optional=True),
-                       'event': actual.get('actual_curtailment_event')},
         }
     return cached(('v2-day', day), None, build)
+
+
+def _daily_one(day):
+    prediction, actuals = parallel(lambda: _daily_prediction(day), lambda: _daily_actuals([day]))
+    return {**prediction, 'actual': actuals[day]}
 
 
 def daily_predict(day):
@@ -442,5 +550,5 @@ def daily_week(day):
     start = min(date.fromisoformat(day), max(first, last - timedelta(days=6)))
     days = [(start + timedelta(days=i)).isoformat() for i in range(7)
             if start + timedelta(days=i) <= last]
-    results = parallel(*[lambda d=d: _daily_one(d) for d in days])
-    return {'selected': day, 'days': results}
+    actuals, *predictions = parallel(lambda: _daily_actuals(days), *[lambda d=d: _daily_prediction(d) for d in days])
+    return {'selected': day, 'days': [{**p, 'actual': actuals[p['date']]} for p in predictions]}
