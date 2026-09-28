@@ -42,6 +42,9 @@ test('an offer shows the server\'s locked price for the chosen charge size', () 
   withData(run, { joined: true, bookings: [] });
   let html = run('dwCard()');
   assert.match(html, /<h2>Discount windows<\/h2><p>SaveThePlanet Rewards · example data · ex VAT<\/p><\/div><div class="dw-bar">/, 'once joined the day switcher takes the header, so the programme name moves to the subtitle');
+  run("dw.data.dataMode = 'replay'");
+  assert.match(run('dwCard()'), /<h2>Discount windows<\/h2><p>SaveThePlanet Rewards · demo · ex VAT<\/p>/, 'the joined card still says it is a demo');
+  run("dw.data.dataMode = 'simulated'");
   const offer = SECTION.offers.find((o) => o.date === '2026-01-25' && o.window === 'evening');
   assert.equal(offer.status, 'offer');
   assert.match(html, /€0\.44<small>\/kWh<\/small><\/b><em>−€0\.05/);

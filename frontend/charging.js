@@ -599,10 +599,11 @@ function dwDetail(o, booking, d) {
 function dwCard() {
     if (dw.status === 'idle') queueMicrotask(dwLoad);
     const d = dw.data, joined = dw.status === 'ready' && d.member.joined;
-    // Once joined the header also holds the day switcher, so the programme name moves to the subtitle,
-    // which then runs under the switcher (charging.css) instead of being cut short.
-    const title = joined ? 'Discount windows' : 'SaveThePlanet Rewards';
-    const sub = d ? `${joined ? 'SaveThePlanet Rewards' : 'Discount windows'} · ${d.dataMode === 'simulated' ? 'example data' : 'replay'} · ex VAT` : 'Discount windows when our AI has stored surplus';
+    // Once joined the day switcher takes the title row: the programme name moves to the subtitle, which
+    // runs under the switcher (charging.css), and "demo" stands in for the Demo tag.
+    const sim = d?.dataMode === 'simulated', title = joined ? 'Discount windows' : 'SaveThePlanet Rewards';
+    const sub = !d ? 'Discount windows when our AI has stored surplus'
+        : joined ? `SaveThePlanet Rewards · ${sim ? 'example data' : 'demo'} · ex VAT` : `Discount windows · ${sim ? 'example data' : 'replay'} · ex VAT`;
     let body, extra = '<span class="cg-tag is-demo">Demo</span>';
     if (joined) {
         const days = dwDays(), at = days.indexOf(dw.day);
