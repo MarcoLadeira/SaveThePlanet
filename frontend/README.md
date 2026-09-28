@@ -75,3 +75,9 @@ appearance and the display toggles remain local preferences.
 
 Everything is labelled as a historical dataset prediction or example data and an
 upper-bound estimate. Times are shown as "forecast half-hours", without a start/end claim.
+
+**Motion.** Figures count up and glide to new values, lines draw in left to right, the donut fills,
+week bars grow one after another and the ranked rows slide in, all through the shared engine in
+`charts3d.js` or once-only CSS entrances. Live refreshes do not replay them, "Apply" keeps the
+current figures dimmed with an "Updating…" note until the new ones glide in, and everything is
+instant when the viewer prefers reduced motion.
