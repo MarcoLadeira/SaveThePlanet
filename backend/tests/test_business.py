@@ -424,11 +424,14 @@ class ComputeTests(unittest.TestCase):
         steps = []
         with patch('explorer.short_term_info', return_value=info), patch('business.load_day', side_effect=load), \
                 patch('business.model_seasonal', return_value=NO_SEASON):
-            r = business.compute(lambda done, total, stage: steps.append((done, total)))
+            r = business.compute(lambda done, total, stage: steps.append((done, total, stage)))
         self.assertEqual(r['dataMode'], 'historical-replay')
         self.assertEqual(r['coverage']['failedDays'], ['2026-01-27'])
         self.assertEqual(r['period']['nightDates'], ['2026-01-24', '2026-01-25', '2026-01-28', '2026-01-29', '2026-01-30'])
-        self.assertEqual(steps[0], (0, 9))
+        # Eight days replayed, then the observed year, then the scoring: ten steps.
+        self.assertEqual(steps[0], (0, 10, 'Replaying historical forecasts'))
+        self.assertEqual(steps[-2:], [(8, 10, 'Checking a full year of observed curtailment'),
+                                      (9, 10, 'Scoring three charging strategies')])
         self.assertEqual(r['provenance']['fleet'], 'simulated')
 
 
@@ -487,10 +490,14 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual((d['evs'], d['operatingDays']), (20, 260))
         self.assertTrue(0 < d['shiftablePct'] <= 100)
         estimate = business.estimate(**{k: d[k] for k in ('evs', 'shiftablePct', 'priceDiffEurPerKwh', 'operatingDays')})
-        # The defaults reproduce the depot's savings before costs, within the rounding of the price shown.
-        self.assertLessEqual(abs(estimate['grossSavingsEur'] - r['financials']['grossSavingsEur']), 5)
+        # The defaults reproduce the depot's savings before costs, within a euro (the price has five decimals).
+        self.assertLessEqual(abs(estimate['grossSavingsEur'] - r['financials']['grossSavingsEur']), 1)
         with_costs = business.estimate(**{k: d[k] for k in business.CALCULATOR_FIELDS})
-        self.assertLessEqual(abs(with_costs['yearlySavingsEur'] - r['kpis']['annualSavingsEur']), 5)
+        self.assertLessEqual(abs(with_costs['yearlySavingsEur'] - r['kpis']['annualSavingsEur']), 1)
+        simulated = business.simulated_result('MODEL_UNAVAILABLE')
+        d = simulated['calculator']['defaults']
+        estimate = business.estimate(**{k: d[k] for k in ('evs', 'shiftablePct', 'priceDiffEurPerKwh', 'operatingDays')})
+        self.assertLessEqual(abs(estimate['grossSavingsEur'] - simulated['financials']['grossSavingsEur']), 1)
 
 
 class StateTests(unittest.TestCase):

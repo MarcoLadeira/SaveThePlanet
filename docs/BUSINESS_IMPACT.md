@@ -150,9 +150,10 @@ answer's `feasibility` says how many EVs fit and what limited them, and the page
 check. The bridge plans at most 200 vehicles; by then the site is long full, so more EVs add nothing.
 
 The share shifted and the price difference are the user's assumptions, so the result stays
-**illustrative**. The defaults reproduce the depot (the price difference is derived from the simulation),
-so the calculator starts where the page does. Every input changes the result (tested). Inputs are
-validated in the browser for feedback and again on the server, which is authoritative.
+**illustrative**. The defaults reproduce the depot (the price difference is derived from the simulation,
+to five decimals), so the calculator starts where the page does, within a euro of the waterfall. Every
+input changes the result (tested). Inputs are validated in the browser for feedback and again on the
+server, which is authoritative.
 
 ## Discount windows: who saves, who earns (issue #56)
 
@@ -305,8 +306,12 @@ prefetch priority, through the shared replay gate). While it runs:
 
 ```
 HTTP 202  {"version": "business-impact/v1", "status": "preparing",
-           "progress": {"done": 3, "total": 9, "stage": "Replaying historical forecasts"}}
+           "progress": {"done": 3, "total": 10, "stage": "Replaying historical forecasts"}}
 ```
+
+`total` is one step per evaluation day replayed, then `Checking a full year of observed curtailment`
+(the seasonal adjustment), then `Scoring three charging strategies` (which also builds the discount
+windows). The page turns these into a three-step checklist with a progress bar and the replay's time left.
 
 Then `HTTP 200` with the result below, cached for the life of the server (the dataset is fixed).
 `refresh=1` retries after a failure or a simulated fallback; a real result is kept. An unexpected error
