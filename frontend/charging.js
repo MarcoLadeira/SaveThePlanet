@@ -130,12 +130,20 @@ function cgSourceTag() {
 }
 function cgSmooth(points) {
     if (points.length < 2) return '';
-    let d = `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
-    for (let i = 1; i < points.length; i++) {
-        const [x0, y0] = points[i - 1], [x1, y1] = points[i], mx = (x0 + x1) / 2;
-        d += `C${mx.toFixed(1)} ${y0.toFixed(1)} ${mx.toFixed(1)} ${y1.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+    const f = (v) => v.toFixed(1);
+    let d = `M${f(points[0][0])} ${f(points[0][1])}`;
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[i - 1] || points[i], p1 = points[i], p2 = points[i + 1], p3 = points[i + 2] || p2;
+        const lo = Math.min(p1[1], p2[1]), hi = Math.max(p1[1], p2[1]), dx = (p2[0] - p1[0]) / 3;
+        const c1 = Math.min(hi, Math.max(lo, p1[1] + (p2[1] - p0[1]) * 0.2)), c2 = Math.min(hi, Math.max(lo, p2[1] - (p3[1] - p1[1]) * 0.2));
+        d += ` C${f(p1[0] + dx)} ${f(c1)} ${f(p2[0] - dx)} ${f(c2)} ${f(p2[0])} ${f(p2[1])}`;
     }
     return d;
+}
+// Gradient fills and glow shared by the KPI line graphs (same look as the Impact cards).
+function cgDefs() {
+    const grad = (tone) => `<linearGradient id="cg-fill-${tone}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="cg-stop-${tone}" stop-opacity=".55"/><stop offset="1" class="cg-stop-${tone}" stop-opacity="0"/></linearGradient>`;
+    return `<svg class="cg-defs" aria-hidden="true" focusable="false"><defs><filter id="cg-glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>${['green', 'orange', 'purple'].map(grad).join('')}</defs></svg>`;
 }
 function cgDayIntervals() {
     return cgDay.status === 'ready' ? cgDay.data.intervals : [];
@@ -182,10 +190,10 @@ function cgSpark(name, series, tone) {
         start: (t) => ({ v: t.v, reveal: 0 }),
         draw({ v, reveal }) {
             if (!v.length) return '<span class="cg-spark-empty"></span>';
-            const w = 120, h = 44, max = Math.max(...v, 0) || 1;
+            const w = 110, h = 42, max = Math.max(...v, 0) || 1;
             const pts = v.map((y, i) => [2 + (w - 4) * (i / (v.length - 1 || 1)), h - 3 - (y / max) * (h - 8)]);
             const line = cgSmooth(pts), clip = `cg-clip-${name}`;
-            return `<svg class="cg-spark is-${tone}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><defs>${cgClip(clip, 0, 0, w, h, reveal)}</defs><g clip-path="url(#${clip})"><path class="area" d="${line}L${w - 2} ${h}L2 ${h}Z"/><path class="line" d="${line}"/></g></svg>`;
+            return `<svg class="cg-spark is-${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${cgClip(clip, -4, 0, w + 8, h, reveal)}</defs><g clip-path="url(#${clip})"><path class="area" d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="url(#cg-fill-${tone})"/><path class="line" d="${line}" filter="url(#cg-glow)"/></g></svg>`;
         },
     };
 }
@@ -244,6 +252,21 @@ dashCharts.cgDonut = {
     },
 };
 
+// Rounded 3D bar like the Dashboard's plan bars: glossy vertical gradient, rounded top,
+// a darker right side for depth, a top highlight and a soft glow at the base.
+function cgBar3d(x, y, width, height, tone) {
+    if (height < 0.5) return '';
+    const r = Math.min(9, width / 2, height), side = width * 0.24, f = (v) => v.toFixed(1);
+    const body = `M${f(x)} ${f(y + height)}V${f(y + r)}Q${f(x)} ${f(y)} ${f(x + r)} ${f(y)}H${f(x + width - r)}Q${f(x + width)} ${f(y)} ${f(x + width)} ${f(y + r)}V${f(y + height)}Z`;
+    return `<g class="cg-bar3d is-${tone}"><ellipse class="cg-bar-glow" cx="${f(x + width / 2)}" cy="${f(y + height)}" rx="${f(width * 0.62)}" ry="5"/>
+        <path d="${body}" fill="url(#cg-bar-${tone})"/>
+        <path class="cg-bar-side" d="M${f(x + width - side)} ${f(y + Math.min(r, height))}H${f(x + width)}V${f(y + height)}H${f(x + width - side)}Z"/>
+        ${height > 10 ? `<rect class="cg-bar-shine" x="${f(x + 4)}" y="${f(y + 3)}" width="${f(Math.max(0, width - side - 8))}" height="${f(Math.min(7, height / 3))}" rx="3.5"/>` : ''}</g>`;
+}
+function cgBarDefs() {
+    const grad = (tone, top, mid, bottom) => `<linearGradient id="cg-bar-${tone}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset=".52" stop-color="${mid}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>`;
+    return `<defs>${grad('green', '#6fdca6', '#22b574', '#169b62')}${grad('orange', '#ffb27a', '#ff883e', '#e0691e')}</defs>`;
+}
 // Axis top and step so the scale reads 0, 100, 200, 300, 400 (or the same pattern at other sizes).
 function cgAxis(max) {
     const step = chartNiceMax(Math.max(max, 1) / 4), top = Math.max(step, Math.ceil(max / step) * step);
@@ -269,11 +292,11 @@ dashCharts.cgWeek = {
             const slotIndex = (new Date(`${days[i]}T00:00:00Z`).getUTCDay() + 6) % 7;
             const grow = cgEase(reveal * 1.6 - slotIndex * 0.09);
             const bx = left + slot * slotIndex + (slot - bw) / 2, top2 = y(val * grow);
-            return `<rect class="cg-bar${days[i] === sel ? ' is-sel' : ''}" x="${bx.toFixed(1)}" y="${top2.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h - bottom - top2).toFixed(1)}" rx="7"/>`;
+            return cgBar3d(bx, top2, bw, Math.max(0, h - bottom - top2), days[i] === sel ? 'orange' : 'green');
         }).join('');
         const filled = new Set(days.map((d) => (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
         const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => `<text class="cg-bar-label" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle">${d}</text>${filled.has(i) ? '' : `<text class="cg-bar-nodata" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - bottom - 6}" text-anchor="middle">no data</text>`}`).join('');
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>${bars}${labels}</svg>`;
+        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true">${cgBarDefs()}<g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>${bars}${labels}</svg>`;
     },
 };
 
@@ -384,7 +407,7 @@ function cgPage() {
         cgEnsureData();
         const d = modelState.data;
         const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Proposed charging = min(renewable surplus at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
-        return `${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}</div>${foot}`;
+        return `${cgDefs()}${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}</div>${foot}`;
     }
 }
 
