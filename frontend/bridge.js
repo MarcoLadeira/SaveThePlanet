@@ -124,22 +124,7 @@ dashCharts.bridgeBattery = {
   },
   start: (target) => ({ ...target, rise: 0 }),
   draw({ routed, eligible, battery, loss, rise }) {
-    const top = 34, bottom = 196, h = bottom - top;
-    const lossH = routed > 0 ? Math.max(loss > 0 ? 6 : 0, (loss / routed) * h) * rise : 0;
-    const batteryH = routed > 0 ? (h - (loss / routed) * h) * rise : 0;
-    return `<svg viewBox="0 0 150 214" aria-hidden="true">
-      <defs><linearGradient id="bridge-cell" x2="0" y2="1"><stop stop-color="#7ee8b1"/><stop offset="1" stop-color="#119a63"/></linearGradient>
-      <linearGradient id="bridge-shell" x1="0" x2="1"><stop stop-color="var(--bridge-shell-a)"/><stop offset="1" stop-color="var(--bridge-shell-b)"/></linearGradient></defs>
-      <rect class="bridge-term" x="42" y="14" width="22" height="16" rx="4"/><rect class="bridge-term" x="86" y="14" width="22" height="16" rx="4"/>
-      <rect x="20" y="26" width="110" height="178" rx="16" fill="url(#bridge-shell)" class="bridge-shell"/>
-      <clipPath id="bridge-clip"><rect x="28" y="${top}" width="94" height="${h + 0.01}" rx="10"/></clipPath>
-      <g clip-path="url(#bridge-clip)">
-        <rect class="bridge-empty-cell" x="28" y="${top}" width="94" height="${h}"/>
-        <rect x="28" y="${bottom - batteryH}" width="94" height="${batteryH}" fill="url(#bridge-cell)"/>
-        <rect class="bridge-loss" x="28" y="${bottom - batteryH - lossH}" width="94" height="${lossH}"/>
-      </g>
-      <path class="bridge-bolt" d="M82 70 62 118h15l-6 38 22-52H78l4-34Z"/>
-    </svg>
+    return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"><span>Illustrative energy routing</span></div>
     <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong><span class="bridge-of">of ${n(eligible)} kWh eligible</span>
       <em><i class="is-battery"></i>${n(battery)} kWh into EV batteries</em><em><i class="is-loss"></i>${n(loss)} kWh charging loss</em></div>`;
   },
@@ -235,3 +220,30 @@ dashCharts.planBars = {
       <div class="plan-labels">${bars.map((bar) => `<span>${bar.label}</span>`).join('')}</div>`;
   },
 };
+
+// Re-measure after layout so the ribbons connect cards at any desktop scale.
+function updateDashboardFlow(){
+  const grid=document.querySelector('.bridge-layout'),svg=grid?.querySelector('.dashboard-flow-links');
+  if(!svg)return;
+  const source=grid.querySelector('.dash-hero'),art=grid.querySelector('.bridge-cabinet-art'),dest=grid.querySelector('.dash-flexible');
+  if(!source||!art||!dest){svg.innerHTML='';return}
+  const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=art.getBoundingClientRect(),c=dest.getBoundingClientRect();
+  if(c.left<=b.left){svg.innerHTML='';return}
+  svg.setAttribute('viewBox',`0 0 ${g.width} ${g.height}`);
+  const y=b.top-g.top+b.height*.43;
+  const paths=[
+    ['green',a.right-g.left-10,a.top-g.top+a.height*.72,b.left-g.left+b.width*.32,y],
+    ['orange',b.left-g.left+b.width*.68,y,c.left-g.left+12,c.top-g.top+c.height*.65]
+  ];
+  const L=planAlternative()?.optimized.ledger;
+  svg.innerHTML=paths.map(([tone,x1,y1,x2,y2])=>{
+    const d=`M${x1} ${y1} C${x1+(x2-x1)*.45} ${y1} ${x1+(x2-x1)*.55} ${y2} ${x2} ${y2}`;
+    const active=tone==='green'?L?.eligibleOpportunityKwh>0:L?.allocatedToChargersGridKwh>0;
+    return `<g class="dashboard-ribbon is-${tone} ${active?'':'is-idle'}"><path class="ribbon-halo" d="${d}"/><path class="ribbon-core" d="${d}"/><path class="ribbon-pulse" d="${d}" pathLength="100"/></g>`;
+  }).join('');
+}
+window.addEventListener('resize',()=>requestAnimationFrame(updateDashboardFlow));
+new MutationObserver(records=>{
+ if(records.some(r=>[...r.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('.app-shell,.bridge-cabinet-art')||n.querySelector?.('.bridge-cabinet-art')))))requestAnimationFrame(updateDashboardFlow);
+}).observe(document.getElementById('app'),{childList:true,subtree:true});
+

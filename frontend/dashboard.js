@@ -16,6 +16,7 @@ function renderDashboard() {
   return studioShell('Dashboard', 'How much renewable energy may be wasted, how the battery routes it, and which EVs charge with it.', () => {
     const p = selectedPrediction();
     return `<div class="dash-grid restored-dashboard dashboard-redesign bridge-layout">
+      <svg class="dashboard-flow-links" aria-hidden="true" preserveAspectRatio="none"></svg>
       ${dashboardHero(p)}
       ${dashboardConfidence(p)}
       ${dashboardBattery()}
