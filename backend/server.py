@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
-from scenario import build_day, build_scenario, validate_demand
+from scenario import build_day, build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW
 from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
@@ -605,13 +605,16 @@ class Handler(SimpleHTTPRequestHandler):
                 total = float(query.get('totalDemandKwh', ['1000'])[0])
                 flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
                 validate_demand(total, flexible)
+                kwh_per_charge = float(query.get('kwhPerCharge', [DEFAULT_KWH_PER_CHARGE])[0])
+                charger_kw = float(query.get('chargerKw', [DEFAULT_CHARGER_KW])[0])
+                validate_ev(kwh_per_charge, charger_kw)
             except (ValueError, TypeError):
-                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
+                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, demand 0-1000000000 kWh with flexible demand no greater than total demand, 1-200 kWh per charge and 1-400 kW per charger.'}})
                 return
             try:
                 forecast = cached_forecast(capacity, refresh=True)
                 if route.path == '/api/v1/scenario':
-                    forecast['scenario'] = build_scenario(forecast, total, flexible)
+                    forecast['scenario'] = build_scenario(forecast, total, flexible, kwh_per_charge, charger_kw)
                 self.send_json(200, forecast)
             except (URLError, TimeoutError, OSError):
                 self.send_json(502, {'error': {'code': 'MODEL_UNAVAILABLE', 'message': 'Cannot reach the model API. Start GridToEv on port 8000, then retry.'}})

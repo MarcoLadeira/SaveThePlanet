@@ -37,7 +37,7 @@ try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'
 let saved=true;
 function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','settings'].includes(p)?p:'overview'}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation"><span class="nav-pill" aria-hidden="true"></span>${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
 function fitDesktop(){
   const shell=document.querySelector('.app-shell');
   if(!shell)return;
@@ -52,27 +52,114 @@ function fitDesktop(){
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
   document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
 }
-let lastPage='';
-function slideNavPill(page,previous){
-  const nav=document.querySelector('.dash-sidebar .nav'),pill=nav?.querySelector('.nav-pill');
+// The sidebar stays mounted across renders; only <main> is swapped. Data loads re-render a page
+// moments after navigation, so rebuilding the sidebar used to reset the highlight to the top.
+function syncSidebar(shell,page){
+  shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{
+    const active=item.dataset.page===page;
+    item.classList.toggle('active',active);
+    if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
+  });
+}
+// Active-page highlight: a pill that glides between items, starting from wherever it is on screen
+// (so a click mid-glide turns smoothly). It is two identical rounded layers, one tracking the top
+// edge and one the bottom edge, so it can stretch in flight while animating only transform and
+// opacity: the compositor keeps it smooth even while a heavy page is being built. Settings sits
+// in a separate group at the bottom of the sidebar, so moves to or from it cross-fade instead of
+// sweeping over the landscape.
+const PILL_MAX_STRETCH=20;
+function navSpot(aside,el){
+  const a=aside.getBoundingClientRect(),r=el.getBoundingClientRect(),scale=a.height/aside.offsetHeight||1;
+  return {y:(r.top-a.top)/scale,h:r.height/scale};
+}
+// mode: 'glide' after navigating, 'keep' for re-renders of the same page (an in-flight glide carries
+// on), 'snap' to re-measure without motion (first paint, window resize).
+function moveNavPill(page,mode){
+  const aside=document.querySelector('.dash-sidebar'),pill=aside?.querySelector('.nav-pill');
   if(!pill)return;
-  const item=key=>nav.querySelector(`.nav-item[data-page="${key}"]`),target=item(page),from=item(previous);
-  if(!target){pill.style.opacity='0';return}
-  const place=el=>{pill.style.transform=`translateY(${el.offsetTop}px)`;pill.style.height=`${el.offsetHeight}px`};
-  if(from&&from!==target){pill.style.transition='none';place(from);pill.getBoundingClientRect();pill.style.transition=''}
-  place(target);
+  if(mode==='keep'&&pill.dataset.pillPage===page)return;
+  pill.dataset.pillPage=page;
+  const [upper,lower]=pill.children,item=aside.querySelector(`.nav-item[data-page="${page}"]`);
+  const nav=navSpot(aside,aside.querySelector('.nav')),inNav=y=>y<nav.y+nav.h;
+  const group=item&&(item.closest('.nav')?'nav':'bottom');
+  // Where the pill is on screen now: a click mid-fade may find it still where it started.
+  const top=navSpot(aside,upper).y,low=navSpot(aside,lower),opacity=+getComputedStyle(pill).opacity;
+  const from=pill.dataset.pillPlaced?{top,bottom:low.y+low.h,group:inNav(top)?'nav':'bottom'}:null;
+  pill.getAnimations({subtree:true}).forEach(a=>a.cancel());
+  if(!item){pill.style.opacity='0';delete pill.dataset.pillPlaced;return}
+  const to=navSpot(aside,item),h=to.h;
+  for(const layer of pill.children)Object.assign(layer.style,{height:`${h}px`,transform:`translateY(${to.y}px)`});
+  pill.style.opacity='1';
+  pill.dataset.pillPlaced='1';
+  if(mode!=='glide'||!from||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const d=to.y-from.top;
+  if(Math.abs(d)<.5&&Math.abs(from.bottom-from.top-h)<.5)return;
+  if(from.group!==group){
+    const fade=(y0,y1)=>[
+      {transform:`translateY(${y0}px) scale(1)`,easing:'cubic-bezier(.4,0,1,1)'},
+      {transform:`translateY(${y0}px) scale(.94)`,offset:.42},
+      {transform:`translateY(${y1}px) scale(.94)`,offset:.48,easing:'cubic-bezier(.16,1,.3,1)'},
+      {transform:`translateY(${y1}px) scale(1)`}];
+    const timing={duration:460};
+    pill.animate([{opacity,easing:'cubic-bezier(.4,0,1,1)'},{opacity:0,offset:.42},{opacity:0,offset:.48,easing:'cubic-bezier(.33,1,.68,1)'},{opacity:1}],timing);
+    upper.animate(fade(from.top,to.y),timing);
+    lower.animate(fade(from.bottom-h,to.y),timing);
+    return;
+  }
+  // Liquid glide: the leading edge races ahead and the trailing edge catches up, so the pill
+  // stretches a little in flight and settles back to its size.
+  const ease=t=>1-(1-t)**3,lead=t=>ease(Math.min(1,t/.84)),lag=t=>ease(Math.max(0,(t-.08)/.92));
+  const tops=[],bottoms=[];
+  for(let i=0;i<=30;i++){
+    const t=i/30,topT=d>0?lag(t):lead(t),bottomT=d>0?lead(t):lag(t);
+    let top=from.top+(to.y-from.top)*topT,bottom=from.bottom+(to.y+h-from.bottom)*bottomT;
+    const extra=bottom-top-h,fix=extra>PILL_MAX_STRETCH?(extra-PILL_MAX_STRETCH)/2:extra<0?extra/2:0;
+    top+=fix;bottom-=fix;
+    tops.push({transform:`translateY(${top}px)`});bottoms.push({transform:`translateY(${bottom-h}px)`});
+  }
+  const timing={duration:Math.round(400+Math.min(Math.abs(d),320)*.45),easing:'linear'};
+  if(opacity<1)pill.animate([{opacity},{opacity:1}],{duration:200,easing:'ease-out'});
+  upper.animate(tops,timing);
+  lower.animate(bottoms,timing);
+}
+// Page entrance: new content rises in after navigation. A re-render of the same page while that is
+// still playing (a data load, say) continues it from the same point instead of restarting it.
+const PAGE_ENTRANCES=['page-in','dash-card-in'],PAGE_ENTER_MS=760;
+let lastPage='',pageEnteredAt=-Infinity;
+function resumeEntrance(main,elapsed){
+  main.getAnimations({subtree:true}).forEach(a=>{if(PAGE_ENTRANCES.includes(a.animationName))a.currentTime=elapsed});
 }
 function render(){
-  const page=pageFromHash(),previousPage=lastPage;
+  const page=pageFromHash(),changed=lastPage!==''&&lastPage!==page;
   lastPage=page;
+  const now=performance.now();
+  if(changed)pageEnteredAt=now;
+  const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
   const charts=chartsCollect(app);
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
-  app.innerHTML=`<div class="app-shell${liveRender?' is-live':''}">${sidebar(page)}<main class="main dashboard-main${previousPage&&previousPage!==page?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
+  // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
+  const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
+  let shell=app.querySelector(':scope>.app-shell');
+  if(shell){
+    const next=document.createElement('template');
+    next.innerHTML=html;
+    shell.querySelector(':scope>main').replaceWith(next.content);
+    syncSidebar(shell,page);
+  }else{
+    app.innerHTML=`<div class="app-shell">${sidebar(page)}${html}</div>`;
+    shell=app.firstElementChild;
+  }
+  shell.classList.toggle('is-live',liveRender);
+  const main=shell.querySelector(':scope>main');
+  if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
+  // Once the entrance has played, drop it so finished animations don't keep content on separate
+  // compositing layers (which renders text slightly differently from a fresh load).
+  if(entering)setTimeout(()=>main.classList.remove('is-entering'),PAGE_ENTER_MS-since);
   chartsRestore(app,charts);
   document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
-  slideNavPill(page,previousPage);
+  moveNavPill(page,changed?'glide':'keep');
   chartsSync(app);
 }
 document.addEventListener('click',event=>{
@@ -88,4 +175,4 @@ document.addEventListener('click',event=>{
   if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}
 });
 document.addEventListener('change',event=>{const el=event.target.closest('[data-setting]');if(!el)return;settings[el.dataset.setting]=el.value;saved=false;render()});
-addEventListener('hashchange',render);addEventListener('resize',fitDesktop);render();loadModelForecast();
+addEventListener('hashchange',render);addEventListener('resize',()=>{fitDesktop();moveNavPill(lastPage,'snap')});render();loadModelForecast();

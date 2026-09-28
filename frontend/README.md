@@ -50,3 +50,36 @@ the backend scenario methodology; *Model connection* shows `/api/v1/health` (sta
 reason code and explanation, model version, response time, last check, service type,
 whether an API key is set) plus the data mode and last-updated time. Timezone,
 appearance and the display toggles remain local preferences.
+
+## Charging page
+
+`charging.js` and `charging.css` hold the whole page (loaded after `studio.js` and
+`charts3d.js`, so this `renderCharging` replaces the older one). All styles are scoped to
+`[data-current-page="charging"]`. Charts use the shared animation engine in `charts3d.js`.
+
+- **KPI row** for the selected forecast half-hour: total and flexible demand (your
+  assumptions), energy at risk (model) and potential absorption (upper bound), with
+  replay-day profiles as sparklines. Each card has an icon and a percentage: a share for the two
+  demand cards, and the selected half-hour against the replay-day average for the two model cards.
+- **Charging schedule**: average MW per half-hour of the replay day (`/api/v1/impact/day`):
+  renewable supply at risk, charging demand on renewable and
+  charging demand on grid, with a hover tooltip.
+- **Charging mix**: share of total demand that could use renewable energy at risk, with
+  the EV readings (charge equivalents and minimum concurrent ports) stated separately.
+- **Chargeable energy opportunity**: predicted curtailment per day from the daily model
+  (`/api/v1/explorer/daily/week`), Monday to Sunday, as rounded 3D cube bars. A week picker (arrows and a month calendar) chooses
+  the week; weeks outside the daily model's range (`/api/v1/explorer/daily`) or in the future show a
+  "no data" message, and days without data are marked in the chart.
+- **Best half-hours to charge**: the top five replay-day half-hours ranked by energy at risk
+  x event probability, with a 3D energy bar and the likelihood for each.
+- **Assumptions** drawer: demand and EV assumptions with field-level validation, plus the
+  backend methodology.
+
+Everything is labelled as a historical dataset prediction or example data and an
+upper-bound estimate. Times are shown as "forecast half-hours", without a start/end claim.
+
+**Motion.** Figures count up and glide to new values, lines draw in left to right, the donut fills,
+week bars grow one after another and the ranked rows slide in, all through the shared engine in
+`charts3d.js` or once-only CSS entrances. Live refreshes do not replay them, "Apply" keeps the
+current figures dimmed with an "Updating…" note until the new ones glide in, and everything is
+instant when the viewer prefers reduced motion.

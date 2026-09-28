@@ -128,6 +128,31 @@ the model. Missing vehicle availability, deadlines and baseline charging schedul
 mean commitments, missed targets and EV counts are explicitly unavailable. No
 financial/emissions estimate or actual charging execution is included.
 
+## EV charging translation (Charging page)
+
+`/api/v1/scenario` also accepts `kwhPerCharge` (1-200, default 30) and `chargerKw`
+(1-400, default 22). They are illustrative assumptions, not vehicle data.
+`scenario.evAssumptions` echoes the values used; they are part of the scenario ID.
+
+Each outcome adds two separate, conditional readings of the same potential recovery:
+
+- `evChargesEquivalent` = recovered kWh / kWh per charge. An energy comparison only:
+  it does not claim those sessions fit in the half-hour.
+- `minConcurrentPorts` = ceil(recovered kWh / (charger kW x 0.5 h)): the fewest ports that
+  could draw the energy within the half-hour at continuous rated power, with a vehicle
+  accepting power on every port and 100% efficiency. `portKwhLimit` (charger kW x 0.5 h)
+  and `kwhPerPort` show what each port would deliver.
+
+Example: 0.5 MWh = 500 kWh is about 16.7 x 30 kWh charge equivalents. Drawing it in
+30 minutes needs at least 46 x 22 kW ports running together, each delivering at most
+11 kWh (about 10.9 kWh here), or 143 x 7 kW ports. These are upper-bound estimates:
+connected vehicles, available ports, onboard charger limits, losses and local grid
+deliverability are not modelled. No charging time window is claimed, because whether a
+target time labels the start or the end of its half-hour is not yet confirmed.
+
+Day replay intervals (`/api/v1/impact/day`) also carry the model `probability`, used by
+the Charging page's "Best half-hours to charge" ranking.
+
 ## Automatic demo fallback
 
 No setup or model connection is required for fallback. Every request first tries
