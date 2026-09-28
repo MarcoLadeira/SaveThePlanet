@@ -54,7 +54,8 @@
 
 /* Cards and rows */
 [data-current-page="charging"] .cg-row{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(320px,.85fr);gap:14px;flex:1.25;min-height:0}
-[data-current-page="charging"] .cg-row.is-bottom{grid-template-columns:minmax(0,1fr) minmax(0,1fr);flex:1}
+[data-current-page="charging"] .cg-row.is-bottom{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);flex:1}
+[data-current-page="charging"] .cg-row.is-bottom .cg-rank li{grid-template-columns:22px 44px minmax(0,1fr) 66px 62px 44px;gap:6px;padding:3px 6px;font-size:12.5px}
 [data-current-page="charging"] .cg-card{gap:10px;padding:18px 20px;border-radius:22px;min-height:0}
 [data-current-page="charging"] .cg-card .dash-head-copy h2{font-size:17px}
 [data-current-page="charging"] .cg-card .dash-head-copy p{font-size:13px}
@@ -236,3 +237,49 @@
 [data-current-page="charging"] .cg-grid text.is-ev,[data-current-page="charging"] .cg-axis-unit.is-ev{fill:var(--cg-rec)}
 /* Observed curtailment beside the daily model's bar. */
 [data-current-page="charging"] .cg-observed{stroke:var(--cg-text);stroke-width:2.5;stroke-linecap:round}
+
+/* Discount windows: the demo sign-up and booking card */
+[data-current-page="charging"] .dw-card{gap:8px}
+[data-current-page="charging"] .dw-card .dash-card-head .cg-tag{flex:0 0 auto;align-self:flex-start}
+[data-current-page="charging"] .dw-join{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:auto 0}
+[data-current-page="charging"] .dw-join p{margin:0;font-size:13px;line-height:1.45;color:var(--ink-2)}
+[data-current-page="charging"] .dw-join b{color:var(--ink)}
+[data-current-page="charging"] .dw-join .studio-button,[data-current-page="charging"] .dw-reserve{width:auto;margin:0;height:38px;padding:0 16px;font-size:13px}
+[data-current-page="charging"] .dw-join small{font-size:12px;line-height:1.4;color:var(--ink-3)}
+[data-current-page="charging"] .dw-bar{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+[data-current-page="charging"] .dw-muted .dw-link{font-size:12px;font-weight:650}
+[data-current-page="charging"] .cg-row.is-bottom .cg-week .dash-card-head{flex-wrap:wrap;row-gap:6px}
+[data-current-page="charging"] .cg-row.is-bottom .cg-week .dash-head-copy{flex:1 1 calc(100% - 60px)}
+[data-current-page="charging"] .dw-card .dash-head-copy h2{font-size:16px;white-space:nowrap}
+[data-current-page="charging"] .cg-row.is-bottom .cg-week .cg-weekpick{margin-left:49px}
+[data-current-page="charging"] .dw-bar>b{min-width:70px;font-size:12px;font-weight:800;text-align:center;color:var(--ink)}
+[data-current-page="charging"] .dw-step{display:grid;place-items:center;width:24px;height:26px;border:0;border-radius:9px;background:var(--surface-2);color:var(--ink-2);font-size:17px;font-weight:800;cursor:pointer}
+[data-current-page="charging"] .dw-step:disabled{opacity:.35;cursor:default}
+[data-current-page="charging"] .dw-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+[data-current-page="charging"] .dw-tile{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:5px 10px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);text-align:left;cursor:pointer;transition:border-color .15s ease,background-color .15s ease}
+[data-current-page="charging"] .dw-tile.is-on{border-color:var(--green);background:var(--green-soft)}
+[data-current-page="charging"] .dw-tile span{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:750;color:var(--ink-2)}
+[data-current-page="charging"] .dw-tile span svg{color:var(--green)}
+[data-current-page="charging"] .dw-tile b{font-size:15px;font-weight:800;letter-spacing:-.02em;color:var(--green-deep)}
+[data-current-page="charging"] .dw-tile b small{margin-left:2px;font-size:11px;font-weight:700;color:var(--ink-3)}
+[data-current-page="charging"] .dw-tile b.is-none{font-size:14px;color:var(--ink-3)}
+[data-current-page="charging"] .dw-tile em{font-size:11px;font-style:normal;font-weight:700;color:var(--ink-3)}
+[data-current-page="charging"] .dw-tile b+em{margin-top:-1px}
+[data-current-page="charging"] .dw-row{display:flex;align-items:center;justify-content:space-between;gap:8px;align-self:stretch}
+[data-current-page="charging"] .dw-reserve{height:32px!important;padding:0 12px!important}
+[data-current-page="charging"] .dw-booked>b .dw-link{margin-left:auto;font-size:12px}
+[data-current-page="charging"] .dw-booked>b{align-self:stretch}
+[data-current-page="charging"] .dw-offer,[data-current-page="charging"] .dw-none,[data-current-page="charging"] .dw-booked{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:0}
+[data-current-page="charging"] .dw-sizes{display:flex;gap:4px;padding:3px;border-radius:11px;background:var(--surface-2)}
+[data-current-page="charging"] .dw-sizes button{height:26px;padding:0 8px;border:0;border-radius:8px;background:none;color:var(--ink-2);font-size:12px;font-weight:750;cursor:pointer}
+[data-current-page="charging"] .dw-sizes button.is-on{background:var(--forest);color:#fff}
+[data-current-page="charging"] .dw-price{font-size:13px;color:var(--ink-2)}
+[data-current-page="charging"] .dw-price b{color:var(--ink)}
+[data-current-page="charging"] .dw-muted,[data-current-page="charging"] .dw-share{font-size:12px;color:var(--ink-3)}
+[data-current-page="charging"] .dw-none b,[data-current-page="charging"] .dw-booked>b{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:800;color:var(--ink)}
+[data-current-page="charging"] .dw-booked>b svg{color:var(--green)}
+[data-current-page="charging"] .dw-none span,[data-current-page="charging"] .dw-booked>span:not(.dw-price){font-size:12px;line-height:1.4;color:var(--ink-2)}
+[data-current-page="charging"] .dw-link{padding:0;border:0;background:none;color:var(--green-deep);font-size:12.5px;font-weight:750;cursor:pointer;text-align:left}
+[data-current-page="charging"] .dw-link.is-quiet{color:var(--ink-3)}
+[data-current-page="charging"] .dw-link:hover{text-decoration:underline}
+[data-current-page="charging"] .dw-error{margin:0;font-size:12px;color:#bb402d}

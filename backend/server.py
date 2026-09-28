@@ -21,6 +21,7 @@ import business
 import chat
 import explorer
 import fleet as fleets
+import offers
 import optimizer
 import storage
 import synthetic
@@ -612,6 +613,9 @@ class Handler(SimpleHTTPRequestHandler):
         if urlsplit(self.path).path == '/api/v1/synthetic-v1':
             self.synthetic_v1()
             return
+        if urlsplit(self.path).path == '/api/v1/business/offers':
+            self.offers_action()
+            return
         if urlsplit(self.path).path != '/api/v1/chat':
             self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
             return
@@ -655,6 +659,64 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
             return
         self.send_json(200, business.estimate(**values))
+
+    def offers_section(self):
+        """The discount-window section of the Impact result, or None after answering 202/500/200-empty."""
+        body = business.current()
+        if body['status'] == 'preparing':
+            self.send_json(202, {'status': 'preparing', 'progress': body.get('progress')}, {'Retry-After': '2'})
+        elif body['status'] == 'failed':
+            self.send_json(500, {'error': {'code': 'IMPACT_FAILED', 'message': body['message']}})
+        elif body['status'] == 'empty' or not body.get('discountWindows'):
+            self.send_json(200, {'status': 'empty', 'message': body.get('message') or 'No replayed nights to offer windows from.'})
+        else:
+            return body
+        return None
+
+    def business_offers(self, query):
+        """EV page: the discount windows of the replayed week and this demo member's bookings."""
+        body = self.offers_section()
+        if body is None:
+            return
+        section = body['discountWindows']
+        member = query.get('member', [''])[0]
+        self.send_json(200, {
+            'status': 'ready', 'version': section['version'], 'scenarioId': body['scenarioId'], 'dataMode': body['dataMode'],
+            'label': section['label'], 'hub': section['hub'], 'battery': section['battery'], 'prices': section['prices'],
+            'split': section['split'], 'windows': section['windows'], 'offers': section['offers'], 'sessionKwh': section['sessionKwh'],
+            'member': offers.member_view(member) if offers.MEMBER_ID.match(member) else {'joined': False, 'bookings': []},
+        })
+
+    def offers_action(self):
+        """EV page demo: join, leave, book or cancel a discount window. Not a real account or payment."""
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 4000:
+                raise ValueError('Invalid body size')
+            request = json.loads(self.rfile.read(length))
+            if not isinstance(request, dict):
+                raise ValueError('Body must be an object')
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Send a member, an action and, to book, an offer and kWh.'}})
+            return
+        body = self.offers_section()
+        if body is None:
+            return
+        try:
+            member = offers.act(body['discountWindows'], request.get('member'), request.get('action'),
+                                request.get('offerId'), request.get('kwh'))
+        except ValueError as error:
+            self.send_json(409, {'error': {'code': 'OFFER_UNAVAILABLE', 'message': str(error)}})
+            return
+        self.send_json(200, {'status': 'ready', 'member': member})
+
+    def offers_estimate(self, query):
+        """Impact page calculator: an illustrative month of discount windows for one site."""
+        values, errors = offers.parse_calculator({key: value[0] for key, value in query.items()})
+        if errors:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
+            return
+        self.send_json(200, offers.calculate(**values))
 
     def impact_day(self, query):
         try:
@@ -781,6 +843,12 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if route.path == '/api/v1/business/estimate':
             self.business_estimate(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/offers':
+            self.business_offers(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/offers/estimate':
+            self.offers_estimate(parse_qs(route.query))
             return
 
         if route.path == '/api/v1/about/example':

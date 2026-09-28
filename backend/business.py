@@ -488,7 +488,15 @@ def build_result(nights, meta, seasonal, fleet=FLEET, tariff=TARIFF, costs=COSTS
                                  'compares normal charging with our AI charging on the same vans and nights.')},
         'methodology': methodology(fleet, tariff, days),
         'limitations': LIMITATIONS,
+        'discountWindows': discount_windows(nights, seasonal, scenario_id, tariff),
     }
+
+
+def discount_windows(nights, seasonal, scenario_id, tariff=TARIFF):
+    """The optional discount-window business case (offers.py) on the same replayed nights. It is a
+    separate scenario: none of the figures above depend on it."""
+    import offers  # offers builds on this module, so it is imported when first needed
+    return offers.build(nights, seasonal, scenario_id, tariff)
 
 
 def methodology(fleet, tariff, days):
