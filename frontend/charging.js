@@ -203,6 +203,7 @@ cgSpark('cgProposedSpark', 'charging', 'orange');
 cgSpark('cgAvailableSpark', 'renewable', 'purple');
 
 const CG_PLOT = { w: 660, h: 160, left: 44, right: 10, top: 18, bottom: 24 };
+let cgScheduleScale = { max: 1, n: 0 };
 function cgSelectedIndex(intervals) {
     const target = new Date(selectedPrediction().targetAt).getTime();
     return intervals.findIndex((i) => new Date(i.targetAt).getTime() === target);
@@ -224,13 +225,18 @@ dashCharts.cgSchedule = {
         const y = (v) => top + (h - top - bottom) * (1 - v / max);
         const pts = (vals) => vals.map((v, i) => [x(i), y(v)]);
         const area = (vals) => `${cgSmooth(pts(vals))}L${x(vals.length - 1)} ${h - bottom}L${x(0)} ${h - bottom}Z`;
-        const series = (name, vals) => `<path class="cg-area is-${name}" d="${area(vals)}"/><path class="cg-line is-${name}" d="${cgSmooth(pts(vals))}"/>`;
+        // Areas fade from each line's colour to transparent (grid at the back, charging in front);
+        // every line is drawn on top with a thin white edge so none is hidden by another fill.
+        const fill = (name, vals) => `<path class="cg-area is-${name}" d="${area(vals)}" fill="url(#cg-sched-${name})"/>`;
+        const line = (name, vals) => { const d = cgSmooth(pts(vals)); return `<path class="cg-line-edge" d="${d}"/><path class="cg-line is-${name}" d="${d}"/>`; };
+        const fade = (name, top) => `<linearGradient id="cg-sched-${name}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="cg-stop-${name}" stop-opacity="${top}"/><stop offset="1" class="cg-stop-${name}" stop-opacity=".04"/></linearGradient>`;
+        cgScheduleScale = { max, n: renewable.length };
         const grid2 = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
-        const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(cgDay.data.intervals[i].targetAt))}</text>`).join('');
+        const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<line class="cg-vgrid" x1="${x(i)}" x2="${x(i)}" y1="${top}" y2="${h - bottom}"/><text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(cgDay.data.intervals[i].targetAt))}</text>`).join('');
         const marker = sel >= 0 && Number.isFinite(charging[sel]) && reveal > 0.97 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel])}" r="5"/>` : '';
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${cgClip('cg-clip-schedule', left, top, w - left - right, h - top - bottom, reveal)}</defs><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW</text>
-            <g clip-path="url(#cg-clip-schedule)">${series('grid', grid)}${series('renewable', renewable)}${series('charging', charging)}</g>
-            ${marker}<g class="cg-hours">${hours}</g><line class="cg-hover" x1="0" x2="0" y1="${top}" y2="${h - bottom}"/></svg>`;
+        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs>${cgClip('cg-clip-schedule', left, top, w - left - right, h - top - bottom, reveal)}${fade('renewable', '.7')}${fade('charging', '.75')}${fade('grid', '.35')}</defs><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW</text>
+            <g clip-path="url(#cg-clip-schedule)">${fill('grid', grid)}${fill('renewable', renewable)}${fill('charging', charging)}${line('grid', grid)}${line('renewable', renewable)}${line('charging', charging)}</g>
+            ${marker}<g class="cg-hours">${hours}</g><line class="cg-hover" x1="0" x2="0" y1="${top}" y2="${h - bottom}"/><circle class="cg-hover-dot is-renewable" r="5" cx="-20" cy="-20"/><circle class="cg-hover-dot is-charging" r="5" cx="-20" cy="-20"/></svg>`;
     },
 };
 function cgChartState(status, loading, failed) {
@@ -285,20 +291,26 @@ dashCharts.cgDonut = {
     },
 };
 
-// Rounded 3D bar like the Dashboard's plan bars: glossy vertical gradient, rounded top,
-// a darker right side for depth, a top highlight and a soft glow at the base.
+// Rounded 3D cube bar: a front face with soft rounded corners, a lit top face and a
+// shaded right side receding up and to the right, plus a soft glow at the base.
+const CG_CUBE = { dx: 9, dy: 6 };
 function cgBar3d(x, y, width, height, tone) {
     if (height < 0.5) return '';
-    const r = Math.min(9, width / 2, height), side = width * 0.24, f = (v) => v.toFixed(1);
-    const body = `M${f(x)} ${f(y + height)}V${f(y + r)}Q${f(x)} ${f(y)} ${f(x + r)} ${f(y)}H${f(x + width - r)}Q${f(x + width)} ${f(y)} ${f(x + width)} ${f(y + r)}V${f(y + height)}Z`;
-    return `<g class="cg-bar3d is-${tone}"><ellipse class="cg-bar-glow" cx="${f(x + width / 2)}" cy="${f(y + height)}" rx="${f(width * 0.62)}" ry="5"/>
-        <path d="${body}" fill="url(#cg-bar-${tone})"/>
-        <path class="cg-bar-side" d="M${f(x + width - side)} ${f(y + Math.min(r, height))}H${f(x + width)}V${f(y + height)}H${f(x + width - side)}Z"/>
-        ${height > 10 ? `<rect class="cg-bar-shine" x="${f(x + 4)}" y="${f(y + 3)}" width="${f(Math.max(0, width - side - 8))}" height="${f(Math.min(7, height / 3))}" rx="3.5"/>` : ''}</g>`;
+    const { dx, dy } = CG_CUBE, f = (v) => v.toFixed(1);
+    const r = Math.min(5, width / 4, height / 2), b = y + height;
+    const front = `M${f(x)} ${f(b - r)}V${f(y + r)}Q${f(x)} ${f(y)} ${f(x + r)} ${f(y)}H${f(x + width - r)}Q${f(x + width)} ${f(y)} ${f(x + width)} ${f(y + r)}V${f(b - r)}Q${f(x + width)} ${f(b)} ${f(x + width - r)} ${f(b)}H${f(x + r)}Q${f(x)} ${f(b)} ${f(x)} ${f(b - r)}Z`;
+    const topFace = `M${f(x + r)} ${f(y)}L${f(x + r + dx)} ${f(y - dy)}H${f(x + width + dx - r / 2)}Q${f(x + width + dx)} ${f(y - dy)} ${f(x + width + dx)} ${f(y - dy + r / 2)}L${f(x + width)} ${f(y + r)}Q${f(x + width)} ${f(y)} ${f(x + width - r)} ${f(y)}Z`;
+    const side = `M${f(x + width)} ${f(y + r)}L${f(x + width + dx)} ${f(y - dy + r / 2)}V${f(b - dy - r / 2)}Q${f(x + width + dx)} ${f(b - dy)} ${f(x + width + dx - r / 2)} ${f(b - dy + r / 4)}L${f(x + width - r)} ${f(b)}Q${f(x + width)} ${f(b)} ${f(x + width)} ${f(b - r)}Z`;
+    return `<g class="cg-bar3d is-${tone}"><ellipse class="cg-bar-glow" cx="${f(x + (width + dx) / 2)}" cy="${f(b)}" rx="${f(width * 0.7)}" ry="5"/>
+        <path class="cg-bar-side" d="${side}" fill="url(#cg-bar-${tone}-side)"/>
+        <path class="cg-bar-front" d="${front}" fill="url(#cg-bar-${tone})"/>
+        <path class="cg-bar-top" d="${topFace}" fill="url(#cg-bar-${tone}-top)"/>
+        ${height > 12 ? `<rect class="cg-bar-shine" x="${f(x + 4)}" y="${f(y + 4)}" width="${f(Math.max(0, width * 0.22))}" height="${f(Math.max(0, height - 10))}" rx="2.5"/>` : ''}</g>`;
 }
 function cgBarDefs() {
-    const grad = (tone, top, mid, bottom) => `<linearGradient id="cg-bar-${tone}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset=".52" stop-color="${mid}"/><stop offset="1" stop-color="${bottom}"/></linearGradient>`;
-    return `<defs>${grad('green', '#6fdca6', '#22b574', '#169b62')}${grad('orange', '#ffb27a', '#ff883e', '#e0691e')}</defs>`;
+    const grad = (id, stops, horizontal) => `<linearGradient id="${id}" x1="0" y1="0" x2="${horizontal ? 1 : 0}" y2="${horizontal ? 0 : 1}">${stops.map((c, i) => `<stop offset="${i / (stops.length - 1)}" stop-color="${c}"/>`).join('')}</linearGradient>`;
+    return `<defs>${grad('cg-bar-green', ['#4fcf8f', '#22b574', '#179a61'])}${grad('cg-bar-green-top', ['#b4f0cf', '#7fe0ae'], true)}${grad('cg-bar-green-side', ['#138a56', '#0c6b42'], true)}`
+        + `${grad('cg-bar-orange', ['#ffa262', '#ff883e', '#e3701f'])}${grad('cg-bar-orange-top', ['#ffd9b8', '#ffbd8a'], true)}${grad('cg-bar-orange-side', ['#cc5f17', '#a94b0f'], true)}</defs>`;
 }
 // Axis top and step so the scale reads 0, 100, 200, 300, 400 (or the same pattern at other sizes).
 function cgAxis(max) {
@@ -317,8 +329,8 @@ dashCharts.cgWeek = {
             if (status === 'nodata') return `<div class="cg-empty cg-nodata" role="status">${icon('calendar', 22)}<b>${escapeHtml(message)}</b><span>Pick another week with the arrows or the calendar.</span></div>`;
             return cgChartState(status, 'Loading the daily model…', `Weekly figures unavailable: ${escapeHtml(message || 'the daily model did not respond.')}<button class="studio-button cg-retry" type="button" data-cg-week-retry>Try again</button>`);
         }
-        const w = 540, h = 150, left = 50, bottom = 24, top = 16, { top: max, ticks } = cgAxis(Number(axisMax) || Math.max(...v));
-        const slot = (w - left - 8) / 7, bw = Math.min(46, slot * 0.58);
+        const w = 540, h = 150, left = 50, bottom = 24, top = 20, { top: max, ticks } = cgAxis(Number(axisMax) || Math.max(...v));
+        const slot = (w - left - 8) / 7, bw = Math.min(40, slot * 0.5);
         const y = (val) => top + (h - top - bottom) * (1 - val / max);
         const grid = ticks.map((t) => `<line x1="${left}" x2="${w - 8}" y1="${y(t)}" y2="${y(t)}"/><text x="${left - 8}" y="${y(t) + 4}" text-anchor="end">${n(t)}</text>`).join('');
         const bars = v.map((val, i) => {
@@ -343,30 +355,47 @@ function cgBestHalfHours(list, limit = 5) {
 }
 
 // ---------- page ----------
-function cgKpi(tone, label, figure, note, spark, sparkLabel) {
+// Card header like cardHead() in studio.js, with a tinted icon chip in place of the accent bar.
+function cgHead(tone, iconName, title, subtitle, extra = '') {
+    return `<div class="dash-card-head"><span class="cg-head-icon is-${tone}" aria-hidden="true">${icon(iconName, 20)}</span><div class="dash-head-copy"><h2>${title}</h2><p>${subtitle}</p></div>${extra}</div>`;
+}
+// Percentage pill: the selected half-hour against the replay-day average (arrow) or a share (no arrow).
+function cgVsDay(value, series) {
+    const list = cgDaySeries()[series];
+    if (!list.length) return null;
+    const avg = list.reduce((a, b) => a + b, 0) / list.length;
+    return avg > 0 ? (value - avg) / avg : null;
+}
+function cgPill(change, share) {
+    if (share != null) return `<span class="cg-pill is-share">${pct(share)}</span>`;
+    if (change == null || !Number.isFinite(change)) return '<span class="cg-pill is-flat">—</span>';
+    const dir = change > 0.005 ? 'up' : change < -0.005 ? 'down' : 'flat';
+    return `<span class="cg-pill is-${dir}">${dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→'} ${n(Math.round(Math.abs(change) * 100))}%</span>`;
+}
+function cgKpi(tone, iconName, label, figure, pill, note, spark, sparkLabel) {
     const value = dashCharts[figure].values().v;
-    return `<article class="dash-card cg-kpi is-${tone}"><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${label}: ${n(value)} MWh`)}"><strong>0<small>MWh</small></strong></div><em>${note}</em></div><div class="cg-kpi-visual">${chartSlot(spark, sparkLabel)}</div></article>`;
+    return `<article class="dash-card cg-kpi is-${tone}"><span class="cg-kpi-icon" aria-hidden="true">${icon(iconName, 22)}</span><div class="cg-kpi-copy"><span>${label}</span><div class="chart3d cg-kpi-figure" data-chart="${figure}" role="img" aria-label="${escapeHtml(`${label}: ${n(value)} MWh`)}"><strong>0<small>MWh</small></strong></div></div><div class="cg-kpi-visual" title="${escapeHtml(sparkLabel)}">${chartSlot(spark, sparkLabel)}</div><p class="cg-kpi-foot">${pill}<em>${note}</em></p></article>`;
 }
 function cgKpis() {
-    const s = modelState.data.scenario, p = selectedPrediction();
+    const s = modelState.data.scenario, p = selectedPrediction(), o = scenarioOutcome();
     return `<section class="cg-kpis" aria-label="${escapeHtml(`Selected ${modelTime(p.targetAt)} forecast half-hour`)}">
-        ${cgKpi('green', 'Total demand', 'cgTotal', 'Your assumption · line: grid-powered part', 'cgTotalSpark', 'Charging from the grid in each half-hour of the replay day')}
-        ${cgKpi('green', 'Flexible demand', 'cgFlexible', `${pct(s.totalDemandMwh ? s.flexibleDemandMwh / s.totalDemandMwh : null)} can shift · line: renewable part`, 'cgFlexibleSpark', 'Charging covered by renewable energy at risk in each half-hour')}
-        ${cgKpi('orange', 'Proposed charging', 'cgProposed', 'Into the renewable surplus · upper bound', 'cgProposedSpark', 'Proposed charging in each half-hour of the replay day')}
-        ${cgKpi('purple', 'Potential absorption', 'cgAvailable', 'Renewable surplus · model prediction', 'cgAvailableSpark', 'Renewable energy at risk in each half-hour of the replay day')}
+        ${cgKpi('green', 'bolt', 'Total demand', 'cgTotal', cgPill(null, s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null), 'could use renewables', 'cgTotalSpark', 'Line: charging from the grid in each half-hour of the replay day')}
+        ${cgKpi('green', 'leaf', 'Flexible demand', 'cgFlexible', cgPill(null, s.totalDemandMwh ? s.flexibleDemandMwh / s.totalDemandMwh : null), 'can shift', 'cgFlexibleSpark', 'Line: charging covered by renewable energy at risk in each half-hour of the replay day')}
+        ${cgKpi('orange', 'charge', 'Proposed charging', 'cgProposed', cgPill(cgVsDay(o.potentialRecoveryMwh, 'charging')), 'vs day average', 'cgProposedSpark', 'Line: proposed charging in each half-hour of the replay day')}
+        ${cgKpi('purple', 'tower', 'Potential absorption', 'cgAvailable', cgPill(cgVsDay(p.atRiskMwh, 'renewable')), 'vs day average', 'cgAvailableSpark', 'Line: renewable energy at risk in each half-hour of the replay day')}
     </section>`;
 }
 function cgScheduleCard() {
     const day = cgDay.data;
     const sub = day ? `When charging uses renewable energy · replay day ${escapeHtml(cgDayLabel(day.date))} · average MW per half-hour` : 'When charging uses renewable energy · average MW per half-hour';
     const note = day && cgSelectedIndex(day.intervals) < 0 ? '<p class="cg-note">The selected forecast half-hour is not on this replay day, so no marker is shown.</p>' : '';
-    return `<section class="dash-card cg-card cg-schedule">${cardHead('green', 'Charging schedule', sub)}<ul class="cg-legend"><li><i class="is-renewable"></i>Renewable supply at risk</li><li><i class="is-charging"></i>Charging demand on renewable</li><li><i class="is-grid"></i>Charging demand on grid</li><li><i class="is-sel"></i>Selected half-hour</li></ul>
+    return `<section class="dash-card cg-card cg-schedule">${cgHead('green', 'calendar', 'Charging schedule', sub)}<ul class="cg-legend"><li><i class="is-renewable"></i>Renewable supply at risk</li><li><i class="is-charging"></i>Charging demand on renewable</li><li><i class="is-grid"></i>Charging demand on grid</li><li><i class="is-sel"></i>Selected half-hour</li></ul>
         <div class="cg-plot" data-cg-plot>${chartSlot('cgSchedule', 'Renewable supply at risk and charging demand split between renewable and grid for each half-hour of the replay day', 'cg-chart')}<div class="cg-tooltip" role="status" hidden></div></div>${note}</section>`;
 }
 function cgMixCard() {
     const s = modelState.data.scenario, o = scenarioOutcome(), ev = s.evAssumptions;
     const grid = Math.max(0, s.totalDemandMwh - o.potentialRecoveryMwh);
-    return `<section class="dash-card cg-card cg-mix">${cardHead('green', 'Charging mix', cgTarget(), cgAssumptions())}
+    return `<section class="dash-card cg-card cg-mix">${cgHead('green', 'pie', 'Charging mix', cgTarget(), cgAssumptions())}
         <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(s.totalDemandMwh ? o.potentialRecoveryMwh / s.totalDemandMwh : null)} of charging could use renewable energy`, 'cg-donut')}
             <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>Renewable energy</span><b>${n(o.potentialRecoveryMwh)} MWh</b></li><li><i class="is-grid"></i><span>Grid energy</span><b>${n(grid)} MWh</b></li></ul></div>
         <div class="cg-ev"><strong>In EV terms</strong><p><b>≈ ${n(Math.round(o.evChargesEquivalent * 10) / 10)}</b> × ${n(ev.kwhPerCharge)} kWh charges' worth of energy <small>(a comparison, not a count of cars)</small></p>
@@ -393,7 +422,7 @@ function cgCalendar(selected) {
     return `<div class="cg-cal" role="dialog" aria-label="Choose a week"><div class="cg-cal-head"><button type="button" data-cg-cal-month="-1" aria-label="Previous month">‹</button><b>${escapeHtml(title)}</b><button type="button" data-cg-cal-month="1" aria-label="Next month">›</button></div><div class="cg-cal-days">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => `<span>${d}</span>`).join('')}</div>${rows.join('')}${range}</div>`;
 }
 function cgWeekCard() {
-    return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', 'Daily model · predicted curtailment per day', cgWeekPicker())}${chartSlot('cgWeek', 'Predicted curtailment for each day of the chosen week, Monday to Sunday', 'cg-chart')}</section>`;
+    return `<section class="dash-card cg-card cg-week">${cgHead('green', 'bolt', 'Chargeable energy opportunity', 'Daily model · predicted curtailment per day', cgWeekPicker())}${chartSlot('cgWeek', 'Predicted curtailment for each day of the chosen week, Monday to Sunday', 'cg-chart')}</section>`;
 }
 function cgBestCard() {
     const sub = cgDay.status === 'ready' ? `Replay day ${escapeHtml(cgDayLabel(cgDay.data.date))} · bar = energy at risk · ranked by energy × likelihood` : 'Replay day · bar = energy at risk · ranked by energy × likelihood';
@@ -406,7 +435,7 @@ function cgBestCard() {
             ? `<ol class="cg-rank${cgDrawIn('rank', `${cgDay.data.date}|${best.map((i) => i.targetAt).join(',')}`)}">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}" style="--i:${k}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${escapeHtml(modelTime(i.targetAt))}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${n(i.atRiskMwh)} MWh</span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}</span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
             : '<div class="cg-empty" role="status">No renewable energy is predicted at risk on this day, so there is no good time to shift charging.</div>';
     }
-    return `<section class="dash-card cg-card cg-best-card">${cardHead('green', 'Best half-hours to charge', sub)}${body}</section>`;
+    return `<section class="dash-card cg-card cg-best-card">${cgHead('green', 'clock', 'Best half-hours to charge', sub)}${body}</section>`;
 }
 function cgAssumptions() {
     const s = modelState.data.scenario;
@@ -460,15 +489,24 @@ document.addEventListener('pointermove', (event) => {
     const row = list[i], sx = left + (w - left - right) * (i / (list.length - 1));
     svg.querySelector('.cg-hover')?.setAttribute('x1', sx);
     svg.querySelector('.cg-hover')?.setAttribute('x2', sx);
+    const toMwDot = 60 / (cgDay.data.intervalMinutes || 30), { top, bottom, h } = CG_PLOT;
+    const yOf = (mwh) => top + (h - top - bottom) * (1 - (mwh * toMwDot) / (cgScheduleScale.max || 1));
+    for (const [cls, mwh] of [['is-renewable', row.atRiskMwh], ['is-charging', row.potentialRecoveryMwh]]) {
+        const dot = svg.querySelector(`.cg-hover-dot.${cls}`);
+        if (dot) { dot.setAttribute('cx', sx); dot.setAttribute('cy', yOf(mwh)); }
+    }
     plot.classList.add('is-hovering');
     tip.hidden = false;
     const toMw = 60 / (cgDay.data.intervalMinutes || 30), total = (cgDay.data.totalDemandKwh || 0) / 1000;
     tip.innerHTML = `<b>${escapeHtml(modelTime(row.targetAt))} half-hour</b><span><i class="is-renewable"></i>${n(row.atRiskMwh * toMw)} MW renewable supply at risk</span><span><i class="is-charging"></i>${n(row.potentialRecoveryMwh * toMw)} MW charging on renewable</span><span><i class="is-grid"></i>${n(Math.max(0, total - row.potentialRecoveryMwh) * toMw)} MW charging on grid</span>${row.probability != null ? `<span>${pct(row.probability)} event probability</span>` : ''}`;
+    // Beside the hovered half-hour (like the mockup) so the dots on the lines stay visible.
     const pos = (sx / w) * 100;
-    tip.style.left = `${Math.min(80, Math.max(4, pos))}%`;
+    tip.style.left = `${pos}%`;
+    tip.classList.toggle('is-left', pos > 55);
 });
 document.addEventListener('pointerleave', (event) => {
-    const plot = event.target.closest?.('[data-cg-plot]');
+    // Captured leave events also fire for every shape inside the chart; only react to the chart itself.
+    const plot = event.target.matches?.('[data-cg-plot]') ? event.target : null;
     if (!plot) return;
     plot.classList.remove('is-hovering');
     const tip = plot.querySelector('.cg-tooltip');

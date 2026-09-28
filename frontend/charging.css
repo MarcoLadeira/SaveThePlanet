@@ -30,14 +30,21 @@
 
 /* KPI row */
 [data-current-page="charging"] .cg-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;flex:0 0 auto}
-[data-current-page="charging"] .cg-kpi{flex-direction:row;align-items:stretch;gap:10px;min-height:108px;padding:16px 18px;border-radius:20px}
-[data-current-page="charging"] .cg-kpi-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-[data-current-page="charging"] .cg-kpi-copy>span{font-size:13px;font-weight:750;color:var(--ink-2)}
-[data-current-page="charging"] .cg-kpi-figure strong{font-size:28px;line-height:1.1;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+[data-current-page="charging"] .cg-kpi{display:grid;grid-template-columns:auto minmax(0,1fr) 34%;grid-template-rows:auto 1fr auto;column-gap:12px;row-gap:6px;align-items:start;min-height:108px;padding:16px 18px;border-radius:20px}
+[data-current-page="charging"] .cg-kpi-icon{grid-row:1/3;display:grid;place-items:center;width:42px;height:42px;border-radius:13px}
+[data-current-page="charging"] .cg-kpi.is-green .cg-kpi-icon{background:var(--cg-risk-soft);color:var(--cg-risk)}
+[data-current-page="charging"] .cg-kpi.is-orange .cg-kpi-icon{background:var(--cg-orange-soft);color:var(--cg-orange)}
+[data-current-page="charging"] .cg-kpi.is-purple .cg-kpi-icon{background:var(--cg-purple-soft);color:var(--cg-purple)}
+[data-current-page="charging"] .cg-kpi-copy{grid-column:2/4;grid-row:1/3;position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+[data-current-page="charging"] .cg-kpi-copy>span{font-size:13px;font-weight:750;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-current-page="charging"] .cg-kpi-figure strong{font-size:26px;line-height:1.1;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
 [data-current-page="charging"] .cg-kpi-figure small{margin-left:4px;font-size:14px;letter-spacing:0}
-[data-current-page="charging"] .cg-kpi-copy em{margin-top:auto;font-size:12px;font-style:normal;line-height:1.35;color:var(--ink-3)}
-[data-current-page="charging"] .cg-kpi-visual{flex:0 0 40%;display:flex;align-items:flex-end}
-[data-current-page="charging"] .cg-kpi-visual .chart3d{width:100%;height:52px}
+[data-current-page="charging"] .cg-kpi-visual{grid-column:3;grid-row:2/4;align-self:end;display:flex;align-items:flex-end}
+[data-current-page="charging"] .cg-kpi-foot{grid-column:1/3;grid-row:3;display:flex;align-items:center;gap:8px;margin:0;min-width:0}
+[data-current-page="charging"] .cg-kpi-foot em{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-style:normal;line-height:1.3;color:var(--ink-3)}
+[data-current-page="charging"] .cg-pill{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--ink-2)}
+[data-current-page="charging"] .cg-pill.is-up,[data-current-page="charging"] .cg-pill.is-share{color:var(--cg-risk)}[data-current-page="charging"] .cg-pill.is-down{color:#d0572a}
+[data-current-page="charging"] .cg-kpi-visual .chart3d{width:100%;height:54px}
 [data-current-page="charging"] .cg-spark{width:100%;height:100%}
 [data-current-page="charging"] .cg-spark .line{fill:none;stroke-width:2.2;stroke-linecap:round}
 [data-current-page="charging"] .cg-spark.is-green .line{stroke:var(--cg-risk)}
@@ -64,9 +71,9 @@
 
 /* Schedule area chart */
 [data-current-page="charging"] .cg-plot{position:relative;flex:1;min-height:0;display:flex}
-[data-current-page="charging"] .cg-area.is-renewable{fill:var(--cg-risk-soft)}[data-current-page="charging"] .cg-line.is-renewable{fill:none;stroke:var(--cg-risk);stroke-width:2.4}
-[data-current-page="charging"] .cg-area.is-charging{fill:var(--cg-rec-soft)}[data-current-page="charging"] .cg-line.is-charging{fill:none;stroke:var(--cg-rec);stroke-width:2.4}
-[data-current-page="charging"] .cg-area.is-grid{fill:var(--cg-gridline-soft)}[data-current-page="charging"] .cg-line.is-grid{fill:none;stroke:var(--cg-gridline);stroke-width:2;stroke-dasharray:5 4}
+[data-current-page="charging"] .cg-line.is-renewable{fill:none;stroke:var(--cg-risk);stroke-width:2.6;stroke-linejoin:round}
+[data-current-page="charging"] .cg-line.is-charging{fill:none;stroke:var(--cg-rec);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+[data-current-page="charging"] .cg-line.is-grid{fill:none;stroke:var(--cg-gridline);stroke-width:2;stroke-dasharray:5 4}
 [data-current-page="charging"] .cg-sel{stroke:var(--cg-sel);stroke-width:2;stroke-dasharray:4 4}
 [data-current-page="charging"] .cg-sel-dot{fill:var(--surface);stroke:var(--cg-sel);stroke-width:3}
 [data-current-page="charging"] .cg-hover{stroke:var(--ink-3);stroke-width:1;opacity:0}
@@ -188,10 +195,10 @@
 [data-current-page="charging"] .cg-spark{overflow:visible}
 [data-current-page="charging"] .cg-spark .area{stroke:none}
 [data-current-page="charging"] .cg-spark .line{stroke-linejoin:round}
-/* Week bars: rounded 3D. */
-[data-current-page="charging"] .cg-bar-side{fill:rgba(8,60,38,.2)}
-[data-current-page="charging"] .cg-bar3d.is-orange .cg-bar-side{fill:rgba(120,50,10,.2)}
-[data-current-page="charging"] .cg-bar-shine{fill:rgba(255,255,255,.38)}
+/* Week bars: rounded 3D cubes (front, lit top, shaded side). */
+[data-current-page="charging"] .cg-bar-front,[data-current-page="charging"] .cg-bar-top,[data-current-page="charging"] .cg-bar-side{stroke-linejoin:round}
+[data-current-page="charging"] .cg-bar-top{stroke:rgba(255,255,255,.55);stroke-width:.6}
+[data-current-page="charging"] .cg-bar-shine{fill:rgba(255,255,255,.28)}
 [data-current-page="charging"] .cg-bar-glow{fill:rgba(22,155,98,.22);filter:blur(4px)}
 [data-current-page="charging"] .cg-bar3d.is-orange .cg-bar-glow{fill:rgba(255,136,62,.3)}
 /* 3D charging mix ring (same construction as the Dashboard's causes ring). */
@@ -209,3 +216,18 @@
 [data-current-page="charging"] .cg-mix-legend li{display:grid;grid-template-columns:10px minmax(0,1fr);align-items:center;gap:1px 8px}
 [data-current-page="charging"] .cg-mix-legend li b{grid-column:2;margin:0;font-size:16px}
 [data-current-page="charging"] .cg-donut{flex:0 0 150px;height:117px}
+
+/* Card header icon chips (in place of the accent bar). */
+[data-current-page="charging"] .cg-head-icon{flex:0 0 38px;display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--cg-risk-soft);color:var(--cg-risk)}
+/* Charging schedule: fading fills, lines with a white edge, hover dots. */
+[data-current-page="charging"] .cg-stop-renewable{stop-color:var(--cg-risk)}[data-current-page="charging"] .cg-stop-charging{stop-color:var(--cg-rec)}[data-current-page="charging"] .cg-stop-grid{stop-color:var(--cg-gridline)}
+[data-current-page="charging"] .cg-line-edge{fill:none;stroke:var(--surface);stroke-width:5;stroke-linejoin:round;stroke-linecap:round}
+[data-current-page="charging"] .cg-vgrid{stroke:var(--cg-grid);stroke-width:1}
+[data-current-page="charging"] .cg-hover-dot{fill:var(--surface);stroke-width:3;opacity:0}[data-current-page="charging"] .cg-hover-dot.is-renewable{stroke:var(--cg-risk)}[data-current-page="charging"] .cg-hover-dot.is-charging{stroke:var(--cg-rec)}
+[data-current-page="charging"] .cg-plot.is-hovering .cg-hover-dot{opacity:1}
+[data-current-page="charging"] .cg-hover{stroke-dasharray:4 4}
+/* Best half-hours: 3D bars in a recessed track. */
+[data-current-page="charging"] .cg-rank-track{height:16px;background:var(--grey-soft);box-shadow:inset 0 2px 3px rgba(15,40,28,.14)}
+[data-current-page="charging"] .cg-rank-track i{position:relative;background:linear-gradient(180deg,#7fe0ae 0%,#2fbf7c 38%,#179a61 78%,#0f7a4b 100%);box-shadow:inset 0 -2px 0 rgba(0,0,0,.14),0 2px 4px rgba(22,155,98,.3)}
+[data-current-page="charging"] .cg-rank-track i::after{content:"";position:absolute;left:6px;right:6px;top:3px;height:4px;border-radius:99px;background:rgba(255,255,255,.45)}
+[data-current-page="charging"] .cg-tooltip{transform:translateX(14px)}[data-current-page="charging"] .cg-tooltip.is-left{transform:translateX(calc(-100% - 14px))}
