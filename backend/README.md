@@ -261,3 +261,11 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   `.github/workflows/tests.yml` when the `GRID_TO_EV_API_KEY` repository secret is set; the unit
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
+
+## Charging optimizer
+
+`POST /api/v1/charging/optimize` with `{"preset": "depot-and-retail"}` (or a `fleet/v1` object
+under `fleet`) returns baseline and optimized vehicle-level plans for the +30 and +60 minute
+forecast windows as alternatives. `GET /api/v1/charging/presets` lists the simulated fleets.
+Fleets are simulated; window energy is projected, not measured. See
+[docs/CHARGING_OPTIMIZER.md](../docs/CHARGING_OPTIMIZER.md).
