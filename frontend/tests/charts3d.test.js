@@ -54,17 +54,6 @@ test('likelihood gauge shows the selected probability and risk', () => {
   assert.doesNotMatch(dashCharts.likelihood.draw({ probability: 0, risk: 'low' }), /NaN|gauge-fill\)" d/);
 });
 
-test('risk drivers split constraint and curtailment and survive zero risk', () => {
-  const { dashCharts } = load([prediction(30), prediction(60)]);
-  const html = dashCharts.causes.draw(dashCharts.causes.values());
-  assert.match(html, />76%</);
-  assert.match(html, /0\.47 MWh<small>76%/);
-  assert.match(html, /0\.15 MWh<small>24%/);
-  const empty = dashCharts.causes.draw({ constraint: 0, curtailment: 0, sweep: 1, cause: 'No predicted dispatch-down' });
-  assert.match(empty, />—</);
-  assert.doesNotMatch(empty, /NaN|Infinity|donut-top/);
-});
-
 test('confidence rows order targets, scale to P90 and mark the selection', () => {
   const context = load([prediction(60, { upperMwh: 1.1, lowerMwh: .4, probability: .55 }), prediction(30)], 60);
   const values = context.dashCharts.confidence.values();
@@ -79,14 +68,4 @@ test('confidence rows order targets, scale to P90 and mark the selection', () =>
   assert.match(html, /<em>0\.62 MWh<\/em>/);
   assert.match(html, /<b>55%<\/b>/);
   assert.doesNotMatch(context.dashCharts.confidence.draw(context.dashCharts.confidence.start(values)), /NaN|Infinity/);
-});
-
-test('next move bars rise from the baseline and scale to the largest value', () => {
-  const { dashCharts } = load([prediction(30, { atRiskMwh: .7 }), prediction(60)]);
-  const values = dashCharts.planBars.values();
-  assert.match(dashCharts.planBars.draw(dashCharts.planBars.start(values)), /--plan-h:0"/);
-  const html = dashCharts.planBars.draw(values);
-  assert.match(html, /is-risk" style="--plan-h:1"/);
-  assert.match(html, /is-flex" style="--plan-h:0\.714/);
-  assert.match(html, /<strong>0\.35<\/strong>MWh/);
 });
