@@ -5,7 +5,9 @@ import test_server as support
 setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 from test_server import sample
 from server import normalize
-from scenario import build_day, build_scenario, validate_demand, validate_ev
+from scenario import build_scenario, validate_demand, validate_ev
+import dayplan
+import fleet as fleets
 
 
 class ScenarioTests(unittest.TestCase):
@@ -133,7 +135,7 @@ class EvTranslationTests(unittest.TestCase):
         forecast = self.forecast()
         replay = dict(date='2026-01-31', range={}, source='test', modelVersion='test', intervalMinutes=30,
                       horizonMinutes=30, flexibleCapacityMw=100, predictions=forecast['predictions'])
-        day = build_day(replay, 1000, 500)
+        day = dayplan.build(replay, fleets.preset('depot-and-retail'), 'depot-and-retail')
         self.assertEqual([i['probability'] for i in day['intervals']], [.8, .8])
         self.assertNotIn('probability', day['totals'])
 

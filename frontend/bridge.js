@@ -47,6 +47,58 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('#plan-retry')) loadFleetPlan();
 });
 
+// The same fleet + grid battery plan for each half-hour of the pinned target's day (GET /api/v1/impact/day,
+// backend/dayplan.py), shared by the Battery and EV pages. Each half-hour is a separate what-if with the same
+// fleet and battery, so its recovery figures are never added up across the day.
+const dayPlan = { status: 'idle', data: null, key: '', request: 0 };
+function dayPlanKey() { return [modelState.target ? modelState.target.slice(0, 10) : '', modelState.capacity, modelState.fleetPreset].join('|'); }
+function dayPlanReady() { return dayPlan.status === 'ready' && dayPlan.key === dayPlanKey() && dayPlan.data?.intervals?.length > 0; }
+function dayPlanLoading() { return dayPlan.key !== dayPlanKey() || dayPlan.status === 'loading' || dayPlan.status === 'idle'; }
+// Called while rendering: starts a load when the target day, capacity or fleet changed.
+function ensureDayPlan() {
+  if (!modelState.data || (dayPlan.key === dayPlanKey() && dayPlan.status !== 'idle')) return;
+  dayPlan.key = dayPlanKey();
+  dayPlan.status = 'loading';
+  setTimeout(loadDayPlan);
+}
+async function loadDayPlan() {
+  const request = ++dayPlan.request, key = dayPlan.key;
+  const query = new URLSearchParams({ capacityMw: String(modelState.capacity), preset: modelState.fleetPreset });
+  if (modelState.target) query.set('date', modelState.target.slice(0, 10));
+  try {
+    const response = await fetch(`/api/v1/impact/day?${query}`);
+    const body = await response.json();
+    if (request !== dayPlan.request) return;
+    if (!response.ok || !Array.isArray(body.intervals) || !body.intervals.length) throw new Error(body.error?.message || 'Day plan unavailable');
+    Object.assign(dayPlan, { status: 'ready', data: body, key });
+  } catch {
+    if (request === dayPlan.request) Object.assign(dayPlan, { status: 'error', data: null, key });
+  } finally {
+    if (request === dayPlan.request && ['impact', 'charging'].includes(pageFromHash())) render();
+  }
+}
+// The day-plan half-hour that is the selected forecast target (-1 when the target is not on the day).
+function dayPlanIndex(p = selectedPrediction()) {
+  const target = new Date(p.targetAt).getTime();
+  return dayPlanReady() ? dayPlan.data.intervals.findIndex((i) => new Date(i.targetAt).getTime() === target) : -1;
+}
+// A replay day runs from 00:30 to 00:00 the next day (48 +30 min forecasts issued across one UTC day).
+function dayPlanTime(targetAt) {
+  const next = dayPlanReady() && targetAt.slice(0, 10) > dayPlan.data.date;
+  return `${modelTime(targetAt)}${next ? ' (next day)' : ''}`;
+}
+
+// Estimated CO2 avoided and EV range for one plan ledger, the same formulas as backend/dayplan.py:
+// EV charging plus energy stored in the battery displaces grid-average electricity at 0.25 kg/kWh;
+// range = energy into EV batteries / 0.18 kWh per km.
+const PLAN_KG_CO2_PER_KWH = 0.25, PLAN_EV_KWH_PER_KM = 0.18;
+function planImpact(L) {
+  const stored = L.storage?.storedKwh || 0, captured = L.allocatedToChargersGridKwh + (L.allocatedToRealStorageKwh || 0);
+  return { stored, captured, co2Kg: (L.allocatedToChargersGridKwh + stored) * PLAN_KG_CO2_PER_KWH,
+           rangeKm: L.batteryDeliveredKwh / PLAN_EV_KWH_PER_KM,
+           share: L.predictedAtRiskKwh > 0 ? captured / L.predictedAtRiskKwh : null };
+}
+
 // The plan for the forecast horizon the page shows (+30 or +60 min).
 function planAlternative() {
   const alternatives = modelState.plan?.alternatives || [];
