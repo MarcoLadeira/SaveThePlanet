@@ -2,9 +2,9 @@
 
 Selection uses model predictions only, never observed outcomes.
 
-- "predicted" (default): a half-hour the model predicts to have MORE THAN 0 MWh at both
-  horizons, mixed across forecast-confidence levels. The V1 model is nearly all-or-nothing:
-  ~94% of half-hours it predicts above 0 MWh come with a ~100% probability and "high" risk,
+- "predicted" (default): a half-hour the model predicts to have AT LEAST MIN_PREDICTED_MWH
+  (10 MWh) at both horizons, mixed across forecast-confidence levels. The V1 model is nearly
+  all-or-nothing: ~94% of half-hours it predicts above 0 MWh come with a ~100% probability,
   so plain random sampling almost always shows "100% high risk". A background index of the
   +30 min prediction for every dataset half-hour (built from day replays at prefetch
   priority, saved to disk) lets the dashboard first pick a confidence band at random, then a
@@ -12,8 +12,10 @@ Selection uses model predictions only, never observed outcomes.
       certain    probability >= 99.5%
       likely     50% to 99.5%
       uncertain  below 50%
-  Until the index is ready it samples uniformly and keeps the first half-hour predicted
-  above 0 MWh (usually "certain").
+  Until the index is ready it samples uniformly and keeps the first half-hour predicted to
+  have at least MIN_PREDICTED_MWH (usually "certain"). Note: with a 10 MWh minimum the
+  "uncertain" band is empty for the January 2026 dataset (every low-probability prediction
+  is below 10 MWh), so the mix is near-certain vs likely (~92-99%).
 - "unfiltered": one uniformly random dataset half-hour, whatever its prediction.
 
 Observed EirGrid outcomes are never used to choose (no hindsight/outcome-selection bias).
@@ -27,7 +29,7 @@ from urllib.error import HTTPError
 
 import explorer
 
-MIN_PREDICTED_MWH = 0.0  # a candidate must be predicted ABOVE this at both horizons
+MIN_PREDICTED_MWH = 10.0  # a candidate must be predicted AT LEAST this (MWh) at both horizons
 MAX_ATTEMPTS = 10
 RETRY_PASSES = 4  # background index: passes over days that failed (timeouts, busy gate)
 RETRY_PAUSE_SECONDS = 30
@@ -144,12 +146,12 @@ def _safe(fn):
 
 
 def banded_candidates():
-    """{band: [targets predicted above 0 MWh at +30 min]} from whatever is indexed so far."""
+    """{band: [targets predicted >= MIN_PREDICTED_MWH at +30 min]} from whatever is indexed so far."""
     allowed = set(dataset_targets())
     bands = {name: [] for name, _, _ in BANDS}
     with _lock:
         for target, row in _index.items():
-            if row['mwh'] > MIN_PREDICTED_MWH and target in allowed:
+            if row['mwh'] >= MIN_PREDICTED_MWH and target in allowed:
                 bands[band_of(row['probability'])].append(target)
     return {name: sorted(found) for name, found in bands.items() if found}
 
@@ -160,12 +162,14 @@ def selection_note(record):
     if record['mode'] == 'unfiltered':
         return 'Unfiltered: a uniformly random dataset half-hour, whatever its predicted energy.'
     if not record['metThreshold']:
-        return (f"No sampled half-hour was predicted above 0 MWh at both horizons in {record['attempts']} tries; "
+        return (f"No sampled half-hour was predicted to have at least {record['minPredictedMwh']:g} MWh at both "
+                f"horizons in {record['attempts']} tries; "
                 f"showing the highest prediction found.")
     band = record.get('bandLabel')
     how = (f"from the {band} confidence band, itself picked at random so the dashboard shows a mix of risk levels"
            if band else 'at random')
-    return (f"Chosen {how}, among half-hours the model predicts to have more than 0 MWh at both horizons. "
+    return (f"Chosen {how}, among half-hours the model predicts to have at least {record['minPredictedMwh']:g} MWh "
+            f"at both horizons. "
             f"Selected from predictions only, not observed outcomes, so it is not a typical half-hour.")
 
 
@@ -210,13 +214,13 @@ def pick(capacity, fetch, mode='predicted', rng=None):
             continue
         if best is None or least_predicted(forecast) > least_predicted(best):
             best = forecast
-        if mode == 'unfiltered' or least_predicted(forecast) > MIN_PREDICTED_MWH:
+        if mode == 'unfiltered' or least_predicted(forecast) >= MIN_PREDICTED_MWH:
             break
     if best is None:
         raise last_error or ValueError('No dataset target could be forecast')
     labels = {name: label for name, _, label in BANDS}
     record = dict(mode=mode, minPredictedMwh=MIN_PREDICTED_MWH, attempts=attempts, population=len(dataset_targets()),
-                  metThreshold=mode == 'unfiltered' or least_predicted(best) > MIN_PREDICTED_MWH,
+                  metThreshold=mode == 'unfiltered' or least_predicted(best) >= MIN_PREDICTED_MWH,
                   band=band, bandLabel=labels.get(band), indexedDays=_index_state['days'],
                   usesObservedOutcomes=False)
     record['note'] = selection_note(record)

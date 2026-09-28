@@ -26,13 +26,13 @@ test('a stale forecast for another target can never replace the pin', () => {
   assert.equal(pinnedTargetAfter(A, { ...real(B), stale: { since: 'x' } }), A);
 });
 
-test('selection chips never claim energy when nothing above 0 MWh was found', () => {
-  const met = selectionChip({ mode: 'predicted', metThreshold: true, minPredictedMwh: 0, attempts: 3, band: 'uncertain' });
+test('selection chips never claim energy when nothing reached the minimum', () => {
+  const met = selectionChip({ mode: 'predicted', metThreshold: true, minPredictedMwh: 10, attempts: 3, band: 'likely' });
   assert.equal(met.tone, 'ok');
-  assert.match(met.text, /Predicted > 0 MWh · uncertain forecast/);
-  const below = selectionChip({ mode: 'predicted', metThreshold: false, minPredictedMwh: 0, attempts: 10 });
+  assert.match(met.text, /Predicted ≥ 10 MWh · likely forecast/);
+  const below = selectionChip({ mode: 'predicted', metThreshold: false, minPredictedMwh: 10, attempts: 10 });
   assert.equal(below.tone, 'warn');
-  assert.match(below.text, /Nothing above 0 MWh found/);
+  assert.match(below.text, /Nothing ≥ 10 MWh found/);
   assert.match(selectionChip({ mode: 'unfiltered' }).text, /Unfiltered/);
   assert.equal(selectionChip(null), null);
 });

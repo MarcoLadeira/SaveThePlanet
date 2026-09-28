@@ -67,9 +67,11 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(calls, order[:4])
         self.assertTrue(result['selection']['metThreshold'])
 
-    def test_any_prediction_above_zero_is_enough(self):
+    def test_ten_mwh_or_more_is_enough_and_just_below_is_not(self):
+        self.assertEqual(targets.MIN_PREDICTED_MWH, 10.0)
         values = {t: 0.0 for t in POPULATION}
-        values[POPULATION[2]] = 0.3  # small, but above 0 MWh
+        values[POPULATION[1]] = 9.99  # just below: skipped
+        values[POPULATION[2]] = 10.0  # exactly the minimum: accepted (greater than or equal)
         rng = random.Random(0)
         with patch.object(rng, 'sample', return_value=POPULATION[:targets.MAX_ATTEMPTS]):
             result = targets.pick(100, lambda c, t: forecast(t, values[t]), rng=rng)
@@ -82,15 +84,15 @@ class SelectionTests(unittest.TestCase):
             result = targets.pick(100, lambda c, t: forecast(t, 0.0), rng=rng)
         self.assertFalse(result['selection']['metThreshold'])
         self.assertEqual(result['selection']['attempts'], targets.MAX_ATTEMPTS)
-        self.assertIn('No sampled half-hour was predicted above 0 MWh', result['selection']['note'])
+        self.assertIn('No sampled half-hour was predicted to have at least 10 MWh', result['selection']['note'])
 
     def test_confidence_bands_are_picked_evenly_to_mix_risk_levels(self):
         # Like the real model: almost every positive prediction is ~100% certain.
         for i, t in enumerate(POPULATION):
             targets._index[t] = {'probability': 0.9999, 'mwh': 50.0}
-        targets._index[POPULATION[7]] = {'probability': 0.8, 'mwh': 4.0}   # likely
-        targets._index[POPULATION[9]] = {'probability': 0.1, 'mwh': 2.0}   # uncertain
-        targets._index[POPULATION[11]] = {'probability': 0.02, 'mwh': 0.0}  # predicted 0 MWh: never chosen
+        targets._index[POPULATION[7]] = {'probability': 0.8, 'mwh': 14.0}   # likely
+        targets._index[POPULATION[9]] = {'probability': 0.1, 'mwh': 12.0}   # uncertain
+        targets._index[POPULATION[11]] = {'probability': 0.02, 'mwh': 9.5}  # below 10 MWh: never chosen
         bands = targets.banded_candidates()
         self.assertEqual({name: len(v) for name, v in bands.items()},
                          {'certain': len(POPULATION) - 3, 'likely': 1, 'uncertain': 1})

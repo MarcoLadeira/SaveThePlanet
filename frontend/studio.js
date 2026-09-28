@@ -10,7 +10,7 @@ const RECOVERY_CAVEAT='Recovery figures are upper bounds: they assume flexible l
 function dataBadge(){
   const d=modelState.data;if(!d)return '';
   const pinned=modelState.target?escapeHtml(modelTime(modelState.target,true)):null;
-  const controls=`<label class="data-selection">New target from <select id="target-selection" ${modelState.loading?'disabled':''}><option value="predicted" ${modelState.selectionMode==='predicted'?'selected':''}>predicted > 0 MWh, mixed risk</option><option value="unfiltered" ${modelState.selectionMode==='unfiltered'?'selected':''}>unfiltered random</option></select></label><button type="button" class="data-new-target" data-new-target ${modelState.loading?'disabled':''}>↻ New target</button>`;
+  const controls=`<label class="data-selection">New target from <select id="target-selection" ${modelState.loading?'disabled':''}><option value="predicted" ${modelState.selectionMode==='predicted'?'selected':''}>predicted ≥ 10 MWh, mixed risk</option><option value="unfiltered" ${modelState.selectionMode==='unfiltered'?'selected':''}>unfiltered random</option></select></label><button type="button" class="data-new-target" data-new-target ${modelState.loading?'disabled':''}>↻ New target</button>`;
   // Offline example: unrelated simulated data, visually separate from the pinned half-hour.
   if(isDemoData())return `<em class="data-badge is-demo" role="status">Offline example (simulated) · model unavailable${pinned?` · not the pinned half-hour ${pinned}`:''} · retrying</em>`;
   if(d.stale)return `<em class="data-badge is-stale" role="status">Model unreachable · last real forecast for ${pinned||escapeHtml(modelTime(d.predictions[0].targetAt,true))} (fetched ${escapeHtml(modelTime(d.stale.since))})</em>`;
