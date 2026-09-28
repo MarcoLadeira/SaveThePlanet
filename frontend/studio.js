@@ -2,7 +2,7 @@ function studioControls(){return `<div class="studio-toolbar"><div class="studio
 function tile(glyph,tone='green'){return `<span class="dash-tile is-${tone}">${icon(glyph,20)}</span>`}
 function n(value){return modelNumber(value)}
 function pct(value){return value===null?'—':`${n(value*100)}%`}
-function studioHeader(title,subtitle,actions=''){const art={Forecast:'forecast',Charging:'charging',Battery:'impact',Settings:'settings'}[title]||'overview';return `<header class="dash-header studio-header"><div class="dashboard-header-art is-${art}" aria-hidden="true"></div><div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div>${actions}</header>`}
+function studioHeader(title,subtitle,actions=''){const art={Forecast:'forecast',Charging:'charging',EV:'charging',Battery:'impact',Settings:'settings'}[title]||'overview';return `<header class="dash-header studio-header"><div class="dashboard-header-art is-${art}" aria-hidden="true"></div><div class="dash-title"><p>Renewable energy planner / Ireland</p><h1>${title}</h1><span>${subtitle}</span></div>${actions}</header>`}
 // The shared forecast is a GridToEv V1 historical dataset prediction (latest target in the
 // dataset), never a live forecast, so every page that shows it says so in its header.
 // Recovery figures are upper bounds, not what EV charging would actually absorb (review P1.8).
