@@ -1,6 +1,6 @@
 :root,button,input,select,svg text{font-family:"Segoe UI",Arial,sans-serif}
 /* Sidebar: measured against the reference mock-up (227px wide; art, slogan and Settings are anchored to the bottom). */
-.sidebar.dash-sidebar{--art-bottom:clamp(78px,100% - 807px,107px);width:227px;padding:0;border:0;overflow:hidden;color:#f3fbf8;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#083d33 0%,#083c33 30%,#093c36 42%,#093938 60%,#093938 100%)}
+.sidebar.dash-sidebar{--art-bottom:clamp(78px,100% - 807px,107px);width:var(--nav-w);padding:0;border:0;overflow:hidden;color:#f3fbf8;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#083d33 0%,#083c33 30%,#093c36 42%,#093938 60%,#093938 100%)}
 .dash-sidebar .brand{position:absolute;z-index:2;left:25.3px;top:23.7px;display:block;height:auto;padding:0}
 .dash-sidebar .brand svg{display:block;width:36.2px;height:41.8px}
 .dash-sidebar .brand-name{position:absolute;left:48.5px;top:-3.2px;display:flex;flex-direction:column;white-space:nowrap;font-size:18px;line-height:22.5px;font-weight:600;letter-spacing:0;color:#fff}
@@ -26,7 +26,24 @@
 .dash-sidebar .sidebar-slogan{position:absolute;z-index:1;left:28px;bottom:calc(var(--art-bottom) + 5.6px);margin:0;font-size:21.6px;line-height:25.1px;font-weight:400;letter-spacing:0;color:#eef6f3;text-shadow:0 1px 3px rgba(0,22,17,.35)}
 .dash-sidebar .sidebar-slogan i{display:block;width:18.5px;height:3.8px;margin-top:8.6px;border-radius:2px;background:#f7ab12}
 .dash-sidebar .sidebar-bottom{position:absolute;z-index:2;left:16px;right:9px;bottom:19.4px;margin:0}
-.app-shell .main.dashboard-main{margin-left:227px;width:calc(100% - 227px)}
+.app-shell{--nav-w:227px}
+.app-shell .main.dashboard-main{margin-left:var(--nav-w);width:calc(100% - var(--nav-w))}
+/* Docked: the sidebar folds to an icon rail and pages take the width through --nav-w. */
+.app-shell.is-docked:not(.is-phone){--nav-w:84px}
+.dash-sidebar .nav-dock{position:absolute;z-index:3;top:65px;left:calc(var(--nav-w) - 38px);display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;border-radius:8px;background:transparent;color:rgba(228,239,235,.46);cursor:pointer;transition:color .2s ease,background-color .2s ease}
+.dash-sidebar .nav-dock:hover{color:#fff;background:rgba(255,255,255,.08)}
+.dash-sidebar .nav-dock:focus-visible{outline:2px solid #5ce9ad;outline-offset:2px;color:#fff}
+.dash-sidebar .nav-dock svg{display:block;width:18px;height:18px}
+.dash-sidebar .nav-dock .dock-chevron{transform-origin:15px 12px;transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.dash-sidebar .brand-name,.dash-sidebar .sidebar-slogan,.dash-sidebar .nav-item>span:last-child{transition:opacity .2s ease .08s}
+.app-shell.is-docked:not(.is-phone) .dash-sidebar .nav-dock{top:82px;left:29px}
+.app-shell.is-docked:not(.is-phone) .dash-sidebar .nav-dock .dock-chevron{transform:rotate(180deg)}
+.app-shell.is-docked:not(.is-phone) .dash-sidebar .brand{left:24px}
+.app-shell.is-docked:not(.is-phone) .dash-sidebar :is(.nav,.sidebar-bottom,.nav-pill){left:13.5px;right:13.5px}
+.app-shell.is-docked:not(.is-phone) .dash-sidebar :is(.brand-name,.sidebar-slogan,.nav-item>span:last-child){opacity:0;pointer-events:none;transition-delay:0s;transition-duration:.12s}
+.app-shell.is-docking .dash-sidebar,.app-shell.is-docking .main.dashboard-main{transition:width .32s cubic-bezier(.2,.8,.2,1),margin-left .32s cubic-bezier(.2,.8,.2,1)}
+.app-shell.is-docking .dash-sidebar :is(.brand,.nav,.sidebar-bottom,.nav-pill,.nav-dock){transition:left .32s cubic-bezier(.2,.8,.2,1),right .32s cubic-bezier(.2,.8,.2,1),top .32s cubic-bezier(.2,.8,.2,1),color .2s ease,background-color .2s ease}
+.app-shell.is-phone .dash-sidebar .nav-dock{display:none}
 .dashboard-main .studio-target{display:inline-flex;align-items:center;gap:11px}
 .dashboard-main .studio-target svg{color:var(--green-deep)}
 .dashboard-main .studio-capacity .capacity-symbol{display:grid;place-items:center;color:var(--green-deep)}
@@ -136,7 +153,7 @@
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-chart-legend small,.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-insight span{color:#a9c9bc}
 @keyframes dash-card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-aspect-ratio:4/3){.dashboard-main[data-current-page="overview"] .dashboard-redesign{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}.dashboard-redesign>.dash-outlook{grid-column:1/3;grid-row:2}.dashboard-redesign>.dash-plan{grid-column:3;grid-row:2}}
-@media(prefers-reduced-motion:reduce){.dashboard-redesign>.dash-card,.dashboard-main.is-entering>*{animation:none}.dash-sidebar .nav-item,.dash-sidebar .nav-icon,.dash-sidebar .nav-icon:before,.dashboard-redesign>.dash-card,.dashboard-redesign .dash-tabs button{transition:none}}
+@media(prefers-reduced-motion:reduce){.app-shell.is-docking *,.dash-sidebar .nav-dock .dock-chevron{transition:none!important}.dashboard-redesign>.dash-card,.dashboard-main.is-entering>*{animation:none}.dash-sidebar .nav-item,.dash-sidebar .nav-icon,.dash-sidebar .nav-icon:before,.dashboard-redesign>.dash-card,.dashboard-redesign .dash-tabs button{transition:none}}
 
 .main.dashboard-main{padding:0 20px 13px 28px;gap:11px}
 .dashboard-header-art.is-forecast{background-image:url('./header-forecast.svg?v=20260927i')}
