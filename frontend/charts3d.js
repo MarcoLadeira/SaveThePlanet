@@ -47,11 +47,11 @@ function chartsRestore(root, kept) {
 }
 
 function chartsSync(root) {
-  if (!modelState.data) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   root.querySelectorAll('[data-chart]').forEach((el) => {
     const chart = dashCharts[el.dataset.chart];
-    if (!chart) return;
+    // Standalone charts (the Forecast page) bring their own data; the rest read the model state.
+    if (!chart || (!chart.standalone && !modelState.data)) return;
     const target = chart.values();
     const key = JSON.stringify(target);
     if (key === el.chartKey) return;
@@ -61,7 +61,8 @@ function chartsSync(root) {
     const duration = el.chartValues ? 750 : 1300;
     cancelAnimationFrame(el.chartFrame);
     const step = (now) => {
-      const t = reduce ? 1 : Math.min(1, (now - started) / duration);
+      // The first frame's timestamp can precede `started`, so clamp at 0 as well.
+      const t = reduce ? 1 : Math.min(1, Math.max(0, (now - started) / duration));
       el.chartValues = chartLerp(from, target, 1 - (1 - t) ** 3);
       el.innerHTML = chart.draw(el.chartValues);
       if (t < 1) el.chartFrame = requestAnimationFrame(step);
