@@ -13,8 +13,8 @@ function selectionChip(selection) {
   if (!selection) return null;
   if (selection.mode === 'unfiltered') return { tone: 'neutral', text: 'Unfiltered random half-hour' };
   if (selection.mode === 'pinned') return { tone: 'neutral', text: 'Chosen earlier' };
-  if (selection.metThreshold) return { tone: 'ok', text: `Predicted ≥ ${selection.minPredictedMwh} MWh · chosen from predictions` };
-  return { tone: 'warn', text: `Below ${selection.minPredictedMwh} MWh threshold · best of ${selection.attempts} tried` };
+  if (selection.metThreshold) return { tone: 'ok', text: `Predicted > 0 MWh${selection.band ? ` · ${selection.band} forecast` : ''} · chosen from predictions` };
+  return { tone: 'warn', text: `Nothing above 0 MWh found · best of ${selection.attempts} tried` };
 }
 
 if (typeof module !== 'undefined') module.exports = { pinnedTargetAfter, selectionChip };
