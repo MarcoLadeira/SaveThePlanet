@@ -619,7 +619,13 @@ class Handler(SimpleHTTPRequestHandler):
         # Figures come from the server's own forecast and scenario, never from the browser.
         forecast = cached_forecast(selectors['capacityMw'], selectors['target'])
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
-        self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
+        try:  # the same fleet plan the page shows; Volt still answers everything else without it
+            plan = optimizer.optimize(fleets.preset(selectors['fleetPreset']), forecast, selectors['uncertainty'],
+                                      f'{fleets.presets()["fixtureVersion"]}/{selectors["fleetPreset"]}')
+        except (ValueError, RuntimeError, KeyError, OSError) as error:
+            print(f'Volt has no fleet plan ({error}).', flush=True)
+            plan = None
+        self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario, plan)})
 
     def impact_day(self, query):
         try:
