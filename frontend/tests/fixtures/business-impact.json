@@ -1,0 +1,477 @@
+{
+ "version": "business-impact/v1",
+ "status": "ready",
+ "scenarioId": "0c7e5b839571",
+ "generatedAt": "2026-09-28T12:00:00+00:00",
+ "dataMode": "simulated",
+ "source": "local-demo-fixture",
+ "modelVersion": "demo-fixture-v1",
+ "provenance": {
+  "forecasts": "simulated",
+  "outcomes": "simulated",
+  "fleet": "simulated",
+  "prices": "illustrative",
+  "costs": "illustrative",
+  "emissions": "estimated"
+ },
+ "fallback": {
+  "active": true,
+  "reason": "MODEL_UNAVAILABLE"
+ },
+ "coverage": {
+  "halfHours": 203,
+  "missingForecasts": 0,
+  "missingObservations": 0,
+  "failedDays": []
+ },
+ "company": {
+  "id": "example-depot/v1",
+  "name": "Example delivery depot",
+  "provenance": "simulated",
+  "vehicles": 20,
+  "chargers": 20,
+  "chargerKw": 11,
+  "vehicleMaxKw": 11,
+  "sitePowerKw": 180,
+  "chargingEfficiency": 0.9,
+  "pattern": "20 vans plug in between 17:00 and 19:30 and leave between 06:00 and 07:30. Each needs 28-45 kWh in its battery per night.",
+  "kwhPerEvDay": 40.6
+ },
+ "period": {
+  "from": "2026-01-24",
+  "to": "2026-01-31",
+  "nights": 7,
+  "nightDates": [
+   "2026-01-24",
+   "2026-01-25",
+   "2026-01-26",
+   "2026-01-27",
+   "2026-01-28",
+   "2026-01-29",
+   "2026-01-30"
+  ],
+  "operatingDays": 260,
+  "selection": "The latest consecutive dataset days with forecasts, chosen by position only, never by how much surplus they had."
+ },
+ "tariff": {
+  "id": "example-business-tou/v1",
+  "provenance": "illustrative",
+  "currency": "EUR",
+  "clock": "UTC (Irish winter time)",
+  "bands": [
+   {
+    "id": "night",
+    "label": "Night",
+    "from": "23:00",
+    "to": "08:00",
+    "eurPerKwh": 0.16
+   },
+   {
+    "id": "peak",
+    "label": "Peak",
+    "from": "17:00",
+    "to": "19:00",
+    "eurPerKwh": 0.34
+   },
+   {
+    "id": "day",
+    "label": "Day",
+    "from": "08:00",
+    "to": "23:00",
+    "eurPerKwh": 0.26
+   }
+  ],
+  "surplusDiscountEurPerKwh": 0.08,
+  "note": "Illustrative business time-of-use prices, not a supplier quote. The surplus discount stands for a dynamic tariff or flexibility payment on energy used while renewable output is being curtailed."
+ },
+ "costs": {
+  "implementationEur": 15000,
+  "annualEur": 2400,
+  "provenance": "illustrative",
+  "note": "Example one-off setup (software and charger integration) and yearly software cost. Replace with real quotes."
+ },
+ "kpis": {
+  "annualSavingsEur": 29423,
+  "co2ReductionT": 22.73,
+  "aiSavingsEur": 2753,
+  "paybackMonths": 6.1,
+  "paybackStatus": "months"
+ },
+ "financials": {
+  "baselineCostEur": 57485,
+  "smartTimingSavingsEur": 29070,
+  "aiSavingsEur": 2753,
+  "grossSavingsEur": 31823,
+  "annualCostsEur": 2400,
+  "implementationEur": 15000,
+  "finalCostEur": 28062,
+  "netSavingsEur": 29423,
+  "paybackMonths": 6.1,
+  "paybackStatus": "months",
+  "roiYears": 5,
+  "roiNetEur": 132115,
+  "roiPct": 881,
+  "co2ReductionT": 22.73
+ },
+ "waterfall": [
+  {
+   "id": "baseline",
+   "label": "Normal charging",
+   "kind": "total",
+   "valueEur": 57485
+  },
+  {
+   "id": "timing",
+   "label": "Smarter timing",
+   "kind": "delta",
+   "valueEur": -29070
+  },
+  {
+   "id": "ai",
+   "label": "AI forecast",
+   "kind": "delta",
+   "valueEur": -2753
+  },
+  {
+   "id": "running",
+   "label": "Software costs",
+   "kind": "delta",
+   "valueEur": 2400
+  },
+  {
+   "id": "final",
+   "label": "With our AI",
+   "kind": "total",
+   "valueEur": 28062
+  }
+ ],
+ "strategies": [
+  {
+   "id": "normal",
+   "label": "Normal charging",
+   "description": "Plug in and charge straight away at full power.",
+   "annual": {
+    "costEur": 57485,
+    "co2T": 50.24,
+    "surplusKwh": 9756,
+    "gridKwh": 210724,
+    "renewableShare": 0.0463
+   },
+   "period": {
+    "nights": 7,
+    "gridKwh": 5673.3,
+    "batteryKwh": 5106.0,
+    "lossKwh": 567.3,
+    "costEur": 1547.67,
+    "tariffCostEur": 1568.68,
+    "surplusCreditEur": 21.01,
+    "absorbedKwh": 262.7,
+    "co2Kg": 1352.7,
+    "unscoredKwh": 0.0,
+    "peakKw": 180.0
+   },
+   "requirements": {
+    "met": 140,
+    "total": 140,
+    "unmetKwh": 0.0,
+    "allMet": true
+   }
+  },
+  {
+   "id": "basic",
+   "label": "Basic smart charging",
+   "description": "A fixed rule: wait for the cheapest tariff hours, then charge. Start earlier only if a van would otherwise miss its departure.",
+   "annual": {
+    "costEur": 28415,
+    "co2T": 36.12,
+    "surplusKwh": 66257,
+    "gridKwh": 210724,
+    "renewableShare": 0.3144
+   },
+   "period": {
+    "nights": 7,
+    "gridKwh": 5673.3,
+    "batteryKwh": 5106.0,
+    "lossKwh": 567.3,
+    "costEur": 765.03,
+    "tariffCostEur": 907.73,
+    "surplusCreditEur": 142.71,
+    "absorbedKwh": 1783.8,
+    "co2Kg": 972.4,
+    "unscoredKwh": 0.0,
+    "peakKw": 180.0
+   },
+   "requirements": {
+    "met": 140,
+    "total": 140,
+    "unmetKwh": 0.0,
+    "allMet": true
+   }
+  },
+  {
+   "id": "ai",
+   "label": "Our AI charging",
+   "description": "Uses the GridToEv forecast issued 30 minutes ahead: charges when surplus renewable energy is forecast and it pays, otherwise waits inside the cheap hours while every van can still finish on time.",
+   "annual": {
+    "costEur": 25662,
+    "co2T": 27.51,
+    "surplusKwh": 100673,
+    "gridKwh": 210724,
+    "renewableShare": 0.4777
+   },
+   "period": {
+    "nights": 7,
+    "gridKwh": 5673.3,
+    "batteryKwh": 5106.0,
+    "lossKwh": 567.3,
+    "costEur": 690.9,
+    "tariffCostEur": 907.73,
+    "surplusCreditEur": 216.83,
+    "absorbedKwh": 2710.4,
+    "co2Kg": 740.7,
+    "unscoredKwh": 0.0,
+    "peakKw": 180.0
+   },
+   "requirements": {
+    "met": 140,
+    "total": 140,
+    "unmetKwh": 0.0,
+    "allMet": true
+   }
+  }
+ ],
+ "forecastCalls": {
+  "surplusCalls": 39,
+  "right": 37,
+  "falseAlarms": 2,
+  "missed": 1,
+  "unknown": 0,
+  "noForecast": 0
+ },
+ "nights": [
+  {
+   "date": "2026-01-24",
+   "normal": {
+    "costEur": 221.24,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 94.66,
+    "absorbedKwh": 416.7,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 75.05,
+    "absorbedKwh": 661.9,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-25",
+   "normal": {
+    "costEur": 224.16,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 129.78,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 129.78,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-26",
+   "normal": {
+    "costEur": 205.46,
+    "absorbedKwh": 258.7,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 88.36,
+    "absorbedKwh": 540.0,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 88.36,
+    "absorbedKwh": 540.0,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-27",
+   "normal": {
+    "costEur": 225.19,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 108.27,
+    "absorbedKwh": 273.3,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 78.75,
+    "absorbedKwh": 642.3,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-28",
+   "normal": {
+    "costEur": 223.08,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 128.71,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 128.71,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-29",
+   "normal": {
+    "costEur": 225.66,
+    "absorbedKwh": 3.9,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 89.45,
+    "absorbedKwh": 512.9,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 87.29,
+    "absorbedKwh": 540.0,
+    "vehiclesMet": 20
+   }
+  },
+  {
+   "date": "2026-01-30",
+   "normal": {
+    "costEur": 222.88,
+    "absorbedKwh": 0.0,
+    "vehiclesMet": 20
+   },
+   "basic": {
+    "costEur": 125.8,
+    "absorbedKwh": 40.8,
+    "vehiclesMet": 20
+   },
+   "ai": {
+    "costEur": 102.97,
+    "absorbedKwh": 326.2,
+    "vehiclesMet": 20
+   }
+  }
+ ],
+ "seasonal": {
+  "available": false,
+  "factor": null,
+  "reason": "Simulated example: no seasonal adjustment.",
+  "appliedFactor": 1.0
+ },
+ "scenarios": {
+  "conservative": {
+   "basis": "no-surplus",
+   "surplusFactor": 0.0,
+   "annualSavingsEur": 22149,
+   "aiSavingsEur": 0,
+   "co2ReductionT": 0.0,
+   "paybackMonths": 8.1,
+   "paybackStatus": "months",
+   "roiNetEur": 95745
+  },
+  "expected": {
+   "basis": "evaluation-week",
+   "surplusFactor": 1.0,
+   "annualSavingsEur": 29423,
+   "aiSavingsEur": 2753,
+   "co2ReductionT": 22.73,
+   "paybackMonths": 6.1,
+   "paybackStatus": "months",
+   "roiNetEur": 132115
+  },
+  "optimistic": {
+   "basis": "evaluation-week",
+   "surplusFactor": 1.0,
+   "annualSavingsEur": 29423,
+   "aiSavingsEur": 2753,
+   "co2ReductionT": 22.73,
+   "paybackMonths": 6.1,
+   "paybackStatus": "months",
+   "roiNetEur": 132115
+  }
+ },
+ "scaling": [
+  {
+   "sites": 1,
+   "annualSavingsEur": 29423,
+   "co2ReductionT": 22.73,
+   "implementationEur": 15000
+  },
+  {
+   "sites": 5,
+   "annualSavingsEur": 147115,
+   "co2ReductionT": 113.65,
+   "implementationEur": 75000
+  },
+  {
+   "sites": 10,
+   "annualSavingsEur": 294230,
+   "co2ReductionT": 227.3,
+   "implementationEur": 150000
+  },
+  {
+   "sites": 25,
+   "annualSavingsEur": 735575,
+   "co2ReductionT": 568.25,
+   "implementationEur": 375000
+  }
+ ],
+ "calculator": {
+  "kwhPerEvDay": 40.6,
+  "illustrative": true,
+  "defaults": {
+   "evs": 20,
+   "shiftablePct": 97.6,
+   "priceDiffEurPerKwh": 0.1546,
+   "operatingDays": 260,
+   "implementationEur": 15000,
+   "annualEur": 2400
+  }
+ },
+ "emissions": {
+  "gridIntensityKgPerKwh": 0.25,
+  "status": "estimated",
+  "method": "Grid electricity at an average of 0.25 kg CO2 per kWh. Charging that coincided with observed curtailment is counted as surplus renewable energy with no extra emissions. The reduction compares normal charging with our AI charging on the same vans and nights."
+ },
+ "methodology": [
+  "Each night, 20 simulated vans are charged three ways on identical conditions: the same arrivals, departures and energy needs, 20 x 11 kW chargers and a 180 kW site limit.",
+  "Our AI sees only the GridToEv forecast issued 30 minutes before each half-hour; it never sees later forecasts or what actually happened.",
+  "Grid energy includes charging losses: battery energy / 0.9 efficiency.",
+  "Every plan passes the energy bridge's constraint checker (plug-in hours, charger rate and count, site power).",
+  "Money: illustrative tariff (night EUR 0.16, day EUR 0.26, peak EUR 0.34 per kWh) minus EUR 0.08 per kWh used during observed curtailment.",
+  "Surplus renewable energy: charging that coincided with observed curtailment, capped by that charging. It is not verified that a real site could absorb it (network deliverability).",
+  "Year: the average night x 260 operating days. The surplus part is scaled by how often curtailment happened over a full observed year compared with the evaluation week, so one windy winter week is not taken as typical.",
+  "Conservative and optimistic are the lower and higher of two extremes: no surplus renewable energy all year, or every week as surplus-rich as the evaluation week."
+ ],
+ "limitations": [
+  "Simulation on historical data: the fleet, tariff and costs are examples, not a customer or a supplier quote.",
+  "Forecasts are historical replays of GridToEv, not live predictions; outcomes are observed EirGrid values from the same dataset.",
+  "Whether a real site could absorb curtailed energy depends on its grid location and is not verified.",
+  "Emissions use a flat grid average, not a marginal emission factor per half-hour.",
+  "The three strategies are this page's own week-long simulation; the energy bridge (issue #50) plans one forecast window at a time. Every plan here passes the bridge's constraint checker."
+ ]
+}

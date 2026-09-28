@@ -6,8 +6,9 @@
 .dash-sidebar .brand-name{position:absolute;left:48.5px;top:-3.2px;display:flex;flex-direction:column;white-space:nowrap;font-size:18px;line-height:22.5px;font-weight:600;letter-spacing:0;color:#fff}
 .dash-sidebar .brand-name small{font-size:17px;line-height:22.5px;font-weight:400;letter-spacing:0;color:rgba(255,255,255,.9)}
 .dash-sidebar .brand-name em{margin-top:4.3px;font-size:12px;line-height:14px;font-style:normal;font-weight:600;letter-spacing:.05em;color:rgba(255,255,255,.76)}
-.dash-sidebar .nav{position:absolute;z-index:2;left:16px;right:9px;top:124.4px;display:flex;flex-direction:column;gap:18.7px}
-.dash-sidebar .nav-item{position:relative;display:flex;align-items:center;width:100%;height:57.7px;padding:0 0 0 6px;gap:17.5px;border:0;border-radius:14.5px;background:transparent;color:#e4efeb;font-size:15.6px;font-weight:600;letter-spacing:0;text-align:left;transition:background-color .2s ease,color .2s ease}
+/* Five pages fit the band the original four used (124-411px), so no label sits on the landscape art. */
+.dash-sidebar .nav{position:absolute;z-index:2;left:16px;right:9px;top:124.4px;display:flex;flex-direction:column;gap:9.2px}
+.dash-sidebar .nav-item{position:relative;display:flex;align-items:center;width:100%;height:50px;padding:0 0 0 6px;gap:17.5px;border:0;border-radius:14.5px;background:transparent;color:#e4efeb;font-size:15.6px;font-weight:600;letter-spacing:0;text-align:left;transition:background-color .2s ease,color .2s ease}
 .dash-sidebar .nav-item:hover{background:rgba(255,255,255,.05);color:#fff;transform:none}
 .dash-sidebar .nav-item:focus-visible{outline:2px solid #5ce9ad;outline-offset:2px}
 .dash-sidebar .nav-item.active{background:linear-gradient(90deg,#0a6749 0%,#0b6a4b 27%,#0d7251 43%,#127755 60%,#187758 76%,#227c5e 93%,#278160 100%);color:#fff;font-weight:700;box-shadow:0 8px 18px -8px rgba(0,18,13,.55)}

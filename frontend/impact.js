@@ -321,12 +321,12 @@ function impactCumulative(o,s){
 
 function renderImpact(){
   const subtitle='Turning renewable energy at risk into potential EV-charging benefits.';
-  if(modelState.loading||modelState.error)return studioShell('Impact',subtitle,()=>'');
+  if(modelState.loading||modelState.error)return studioShell('Battery',subtitle,()=>'');
   ensureImpactDay();
   // Cards rise in only when the page (or its first data) arrives; the old page is still in the DOM here.
   const intro=!liveRender&&!document.querySelector('#app .impact-layout');
   if(intro)for(const name in impactDrawn)delete impactDrawn[name];
-  const top=studioHeader('Impact',subtitle);
+  const top=studioHeader('Battery',subtitle);
   const p=selectedPrediction(),o=scenarioOutcome(p),s=modelState.data.scenario;
   return `${impactDefs()}${top}<div class="impact-layout${intro?' is-intro':''}">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${provenance()}`;
 }
