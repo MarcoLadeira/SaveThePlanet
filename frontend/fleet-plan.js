@@ -36,7 +36,7 @@ async function fpLoad() {
     } catch (error) {
         if (request === fpState.request) Object.assign(fpState, { status: 'error', error: error.message || 'The fleet plan could not be calculated.' });
     } finally {
-        if (request === fpState.request && ['charging', 'overview'].includes(pageFromHash())) render();
+        if (request === fpState.request && ['charging', 'overview', 'impact'].includes(pageFromHash())) render();
     }
 }
 

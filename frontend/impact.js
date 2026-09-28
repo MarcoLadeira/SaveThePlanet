@@ -158,12 +158,14 @@ function dayDelta(field){
 }
 function impactStats(o){
   const scope=`+${o.horizonMinutes} min · ${impactLabel().toLowerCase()}`;
-  const note=(field,fallback)=>dayDelta(field)||fallback;
+  // The qualifier always leads, so a day-over-day change never hides what kind of number it is.
+  const note=(kind,field,fallback)=>`<b class="impact-kind">${kind}</b> · ${dayDelta(field)||fallback}`;
+  const factor=n(modelState.data.scenario.assumptions.gridIntensityTco2PerMwh);
   return `<section class="impact-kpis${drawIn('kpis',`${impactDay.status}|${impactDay.key}`)}" aria-label="Selected scenario impact">
-    ${impactKpi('bolt','green','Renewables saved','impactRecovery',note('potentialRecoveryMwh',`${pct(o.recoveryRate)} of energy at risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
-    ${impactKpi('battery','blue','Clean EV charging','impactCharging',note('potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of charging demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
-    ${impactKpi('leaf','green','Est. CO₂ avoided','impactCo2',note('avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
-    ${impactKpi('car','blue','EV driving range','impactRange',note('evRangeKm',`Illustrative · ${scope}`),kpiMicro('evRangeKm',1,'blue'))}
+    ${impactKpi('bolt','green','Absorbable','impactRecovery',note('Upper bound','potentialRecoveryMwh',`${pct(o.recoveryRate)} of energy at risk · ${scope}`),kpiMicro('potentialRecoveryMwh'))}
+    ${impactKpi('battery','blue','EV charging','impactCharging',note('Potential','potentialRecoveryMwh',`${pct(o.cleanChargingShare)} of charging demand · ${scope}`),kpiMicro('potentialRecoveryMwh',1000,'blue'))}
+    ${impactKpi('leaf','green','Est. CO₂','impactCo2',note(`If absorbed · ${factor} t/MWh`,'avoidedEmissionsTco2',scope),kpiMicro('avoidedEmissionsTco2'))}
+    ${impactKpi('car','blue','EV driving range','impactRange',note('Illustrative','evRangeKm',scope),kpiMicro('evRangeKm',1,'blue'))}
   </section>`;
 }
 
@@ -209,12 +211,30 @@ function impactFlow(p,o){
       ${callout('at-battery','blue','bolt','impactFlowCharging','Potential EV charging','potential EV charging')}
       ${callout('at-chargers','blue','car','impactFlowRange','EV range equivalent','EV range equivalent')}
     </div></div>
+    ${impactLadder(p,o)}
     <ol class="flow-steps" aria-label="Energy flow summary">
       <li><span>1</span><b>${n(p.atRiskMwh)} MWh</b> renewables predicted at risk</li>
       <li><span>2</span><b>${n(o.potentialRecoveryMwh)} MWh</b> potentially recoverable</li>
       <li><span>3</span><b>${n(o.potentialRecoveryMwh*1000)} kWh</b> potential EV charging ≈ <b>${n(Math.round(o.evRangeKm))} km</b></li>
     </ol>
   </section>`;
+}
+
+// What kind of number each figure is: predicted by the model, an upper-bound scenario, the
+// simulated fleet plan (fleet-plan.js, the same plan as Dashboard, Charging and Volt), or observed.
+function impactLadder(p,o){
+  const alt=typeof planAlternative==='function'?planAlternative():null;
+  const step=(kind,tone,value,label)=>`<li class="is-${tone}"><small>${kind}</small><b>${value}</b><span>${label}</span></li>`;
+  const plan=alt
+    ?step('Simulated plan','blue',`${n(Math.round(alt.optimized.window.claimedKwh*10)/10)} kWh`,
+      alt.improvement.improved&&alt.improvement.claimedKwh>0?`projected · +${n(Math.round(alt.improvement.claimedKwh*10)/10)} kWh vs charging on arrival`:'projected · same as charging on arrival')
+    :step('Simulated plan','blue','…','fleet plan loading');
+  return `<ol class="impact-ladder" aria-label="What each figure is">
+    ${step('Predicted','amber',`${n(p.atRiskMwh)} MWh`,'renewables at risk (model)')}
+    ${step('Upper bound','green',`${n(o.potentialRecoveryMwh)} MWh`,'if chargers are connected where it happens')}
+    ${plan}
+    ${step('Observed','grey','Not measured','no charging or recovery has been measured')}
+  </ol>`;
 }
 
 // ---------- 3. Impact over time ----------
@@ -282,12 +302,12 @@ function eventDriver(horizon){
   return `<span class="impact-driver ${constraint?'is-constraint':'is-curtailment'}" title="${escapeHtml(`Constraint ${n(p.constraintMwh)} MWh · curtailment ${n(p.curtailmentMwh)} MWh`)}">${icon(constraint?'tower':'turbine',13)}${constraint?'Constraint-led':'Curtailment-led'}</span>`;
 }
 function impactEvents(s){
-  const best=s.recommendedHorizonMinutes;
+  const best=s.recommendedHorizonMinutes,shared=s.recommendationBasis==='most-recent-forecast';
   const rows=s.outcomes.map(o=>{const selected=o.horizonMinutes===modelState.horizon;return `<button type="button" class="impact-event ${selected?'is-selected':''}" data-horizon="${o.horizonMinutes}" aria-pressed="${selected}">
-    <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))} ${eventDriver(o.horizonMinutes)}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?' · <em>Recommended</em>':''}</small></span>
-    <span><small>At risk</small>${n(o.atRiskMwh)} MWh</span><span class="is-green"><small>Recoverable</small>${n(o.potentialRecoveryMwh)} MWh</span><span class="is-blue"><small>EV charging</small>${n(o.potentialRecoveryMwh*1000)} kWh</span><span><small>CO₂ avoided</small>${impactCo2Text(o.avoidedEmissionsTco2)}</span></button>`}).join('');
+    <span class="impact-event-time"><b>${escapeHtml(modelTime(o.targetAt))} ${eventDriver(o.horizonMinutes)}</b><small>+${o.horizonMinutes} min${o.horizonMinutes===best?` · <em>${shared?'Latest':'Recommended'}</em>`:''}</small></span>
+    <span><small>At risk</small>${n(o.atRiskMwh)} MWh</span><span class="is-green"><small>Recoverable</small>${n(o.potentialRecoveryMwh)} MWh</span><span class="is-blue"><small>EV charging</small>${n(o.potentialRecoveryMwh*1000)} kWh</span><span><small>Est. CO₂</small>${impactCo2Text(o.avoidedEmissionsTco2)}</span></button>`}).join('');
   return `<section class="dash-card impact-events" aria-labelledby="impact-events-title">
-    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact per forecast half-hour</h2><p>The +30 and +60 min forecasts share the <b>same</b> flexible demand, so they are alternatives, not added together</p></div></div>
+    <div class="impact-card-head"><div><h2 id="impact-events-title">Impact per forecast half-hour</h2><p>${shared?'Two forecasts of the <b>same</b> half-hour, made 30 and 60 min before it: never added together':'The +30 and +60 min forecasts share the <b>same</b> flexible demand, so they are alternatives, not added together'}</p></div></div>
     <div class="impact-event-list">${rows}</div>
   </section>`;
 }
@@ -328,7 +348,20 @@ function renderImpact(){
   if(intro)for(const name in impactDrawn)delete impactDrawn[name];
   const top=studioHeader('Impact',subtitle);
   const p=selectedPrediction(),o=scenarioOutcome(p),s=modelState.data.scenario;
-  return `${impactDefs()}${top}<div class="impact-layout${intro?' is-intro':''}">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${provenance()}`;
+  if(typeof fpEnsure==='function')fpEnsure();
+  return `${impactDefs()}${top}<div class="impact-layout${intro?' is-intro':''}">${impactStats(o)}${impactFlow(p,o)}${impactOverTime(s)}${impactEvents(s)}${impactCumulative(o,s)}</div>${provenance()}${impactMethod(s)}`;
+}
+
+// How the derived figures are estimated, next to the figures themselves.
+function impactMethod(s){
+  const a=s.assumptions;
+  return `<details class="impact-method"><summary>How these are estimated</summary><ul>
+    <li><b>Absorbable</b> is an upper bound: the smaller of the energy at risk, flexible demand and ${n(modelState.data.flexibleCapacityMw)} MW × 0.5 h. It assumes chargers are connected where and when the dispatch-down happens.</li>
+    <li><b>Est. CO₂</b> = absorbed MWh × ${n(a.gridIntensityTco2PerMwh)} t CO₂/MWh, an approximate Irish grid average for the charging it would replace. Not a marginal emissions factor, not measured and not a verified saving.</li>
+    <li><b>EV driving range</b> = absorbed kWh ÷ ${n(a.evKwhPerKm)} kWh/km, a typical passenger EV. Illustrative, not a count of cars.</li>
+    <li><b>Fleet plan</b> figures come from a simulated fleet with hand-written vehicles and chargers, planned against the forecast. No charger is controlled.</li>
+    <li>Nothing on this page is observed: no charging, recovery or emissions change has been measured.</li>
+  </ul></details>`;
 }
 
 // ---------- interactions ----------
