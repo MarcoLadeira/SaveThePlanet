@@ -65,7 +65,9 @@ appearance and the display toggles remain local preferences.
 - **Charging mix**: share of total demand that could use renewable energy at risk, with
   the EV readings (charge equivalents and minimum concurrent ports) stated separately.
 - **Chargeable energy opportunity**: predicted curtailment per day from the daily model
-  (`/api/v1/explorer/daily/week`); shows "unavailable" when that model cannot be reached.
+  (`/api/v1/explorer/daily/week`), Monday to Sunday. A week picker (arrows and a month calendar) chooses
+  the week; weeks outside the daily model's range (`/api/v1/explorer/daily`) or in the future show a
+  "no data" message, and days without data are marked in the chart.
 - **Best half-hours to charge**: the top five replay-day half-hours ranked by energy at risk
   x event probability, with the energy bar and likelihood for each.
 - **Assumptions** drawer: demand and EV assumptions with field-level validation, plus the

@@ -10,13 +10,49 @@
 const cgDay = { status: 'idle', data: null, key: '', request: 0 };
 const cgWeek = { status: 'idle', data: null, date: '', request: 0, message: '', retried: '' };
 let cgAssumptionsOpen = false;
-let cgWeekMode = 'this';
+// Week picker: chosen Monday (null = week of the replay day), the daily model's date range and the open calendar month.
+let cgWeekMonday = null;
+let cgCalMonth = null;
+const cgRange = { status: 'idle', from: '', to: '' };
 
 // Monday of the week containing day, shifted by offset days (e.g. -7 for last week).
 function cgWeekStart(day, offset = 0) {
     const d = new Date(`${day}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + offset);
     return d.toISOString().slice(0, 10);
+}
+function cgAddDays(day, days) {
+    const d = new Date(`${day}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+function cgToday() {
+    return new Date().toISOString().slice(0, 10);
+}
+function cgSelectedMonday() {
+    return cgWeekMonday || (cgDay.status === 'ready' ? cgWeekStart(cgDay.data.date) : '');
+}
+// Why a week has no data, or '' when at least one of its days is in the daily model's range.
+function cgNoDataReason(monday) {
+    const sunday = cgAddDays(monday, 6), dateText = (d) => cgDayLabel(d).replace(/^\w+, /, '') + ` ${d.slice(0, 4)}`;
+    if (monday > cgToday()) return `No data for this week: it hasn't happened yet.${cgRange.to ? ` The latest data is from ${dateText(cgRange.to)}.` : ''}`;
+    if (cgRange.to && monday > cgRange.to) return `No data for this week yet: the daily model's data ends on ${dateText(cgRange.to)}.`;
+    if (cgRange.from && sunday < cgRange.from) return `No data for this week: the daily model's data starts on ${dateText(cgRange.from)}.`;
+    return '';
+}
+async function cgLoadRange() {
+    cgRange.status = 'loading';
+    try {
+        const response = await fetch('/api/v1/explorer/daily');
+        const body = await response.json();
+        if (!response.ok || !body.dataset?.from) throw new Error();
+        Object.assign(cgRange, { status: 'ready', from: body.dataset.from.slice(0, 10), to: body.dataset.to.slice(0, 10) });
+    } catch {
+        cgRange.status = 'error';
+    } finally {
+        cgWeek.date = '';
+        cgRerender();
+    }
 }
 function cgKey() {
     return [modelState.capacity, modelState.totalDemandKwh, modelState.flexibleDemandKwh].join('|');
@@ -27,8 +63,17 @@ function cgRerender() {
 function cgEnsureData() {
     if (!modelState.data) return;
     if (cgDay.key !== cgKey() && cgDay.status !== 'loading') cgLoadDay();
-    const monday = cgDay.status === 'ready' ? cgWeekStart(cgDay.data.date, cgWeekMode === 'last' ? -7 : 0) : '';
-    if (monday && cgWeek.date !== monday && cgWeek.status !== 'loading') cgLoadWeek(monday);
+    if (cgRange.status === 'idle') cgLoadRange();
+    const monday = cgSelectedMonday();
+    if (!monday || cgWeek.date === monday || cgWeek.status === 'loading') return;
+    const reason = cgNoDataReason(monday);
+    if (reason) {
+        cgWeek.request++;
+        Object.assign(cgWeek, { status: 'nodata', data: null, date: monday, message: reason });
+        return;
+    }
+    // The backend returns seven days starting at the requested date, so ask from the first day in range.
+    cgLoadWeek(monday, cgRange.from && monday < cgRange.from ? cgRange.from : monday);
 }
 async function cgLoadDay() {
     const request = ++cgDay.request;
@@ -47,15 +92,17 @@ async function cgLoadDay() {
         if (request === cgDay.request) cgRerender();
     }
 }
-async function cgLoadWeek(day) {
+async function cgLoadWeek(day, requestDate = day) {
     const request = ++cgWeek.request;
     Object.assign(cgWeek, { status: 'loading', date: day, message: '' });
     try {
-        const response = await fetch(`/api/v1/explorer/daily/week?date=${encodeURIComponent(day)}`);
+        const response = await fetch(`/api/v1/explorer/daily/week?date=${encodeURIComponent(requestDate)}`);
         const body = await response.json();
         if (request !== cgWeek.request) return;
-        if (!response.ok || !Array.isArray(body.days) || !body.days.length) throw new Error(body.error?.message || 'Daily model unavailable.');
-        Object.assign(cgWeek, { status: 'ready', data: body });
+        if (!response.ok || !Array.isArray(body.days)) throw new Error(body.error?.message || 'Daily model unavailable.');
+        // Near the end of the data the backend shifts its window back; keep only the chosen Monday-to-Sunday week.
+        const days = body.days.filter((d) => d.date >= day && d.date <= cgAddDays(day, 6));
+        Object.assign(cgWeek, days.length ? { status: 'ready', data: { ...body, days } } : { status: 'nodata', data: null, message: 'No data for this week in the daily model.' });
     } catch (error) {
         if (request === cgWeek.request) {
             Object.assign(cgWeek, { status: 'error', data: null, message: error.message || 'Daily model unavailable.' });
@@ -191,6 +238,7 @@ dashCharts.cgWeek = {
     draw({ v, days, sel, status, message }) {
         if (!v.length) {
             if (status === 'retrying') return cgChartState('loading', 'The daily model is waking up. Trying again in a few seconds…');
+            if (status === 'nodata') return `<div class="cg-empty cg-nodata" role="status">${icon('calendar', 22)}<b>${escapeHtml(message)}</b><span>Pick another week with the arrows or the calendar.</span></div>`;
             return cgChartState(status, 'Loading the daily model…', `Weekly figures unavailable: ${escapeHtml(message || 'the daily model did not respond.')}<button class="studio-button cg-retry" type="button" data-cg-week-retry>Try again</button>`);
         }
         const w = 540, h = 150, left = 50, bottom = 24, top = 16, { top: max, ticks } = cgAxis(Math.max(...v));
@@ -202,7 +250,8 @@ dashCharts.cgWeek = {
             const bx = left + slot * slotIndex + (slot - bw) / 2, top2 = y(val);
             return `<rect class="cg-bar${days[i] === sel ? ' is-sel' : ''}" x="${bx.toFixed(1)}" y="${top2.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h - bottom - top2).toFixed(1)}" rx="7"/>`;
         }).join('');
-        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => `<text class="cg-bar-label" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle">${d}</text>`).join('');
+        const filled = new Set(days.map((d) => (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
+        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => `<text class="cg-bar-label" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - 7}" text-anchor="middle">${d}</text>${filled.has(i) ? '' : `<text class="cg-bar-nodata" x="${(left + slot * i + slot / 2).toFixed(1)}" y="${h - bottom - 6}" text-anchor="middle">no data</text>`}`).join('');
         return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MWh</text>${bars}${labels}</svg>`;
     },
 };
@@ -246,10 +295,28 @@ function cgMixCard() {
         <div class="cg-ev"><strong>In EV terms</strong><p><b>≈ ${n(Math.round(o.evChargesEquivalent * 10) / 10)}</b> × ${n(ev.kwhPerCharge)} kWh charges' worth of energy <small>(a comparison, not a count of cars)</small></p>
             <p><b>≥ ${n(o.minConcurrentPorts)}</b> × ${n(ev.chargerKw)} kW chargers running at once <small>(≤ ${n(o.portKwhLimit)} kWh each in 30 min, if enough EVs are plugged in)</small></p></div></section>`;
 }
+function cgWeekPicker() {
+    const monday = cgSelectedMonday();
+    if (!monday) return '';
+    const sunday = cgAddDays(monday, 6), short = (d) => cgDayLabel(d).replace(/^\w+, /, '');
+    const label = monday.slice(0, 7) === sunday.slice(0, 7) ? `${Number(monday.slice(8))} – ${short(sunday)} ${sunday.slice(0, 4)}` : `${short(monday)} – ${short(sunday)} ${sunday.slice(0, 4)}`;
+    return `<div class="cg-weekpick"><button type="button" class="cg-weekpick-step" data-cg-week-step="-7" aria-label="Previous week">‹</button><button type="button" class="cg-weekpick-label" data-cg-cal-toggle aria-expanded="${cgCalMonth ? 'true' : 'false'}" aria-haspopup="dialog" aria-label="${escapeHtml(`Week of ${label}. Choose a week`)}">${icon('calendar', 16)} ${escapeHtml(label)}</button><button type="button" class="cg-weekpick-step" data-cg-week-step="7" aria-label="Next week">›</button>${cgCalMonth ? cgCalendar(monday) : ''}</div>`;
+}
+// Month calendar where each row is a Monday-to-Sunday week; clicking a row picks that week.
+function cgCalendar(selected) {
+    const first = `${cgCalMonth}-01`, monthEnd = cgAddDays(`${cgAddDays(first, 32).slice(0, 7)}-01`, -1);
+    const title = new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${first}T00:00:00Z`));
+    const rows = [];
+    for (let monday = cgWeekStart(first); monday <= monthEnd; monday = cgAddDays(monday, 7)) {
+        const days = Array.from({ length: 7 }, (_, i) => cgAddDays(monday, i));
+        const empty = !!cgNoDataReason(monday);
+        rows.push(`<button type="button" class="cg-cal-week${monday === selected ? ' is-selected' : ''}${empty ? ' is-empty' : ''}" data-cg-week="${monday}" title="${empty ? 'No data for this week' : 'Show this week'}">${days.map((d) => `<span class="${d.slice(0, 7) === cgCalMonth ? '' : 'is-out'}">${Number(d.slice(8))}</span>`).join('')}</button>`);
+    }
+    const range = cgRange.status === 'ready' ? `<small>Data: ${escapeHtml(cgDayLabel(cgRange.from).replace(/^\w+, /, ''))} ${cgRange.from.slice(0, 4)} – ${escapeHtml(cgDayLabel(cgRange.to).replace(/^\w+, /, ''))} ${cgRange.to.slice(0, 4)}</small>` : '';
+    return `<div class="cg-cal" role="dialog" aria-label="Choose a week"><div class="cg-cal-head"><button type="button" data-cg-cal-month="-1" aria-label="Previous month">‹</button><b>${escapeHtml(title)}</b><button type="button" data-cg-cal-month="1" aria-label="Next month">›</button></div><div class="cg-cal-days">${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((d) => `<span>${d}</span>`).join('')}</div>${rows.join('')}${range}</div>`;
+}
 function cgWeekCard() {
-    const range = cgWeek.status === 'ready' ? (() => { const d = [...cgWeek.data.days].sort((a, b) => a.date.localeCompare(b.date)); return ` · ${escapeHtml(cgDayLabel(d[0].date).replace(/^\w+, /, ''))} – ${escapeHtml(cgDayLabel(d.at(-1).date).replace(/^\w+, /, ''))}`; })() : '';
-    const select = `<label class="cg-select"><span class="sr-only">Week</span><select id="cg-week-select"><option value="this"${cgWeekMode === 'this' ? ' selected' : ''}>This week</option><option value="last"${cgWeekMode === 'last' ? ' selected' : ''}>Last week</option></select></label>`;
-    return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', `Daily model · predicted curtailment${range}`, select)}${chartSlot('cgWeek', 'Predicted curtailment for each day of the week, Monday to Sunday', 'cg-chart')}</section>`;
+    return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', 'Daily model · predicted curtailment per day', cgWeekPicker())}${chartSlot('cgWeek', 'Predicted curtailment for each day of the chosen week, Monday to Sunday', 'cg-chart')}</section>`;
 }
 function cgBestCard() {
     const sub = cgDay.status === 'ready' ? `Replay day ${escapeHtml(cgDayLabel(cgDay.data.date))} · bar = energy at risk · ranked by energy × likelihood` : 'Replay day · bar = energy at risk · ranked by energy × likelihood';
@@ -355,10 +422,28 @@ window.addEventListener('submit', (event) => {
     loadModelForecast();
 }, true);
 
-document.addEventListener('change', (event) => {
-    if (event.target.id !== 'cg-week-select') return;
-    cgWeekMode = event.target.value === 'last' ? 'last' : 'this';
+document.addEventListener('click', (event) => {
+    const step = event.target.closest('[data-cg-week-step]'), toggle = event.target.closest('[data-cg-cal-toggle]');
+    const month = event.target.closest('[data-cg-cal-month]'), week = event.target.closest('[data-cg-week]');
+    if (step) {
+        cgWeekMonday = cgAddDays(cgSelectedMonday(), Number(step.dataset.cgWeekStep));
+        cgCalMonth = null;
+    } else if (toggle) {
+        cgCalMonth = cgCalMonth ? null : cgSelectedMonday().slice(0, 7);
+    } else if (month) {
+        cgCalMonth = cgAddDays(`${cgAddDays(`${cgCalMonth}-15`, Number(month.dataset.cgCalMonth) * 30).slice(0, 7)}-01`, 0).slice(0, 7);
+    } else if (week) {
+        cgWeekMonday = week.dataset.cgWeek;
+        cgCalMonth = null;
+    } else if (cgCalMonth && !event.target.closest('.cg-cal')) {
+        cgCalMonth = null;
+    } else {
+        return;
+    }
     render();
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && cgCalMonth) { cgCalMonth = null; render(); }
 });
 
 document.addEventListener('click', (event) => {
