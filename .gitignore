@@ -14,6 +14,7 @@ coverage/
 .pnpm-store/
 
 # Python
+backend/.cache/
 __pycache__/
 *.py[cod]
 .venv/

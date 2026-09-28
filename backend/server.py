@@ -474,8 +474,8 @@ def dashboard_target(value):
 
 
 def keep_model_warm():
-    """Wake the hosted model at startup, build the high-MWh target shortlist, cache a first
-    random-target forecast and its day replay, then ping the model so it never sleeps mid-demo."""
+    """Wake the hosted model at startup, cache a first forecast and its day replay, start the
+    background prediction index used to mix risk levels, then ping the model so it never sleeps."""
     try:
         model_request('/health', timeout=60)
         targets.dataset_targets()  # the population the dashboard's target is sampled from
@@ -483,6 +483,7 @@ def keep_model_warm():
         fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0, prefetch=True)
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
+    targets.start_index_build()  # ~30 day replays at prefetch priority, or loaded from disk
     while True:
         time.sleep(KEEP_WARM_SECONDS)
         try:
@@ -502,6 +503,7 @@ def health(probe=True):
                  apiKeyConfigured=bool(os.environ.get('GRID_TO_EV_API_KEY')), timeoutSeconds=TIMEOUT)
     mode = {'up': 'live', 'down': 'fallback'}.get(model['state'], 'unknown')
     return dict(status='ok' if mode == 'live' else 'degraded', checkedAt=datetime.now(timezone.utc).isoformat(),
+                targetIndex=targets.index_status(),
                 backend={'status': 'ok'}, mode=mode, fallbackAvailable=True, model=model)
 
 
