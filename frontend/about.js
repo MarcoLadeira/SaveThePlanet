@@ -2,7 +2,7 @@
 // The model formulas come from GridToEV's /fitted-formulas and /formulas endpoints (via
 // /api/v1/explorer/formulas), the accuracy figures from the live model information, and the
 // EV example from /api/v1/about/example (backend/scenario.py), so no number here is typed by hand.
-const aboutState = { formulas: null, formulasError: '', example: null, exampleError: '', model: null, loading: false };
+const aboutState = { open: new Set(), formulas: null, formulasError: '', example: null, exampleError: '', model: null, loading: false };
 const ABOUT_LINKS = {
   gridtoev: 'https://github.com/Carlson29/GridToEv',
   howItWorks: 'https://github.com/Carlson29/GridToEv/blob/main/docs/HOW_IT_WORKS.md',
@@ -42,9 +42,18 @@ const aboutSub = (n) => String(n).replace(/\d/g, (d) => '₀₁₂₃₄₅₆�
 const aboutTrees = (e) => `tree${aboutSub(1)} + … + tree${aboutSub(e.trees)}`;
 const aboutStart = (e) => (Math.abs(e.start) < 0.005 ? '0' : aboutNum(e.start, 2));
 
-// One formula: what it answers, the formula itself, and what it means in everyday words.
+// A dropdown that stays open across the page's re-render once its data arrives.
+function aboutDetails(key, cls, summary, body) {
+  return `<details class="about-drop ${cls}" data-about-key="${key}"${aboutState.open.has(key) ? ' open' : ''}><summary>${summary}</summary><div class="about-drop-body">${body}</div></details>`;
+}
+document.addEventListener('toggle', (event) => {
+  const key = event.target.dataset?.aboutKey;
+  if (key) aboutState.open[event.target.open ? 'add' : 'delete'](key);
+}, true);
+
+// One formula, collapsed to its question: open it for the formula and what it means in everyday words.
 function aboutFormula(title, formula, meaning) {
-  return `<li class="about-f"><h4>${title}</h4><p class="about-eq" role="math">${formula}</p><p>${meaning}</p></li>`;
+  return `<li>${aboutDetails(`f:${title}`, 'about-f', title, `<p class="about-eq" role="math">${formula}</p><p>${meaning}</p>`)}</li>`;
 }
 
 // What the pages are showing right now: never call a historical replay "live".
@@ -56,8 +65,8 @@ function aboutDataStatus() {
 }
 
 function aboutExact(model) {
-  return `<details class="about-exact"><summary>Exact formulas from the API</summary>
-    <ul>${model.estimators.map((e) => `<li><b>${escapeHtml(e.id)}</b><code>${escapeHtml(e.formula)}</code></li>`).join('')}</ul></details>`;
+  return aboutDetails(`exact:${model.version}`, 'about-exact', 'Exact formulas from the API',
+    `<ul>${model.estimators.map((e) => `<li><b>${escapeHtml(e.id)}</b><code>${escapeHtml(e.formula)}</code></li>`).join('')}</ul>`);
 }
 
 function aboutPending() {
@@ -66,7 +75,7 @@ function aboutPending() {
 
 function aboutShortTermModel() {
   const m = aboutState.formulas?.shortTerm;
-  const head = `<header><h3>Half-hour forecast</h3><span class="about-tag">V1${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
+  const head = `<header><h3>Half-hour forecast model</h3><span class="about-tag">V1${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
   if (!m) return `<article class="dash-card about-model">${head}${aboutPending()}</article>`;
   const e = Object.fromEntries(m.estimators.map((item) => [item.id, item]));
   const p = m.parameters, alpha = p.dispatch_trend_alpha_by_horizon || {}, risk = p.risk_level_cutoffs || {};
@@ -90,18 +99,18 @@ function aboutShortTermModel() {
         `low = latest + (${aboutStart(e.dispatch_down_quantile_p10)} + ${aboutTrees(e.dispatch_down_quantile_p10)}) − ${aboutNum(widen, 2)}<br>high = latest + (${aboutStart(e.dispatch_down_quantile_p90)} + ${aboutTrees(e.dispatch_down_quantile_p90)}) + ${aboutNum(widen, 2)}`,
         `Two tree models predict a cautious and a generous change from the latest half-hour. Each end is pushed out by ${aboutNum(widen, 2)} MWh, so the range should hold the real value about 8 times in 10.`)}
     </ol>
-    ${t ? `<p class="about-note"><b>Accuracy:</b> on ${aboutNum(t.rows, 0)} half-hours it never trained on, it was off by ${t.maeMwh.toFixed(1)} MWh on average, against ${t.latestObservationMaeMwh.toFixed(1)} MWh for simply repeating the last half-hour. The range held the real value ${aboutPct(t.intervalCoverage)} of the time (target 80%). ${aboutLink(ABOUT_LINKS.howItWorks, 'How it was tested')}</p>` : ''}
+    ${t ? aboutDetails('accuracy', 'about-f', 'How accurate is it?', `<p>On ${aboutNum(t.rows, 0)} half-hours it never trained on, it was off by ${t.maeMwh.toFixed(1)} MWh on average, against ${t.latestObservationMaeMwh.toFixed(1)} MWh for simply repeating the last half-hour. The range held the real value ${aboutPct(t.intervalCoverage)} of the time (target 80%). ${aboutLink(ABOUT_LINKS.howItWorks, 'How it was tested')}</p>`) : ''}
     ${aboutExact(m)}
   </article>`;
 }
 
 function aboutDailyModel() {
   const m = aboutState.formulas?.daily;
-  const head = `<header><h3>Daily forecast</h3><span class="about-tag">V2${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
+  const head = `<header><h3>Daily forecast model</h3><span class="about-tag">V2${m ? ` · ${escapeHtml(m.version)}` : ''}</span></header>`;
   if (!m) return `<article class="dash-card about-model">${head}${aboutPending()}</article>`;
   const e = Object.fromEntries(m.estimators.map((item) => [item.id, item]));
   return `<article class="dash-card about-model">${head}
-    <p class="about-predicts"><b>Predicts:</b> the <b>total curtailment (MWh) over a whole day</b> (midnight to midnight UTC), from the day-ahead weather forecast. It reads ${m.inputs} inputs: wind, sunshine and temperature in four regions of Ireland, plus the time of year and whether it is a weekend.</p>
+    <p class="about-predicts"><b>Predicts:</b> the <b>total curtailment (MWh) over a whole day</b> (midnight to midnight UTC), from the day-ahead weather forecast. It reads ${m.inputs} inputs: wind, sunshine and temperature in four regions of Ireland, plus the time of year and whether it is a weekend. <i>Experimental:</i> curtailment only, with no likely range.</p>
     <ol class="about-fs">
       ${aboutFormula('1 · Chance of curtailment that day',
         `chance = sigmoid(${aboutStart(e.event_model)} + ${aboutTrees(e.event_model)})`,
@@ -113,7 +122,6 @@ function aboutDailyModel() {
         'predicted = chance × amount',
         '<i>Example:</i> a 60% chance of a 200 MWh day gives 0.6 × 200 = <b>120 MWh</b>. An unlikely day gives a small number, even if it could have been a big one.')}
     </ol>
-    <p class="about-note">This model is experimental. It covers curtailment only (no constraints) and gives no likely range.</p>
     ${aboutExact(m)}
   </article>`;
 }
@@ -124,12 +132,12 @@ function aboutEvSection() {
   const worked = e ? (() => {
     const i = e.inputs, s = e.steps;
     const limit = s.potentialRecoveryMwh === s.flexibleDemandMwh ? 'the charging that can wait' : s.potentialRecoveryMwh === s.capacityEnergyMwh ? 'the chargers’ capacity' : 'the spare power itself';
-    return `<p class="about-worked"><b>Worked example</b> <small>(made-up numbers)</small><br>
+    return `<li>${aboutDetails('worked', 'about-f about-worked', 'Worked example', `<p><small>Made-up numbers.</small><br>
       ${aboutNum(i.curtailmentMwh)} + ${aboutNum(i.constraintMwh)} = <b>${aboutNum(s.atRiskMwh)} MWh</b> at risk →
       min(${aboutNum(s.atRiskMwh)}, ${aboutNum(i.flexibleDemandKwh, 0)} ÷ 1,000, ${aboutNum(i.flexibleCapacityMw, 0)} × 0.5) = <b>${aboutNum(s.potentialRecoveryMwh)} MWh</b> →
       <b>${aboutNum(s.potentialKwh, 0)} kWh</b> → ${aboutNum(s.potentialKwh, 0)} ÷ ${aboutNum(perCharge, 0)} ≈ <b>${aboutNum(s.chargingSessionsEquivalent)} charges</b>.
-      Here the limit is ${limit}, so ${aboutNum(s.remainingAtRiskMwh)} MWh would still be wasted.</p>`;
-  })() : `<p class="about-note">${aboutState.exampleError ? `The worked example is unavailable (${escapeHtml(aboutState.exampleError)}).` : 'Loading the worked example…'}</p>`;
+      Here the limit is ${limit}, so ${aboutNum(s.remainingAtRiskMwh)} MWh would still be wasted.</p>`)}</li>`;
+  })() : `<li><p class="about-note">${aboutState.exampleError ? `The worked example is unavailable (${escapeHtml(aboutState.exampleError)}).` : 'Loading the worked example…'}</p></li>`;
   return `<section class="dash-card about-ev" aria-labelledby="about-ev-title">
     <h2 id="about-ev-title">From forecast to EV charging <small>(our app’s own maths, using the half-hour forecast)</small></h2>
     <ol class="about-fs about-fs-row">
@@ -139,39 +147,35 @@ function aboutEvSection() {
         '“min” means the smallest of the three wins: the spare power, the charging that can wait, or what the chargers can draw in half an hour. It is an <b>upper limit</b>, not energy actually saved.')}
       ${aboutFormula('In charging terms', `kWh = MWh × 1,000<br>charges = kWh ÷ ${aboutNum(perCharge, 0)}`,
         `One charge is a typical ${aboutNum(perCharge, 0)} kWh top-up, with no energy lost. It compares amounts of energy. It is <b>not</b> a count of real cars booked in; a charging scheduler is ${aboutLink(ABOUT_LINKS.optimiser, 'still being built')}.`)}
+      ${worked}
     </ol>
-    ${worked}
   </section>`;
 }
 
 function aboutSources() {
   const a = aboutState.example?.assumptions;
-  return `<details class="about-assumptions">
-    <summary>Data sources &amp; assumptions</summary>
+  return aboutDetails('sources', 'about-assumptions', 'Data sources &amp; assumptions', `
     <p><b>Data (historical, January 2026, not live):</b> ${aboutLink(ABOUT_LINKS.eirgridSystem, 'EirGrid system data')} (every 15 min) · ${aboutLink(ABOUT_LINKS.eirgridDispatchDown, 'EirGrid dispatch-down report')} (every 30 min) · ENTSO-E samples via Hack the Climate: ${aboutLink(ABOUT_LINKS.generation, 'generation')}, ${aboutLink(ABOUT_LINKS.load, 'demand')}, ${aboutLink(ABOUT_LINKS.prices, 'prices')}.</p>
     <p><b>How it reaches you:</b> our server asks the ${aboutLink(ABOUT_LINKS.gridtoev, 'GridToEV')} model (${aboutLink(ABOUT_LINKS.apiDocs, 'API docs')}); its access key never leaves our server.</p>
     ${a ? `<p><b>Estimates on other pages:</b> CO₂ avoided = usable MWh × ${aboutNum(a.gridIntensityTco2PerMwh, 2)} t per MWh (a rough Irish grid average) · driving range = kWh ÷ ${aboutNum(a.evKwhPerKm, 2)} kWh per km · chargers are ${aboutNum(a.chargerKw, 0)} kW.</p>` : ''}
-    <p><b>Limits:</b> the models learned from about one month of data, and the half-hour model’s test days had no curtailment. Every figure is a projection. Our calculations: ${aboutLink(ABOUT_LINKS.scenario, 'backend/scenario.py')}.</p>
-  </details>`;
+    <p><b>Limits:</b> the models learned from about one month of data, and the half-hour model’s test days had no curtailment. Every figure is a projection. Our calculations: ${aboutLink(ABOUT_LINKS.scenario, 'backend/scenario.py')}.</p>`);
 }
 
 function renderAbout() {
   queueMicrotask(aboutLoad);
-  return `${studioHeader('About', 'How SaveThePlanet works.')}
+  const back = `<button type="button" class="about-back" data-page="settings">${icon('arrow', 16, 'about-back-icon')}Back to Settings</button>`;
+  return `${studioHeader('About', 'How SaveThePlanet works.', back)}
   <div class="about-page">
-    <button type="button" class="about-back" data-page="settings">${icon('arrow', 16, 'about-back-icon')}Back to Settings</button>
     <section class="dash-card about-intro">
       <p><b>SaveThePlanet</b> predicts when Ireland’s grid will have to <b>switch off</b> wind and solar power it can’t use, and works out how much of it electric cars could charge with instead.</p>
-      <dl class="about-words">
+      <div class="about-intro-row">${aboutDetails('words', 'about-f about-glossary', 'Words used on this page', `<dl class="about-words">
         <div><dt>MWh</dt><dd>an amount of energy. 1 MWh = 1,000 kWh, about 33 car top-ups.</dd></div>
         <div><dt>Curtailment</dt><dd>too much green power on the whole island, so some is switched off.</dd></div>
         <div><dt>Constraints</dt><dd>one part of the network is full, like a jammed road, so local power can’t get out.</dd></div>
         <div><dt>Decision tree</dt><dd>a flowchart of yes/no questions (“Is wind above 2,000 MW?”) ending in a number. The models add up many of them.</dd></div>
-      </dl>
-      ${aboutDataStatus()}
+      </dl>`)}${aboutDataStatus()}</div>
     </section>
-    <h2 class="about-section-title">The two forecasting models</h2>
-    <div class="about-models">${aboutShortTermModel()}${aboutDailyModel()}</div>
+    <div class="about-models" role="group" aria-label="The two forecasting models">${aboutShortTermModel()}${aboutDailyModel()}</div>
     ${aboutEvSection()}
     ${aboutSources()}
   </div>`;
