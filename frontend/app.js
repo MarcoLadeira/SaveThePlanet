@@ -28,7 +28,7 @@ const navGlyphs={
   settings:'<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M14 3.4 15 3.7 15.8 4.9 16.4 6.2 17 6.7 17.8 6.8 19.1 6.3 20.6 6 21.5 6.5 22 7.4 21.7 8.9 21.2 10.2 21.3 11 21.8 11.6 23.1 12.2 24.3 13 24.6 14 24.3 15 23.1 15.8 21.8 16.4 21.3 17 21.2 17.8 21.7 19.1 22 20.6 21.5 21.5 20.6 22 19.1 21.7 17.8 21.2 17 21.3 16.4 21.8 15.8 23.1 15 24.3 14 24.6 13 24.3 12.2 23.1 11.6 21.8 11 21.3 10.2 21.2 8.9 21.7 7.4 22 6.5 21.5 6 20.6 6.3 19.1 6.8 17.8 6.7 17 6.2 16.4 4.9 15.8 3.7 15 3.4 14 3.7 13 4.9 12.2 6.2 11.6 6.7 11 6.8 10.2 6.3 8.9 6 7.4 6.5 6.5 7.4 6 8.9 6.3 10.2 6.8 11 6.7 11.6 6.2 12.2 4.9 13 3.7Z"/><circle cx="14" cy="14" r="2.2"/></svg>'
 };
 function navItem(key,label,glyph,page){const active=page===key;return `<button class="nav-item ${active?'active':''}" type="button" data-page="${key}" ${active?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${navGlyphs[glyph]}</span><span>${label}</span></button>`}
-const navItems=[['overview','Dashboard','home'],['forecast','Forecast','forecast'],['charging','Charging','car'],['impact','Impact','leaf']];
+const navItems=[['overview','Dashboard','home'],['forecast','Forecast','forecast'],['impact','Battery','leaf'],['charging','EV','car']];
 const defaults={timezone:'Europe/Dublin',uncertainty:true,cause:true,explanations:true};
 let settings={...defaults};
 try{settings={...defaults,...JSON.parse(localStorage.getItem('planner-preferences')||'{}')}}catch{}
@@ -157,7 +157,7 @@ function render(){
   // compositing layers (which renders text slightly differently from a fresh load).
   if(entering)setTimeout(()=>main.classList.remove('is-entering'),PAGE_ENTER_MS-since);
   chartsRestore(app,charts);
-  document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
+  document.title=`${{overview:'Dashboard',impact:'Battery',charging:'EV'}[page]||page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
   moveNavPill(page,changed?'glide':'keep');
   chartsSync(app);

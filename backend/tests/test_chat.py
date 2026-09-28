@@ -171,6 +171,85 @@ class FallbackTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'CHAT_NOT_CONFIGURED')
 
 
+def plan_for(preset='depot-and-retail', f=None):
+    import fleet as fleets
+    import optimizer
+    return optimizer.optimize(fleets.preset(preset), f or forecast(), 'expected', preset)
+
+
+def fleet_ask(question, parsed=None, preset='depot-and-retail', plan=True):
+    f = forecast()
+    fleet_facts = chat.build_facts(f, build_scenario(f, 1000, 500), 30, plan_for(preset, f) if plan else None)
+    return chat.assemble(parsed, question, 'charging', fleet_facts)
+
+
+class FleetPlanTests(unittest.TestCase):
+    def test_classifier_routes_fleet_questions(self):
+        for question in ('Why this charging window?', "Why can't all the energy be used?", 'Which deadline is limiting us?',
+                         'What did the optimizer change?', 'How many vehicles are fully charged?'):
+            with self.subTest(question=question):
+                self.assertEqual(chat.local_intent(question, 'charging'), 'fleet_plan')
+        self.assertEqual(chat.local_intent('How much could EV charging recover?', 'overview'), 'recovery')
+
+    def test_card_uses_the_optimizer_plan(self):
+        f = forecast()
+        plan = plan_for('depot-and-retail', f)
+        alt = plan['alternatives'][0]
+        reply = fleet_ask('Why this charging window?')
+        card = reply['card']
+        self.assertEqual(card['title'], 'Simulated fleet plan')
+        ledger = alt['optimized']['ledger']
+        self.assertEqual([r['value'] for r in card['rows']],
+                         [round(alt['optimized']['window']['claimedKwh'], 1), round(ledger['batteryDeliveredKwh'], 1),
+                          round(ledger['unallocatedOpportunityKwh'], 1), round(alt['baseline']['window']['claimedKwh'], 1),
+                          round(alt['optimized']['unmetKwh'], 1)])
+        self.assertIn('no charger is controlled', card['note'])
+        self.assertEqual((reply['intent'], reply['navigate']), ('fleet_plan', 'charging'))
+
+    def test_answers_three_questions_without_the_model(self):
+        why = fleet_ask('Why this charging window?')
+        self.assertEqual(why['source'], 'standard')
+        self.assertIn('most recent (+30 min) forecast puts 350 kWh of renewable energy at risk', why['text'])
+        self.assertIn('kWh of simulated fleet charging into it', why['text'])
+        limit = fleet_ask("Why can't all the energy be used?")
+        self.assertIn('The simulated fleet can take', limit['text'])
+        self.assertIn('site limit', limit['text'])
+        met = fleet_ask('Which deadline is limiting us?')
+        self.assertIn('No simulated vehicle misses its deadline', met['text'])
+        missed = fleet_ask('Which deadline is limiting us?', preset='constrained-site')
+        self.assertRegex(missed['text'], r'^EV-A\d+ ')  # a vehicle from the plan, with the optimizer's reason
+        self.assertIn('other vehicles also fall short', missed['text'])
+        self.assertIn('First missed deadline', [m['label'] for m in missed['card']['meta']])
+
+    def test_follow_up_never_repeats_the_question(self):
+        for question in chat.FLEET_FOLLOW_UPS:
+            with self.subTest(question=question):
+                reply = fleet_ask(question, {'intent': 'fleet_plan', 'text': 'ok.', 'followUp': question})
+                self.assertNotEqual(reply['followUp'], question)
+        self.assertNotEqual(fleet_ask('Which deadline is limiting us?')['followUp'], 'Which deadline is limiting us?')
+
+    def test_no_plan_fails_safely(self):
+        reply = fleet_ask('Which deadline is limiting us?', plan=False)
+        self.assertEqual(reply['text'], chat.STANDARD_TEXT['fleet_plan'])
+        self.assertIsNone(reply['card'])
+
+    def test_model_cannot_claim_control_or_invent_figures(self):
+        for text in ['I have scheduled the chargers for you.', 'EV-01 is now charging.', 'The fleet can take 999.5 kWh.']:
+            with self.subTest(text=text):
+                reply = fleet_ask('Why this charging window?', {'intent': 'fleet_plan', 'text': text})
+                self.assertEqual(reply['source'], 'standard')
+        ok = fleet_ask('Why this charging window?', {'intent': 'fleet_plan', 'text': 'The window is limited by site power.'})
+        self.assertEqual(ok['source'], 'ai')
+
+    def test_fleet_selectors_are_validated(self):
+        _, _, _, selectors = chat.validate_request({'messages': [{'role': 'user', 'text': 'x'}],
+                                                    'fleetPreset': 'constrained-site', 'uncertainty': 'conservative'})
+        self.assertEqual((selectors['fleetPreset'], selectors['uncertainty']), ('constrained-site', 'conservative'))
+        _, _, _, selectors = chat.validate_request({'messages': [{'role': 'user', 'text': 'x'}],
+                                                    'fleetPreset': '../etc', 'uncertainty': 'wild'})
+        self.assertEqual((selectors['fleetPreset'], selectors['uncertainty']), ('depot-and-retail', 'expected'))
+
+
 class RouteTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -202,6 +281,19 @@ class RouteTests(unittest.TestCase):
         rows = body['reply']['card']['rows']
         self.assertEqual([r['value'] for r in rows], [0.3, 0.8])
         self.assertEqual(body['reply']['provenance']['mode'], 'simulated')
+
+    def test_fleet_question_uses_the_server_plan(self):
+        server.forecast_cache.clear()
+        with patch('server.fetch_forecast', side_effect=URLError('down')), \
+                patch('server.demo_payload', lambda capacity, now=None: demo_payload(capacity)), \
+                patch.object(chat, 'ask_gemini', side_effect=URLError('down')):
+            status, body = self.post({'messages': [{'role': 'user', 'text': 'Which deadline is limiting us?'}],
+                                      'fleetPreset': 'constrained-site', 'fleetPlan': {'plannedKwh': 999}})
+        self.assertEqual(status, 200)
+        reply = body['reply']
+        self.assertEqual(reply['intent'], 'fleet_plan')
+        self.assertRegex(reply['text'], r'^EV-A\d+ ')
+        self.assertNotIn(999, [r['value'] for r in reply['card']['rows']])
 
     def test_invalid_demand_is_rejected(self):
         status, body = self.post({'messages': [{'role': 'user', 'text': 'hi'}], 'totalDemandKwh': 10, 'flexibleDemandKwh': 20})
