@@ -34,7 +34,11 @@ function load(horizon = 30, alternatives = [alternative(30), alternative(60, { a
     n: (value) => String(Math.round(value * 100) / 100),
     escapeHtml: String,
     modelTime: (value) => new Date(value).toISOString().slice(11, 16),
-    document: { addEventListener() {} },
+    // Browser pieces bridge.js wires up at load (energy ribbons); the charts under test do not need them.
+    document: { addEventListener() {}, getElementById: () => null, querySelector: () => null },
+    window: { addEventListener() {} },
+    MutationObserver: class { observe() {} },
+    requestAnimationFrame: () => 0,
     icon: (name) => `<svg data-icon="${name}"></svg>`,
     console,
   });
