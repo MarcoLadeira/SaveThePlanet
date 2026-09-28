@@ -208,6 +208,8 @@ def window_limits(plan, slot, pools, claimed):
     """What stopped each site charging more inside the forecast window."""
     if not 0 <= slot < plan.slots:
         return [dict(site=None, code='outside-plan', message='No vehicle is plugged in during the forecast window.')]
+    if pools is not None and sum(pools.values()) <= 1e-6:
+        return [dict(site=None, code='no-forecast', message='No renewable energy is forecast at risk in this window.')]
     if pools and sum(pools.values()) - sum(claimed.values()) <= 1e-6:
         return [dict(site=None, code='forecast-window', message='The fleet can take all the eligible forecast energy.')]
     limits = []

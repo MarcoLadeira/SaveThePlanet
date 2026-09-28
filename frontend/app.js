@@ -45,7 +45,8 @@ function fitDesktop(){
   let scale=Math.min(1,innerWidth/1440,innerHeight/900);
   for(let i=0;i<3;i++){
     shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
-    const needed=Math.max(900,main.scrollHeight);
+    // Charging scrolls (it carries the fleet plan) instead of shrinking to fit one screen.
+    const needed=main.dataset.currentPage==='charging'?900:Math.max(900,main.scrollHeight);
     scale=Math.min(scale,innerHeight/needed);
   }
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;

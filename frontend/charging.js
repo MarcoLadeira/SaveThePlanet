@@ -469,7 +469,7 @@ function cgPage() {
         cgEnsureData();
         const d = modelState.data;
         const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Charging on renewables = min(renewable energy at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
-        return `${cgDefs()}${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}</div>${foot}`;
+        return `${cgDefs()}${cgKpis()}${fpSection()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}</div>${foot}`;
     }
 }
 

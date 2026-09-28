@@ -166,6 +166,7 @@ class EdgeCaseTests(unittest.TestCase):
         alternative = result['alternatives'][0]
         self.assertEqual(alternative['optimized']['window']['claimedKwh'], 0)
         self.assertIsNone(alternative['improvement']['windowShareOfOpportunity'])
+        self.assertEqual(alternative['optimized']['window']['limitedBy'][0]['code'], 'no-forecast')
         self.assertTrue(alternative['optimized']['vehicles'][0]['met'])  # still charged, just not claimed
 
     def test_zero_requirement_and_zero_chargers(self):
