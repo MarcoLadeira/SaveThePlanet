@@ -55,7 +55,8 @@
 /* Cards and rows */
 [data-current-page="charging"] .cg-row{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(320px,.85fr);gap:14px;flex:1.25;min-height:0}
 [data-current-page="charging"] .cg-row.is-bottom{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);flex:1}
-[data-current-page="charging"] .cg-row.is-bottom .cg-rank li{grid-template-columns:22px 44px minmax(0,1fr) 66px 62px 44px;gap:6px;padding:3px 6px;font-size:12.5px}
+[data-current-page="charging"] .cg-row.is-bottom .cg-rank li{grid-template-columns:22px 52px minmax(0,1fr) 62px 62px 42px;gap:5px;padding:3px 6px;font-size:12.5px}
+[data-current-page="charging"] .cg-row.is-bottom .cg-rank-time{font-size:14px}
 [data-current-page="charging"] .cg-card{gap:10px;padding:18px 20px;border-radius:22px;min-height:0}
 [data-current-page="charging"] .cg-card .dash-head-copy h2{font-size:17px}
 [data-current-page="charging"] .cg-card .dash-head-copy p{font-size:13px}
@@ -129,6 +130,9 @@
 [data-current-page="charging"] .cg-rank-track{height:12px;border-radius:99px;background:var(--grey-soft);overflow:hidden}
 [data-current-page="charging"] .cg-rank-track i{display:block;height:100%;border-radius:inherit;background:var(--cg-risk)}
 [data-current-page="charging"] .cg-rank-mwh{font-weight:750;color:var(--ink);text-align:right}
+[data-current-page="charging"] :is(.cg-rank-time,.cg-rank-mwh,.cg-rank-prob){white-space:nowrap}
+[data-current-page="charging"] .cg-rank-time sup{margin-left:1px;font-size:10px;line-height:0;font-weight:800;color:var(--ink-3)}
+[data-current-page="charging"] .cg-rank-mwh small{font-size:11px;font-weight:600;color:var(--ink-3)}
 [data-current-page="charging"] .cg-rank-prob{text-align:right}
 [data-current-page="charging"] .cg-rank-best{font-style:normal;font-size:12px;font-weight:800;color:var(--green-deep)}
 [data-current-page="charging"] .cg-week .dash-card-head{position:relative;z-index:6}
