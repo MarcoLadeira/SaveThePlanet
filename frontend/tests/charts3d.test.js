@@ -6,7 +6,9 @@ const vm = require('node:vm');
 
 function prediction(horizonMinutes, overrides = {}) {
   return {
-    horizonMinutes, targetAt: `2026-09-27T1${horizonMinutes === 30 ? '7:25' : '7:55'}:00Z`, probability: .64, risk: 'medium',
+    // Both horizons forecast the same target half-hour, each issued horizonMinutes before it.
+    horizonMinutes, targetAt: '2026-09-27T17:55:00Z', issuedAt: horizonMinutes === 30 ? '2026-09-27T17:25:00Z' : '2026-09-27T16:55:00Z',
+    probability: .64, risk: 'medium',
     atRiskMwh: .62, constraintMwh: .47, curtailmentMwh: .15, lowerMwh: .34, medianMwh: .57, upperMwh: .84, ...overrides,
   };
 }
@@ -70,7 +72,9 @@ test('confidence rows order targets, scale to P90 and mark the selection', () =>
   assert.equal(values.max, 2);
   const html = context.dashCharts.confidence.draw(values);
   assert.match(html, /data-horizon="60" aria-pressed="true"/);
-  assert.match(html, /17:25–17:55/);
+  assert.match(html, /17:55–18:25/); // target labels the start of its half-hour
+  assert.match(html, /\+30 min · issued 17:25/);
+  assert.match(html, /\+60 min · issued 16:55/);
   assert.match(html, /left:20\.00%;width:calc\(55\.00% - 20\.00%\)/);
   assert.match(html, /<em>0\.62 MWh<\/em>/);
   assert.match(html, /<b>55%<\/b>/);

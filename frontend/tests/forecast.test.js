@@ -72,13 +72,22 @@ test('day replay follows the horizon, skips gaps and marks the selected half-hou
     for (const h of [30, 60]) points.push({ horizonMinutes: h, targetAt: t, issuedAt: t, atRiskMwh: 100 + i + h, lowerMwh: 80 + i, upperMwh: 140 + i + h, probability: 0.9 });
   }
   const observed = points.filter((p) => p.horizonMinutes === 30).map((p) => ({ targetAt: p.targetAt, actualMwh: 95 + p.atRiskMwh / 10 }));
-  run(`fx.short.horizon = 30; fx.short.target = '2026-01-27T03:00:00Z'; fx.short.day = ${JSON.stringify({ date: '2026-01-27', points, observed })};`);
+  run(`fx.short.horizon = 30; fx.short.date = '2026-01-27'; fx.short.target = '2026-01-27T03:00:00Z';
+    fx.short.observed['2026-01-27'] = { status: 'ok', data: ${JSON.stringify({ date: '2026-01-27', observed })} };`);
+  // Until the replay arrives, the chart shows the observed values on their own.
+  const early = run('dashCharts.fxDay.draw(dashCharts.fxDay.values())');
+  assert.match(early, /fx-day-line is-obs/);
+  assert.match(early, /class="fx-direct is-obs"/);
+  assert.doesNotMatch(early, /fx-direct is-pred|fx-day-band" d="M/);
+  run(`fx.short.replays['2026-01-27|30'] = { status: 'ok', data: ${JSON.stringify({ date: '2026-01-27', horizonMinutes: 30, points: points.filter((p) => p.horizonMinutes === 30), observed })} };
+    fx.short.replays['2026-01-27|60'] = { status: 'ok', data: ${JSON.stringify({ date: '2026-01-27', horizonMinutes: 60, points: points.filter((p) => p.horizonMinutes === 60), observed })} };`);
   const values = run('dashCharts.fxDay.values()');
   assert.equal(values.sel, '6');
   assert.equal(values.pred[20], null);
   assert.equal(values.pred[0], 130);
   const html = run('dashCharts.fxDay.draw(dashCharts.fxDay.values())');
   assert.match(html, /class="fx-sel" style="left:12\.766%"><em>03:00<\/em>/);
+  assert.match(html, />Predicted \+30</);
   const predLine = html.match(/fx-day-line is-pred" d="([^"]+)"/)[1];
   assert.equal(predLine.match(/M/g).length, 2, 'the missing half-hour splits the line');
   assert.doesNotMatch(html, /NaN|Infinity|undefined/);

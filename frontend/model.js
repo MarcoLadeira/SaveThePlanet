@@ -7,6 +7,11 @@ const modelState = {
     capacity: 100,
     totalDemandKwh: 1000,
     flexibleDemandKwh: 500,
+    // Dataset target half-hour chosen by the server and pinned here, so live refreshes,
+    // Charging, Impact and Volt stay on it (see pinning.js). null asks for a new one.
+    target: null,
+    // How a new target is chosen: 'predicted' (model predicts >= 20 MWh) or 'unfiltered'.
+    selectionMode: (() => { try { return localStorage.getItem('target-selection') === 'unfiltered' ? 'unfiltered' : 'predicted'; } catch { return 'predicted'; } })(),
     kwhPerCharge: 30,
     chargerKw: 22,
     health: null,
@@ -173,7 +178,7 @@ function modelView(page) {
     const rate = scenarioPercent(scenarioOutcome(p).recoveryRate);
     const side = forecast
         ? `<section class="card cause-card"><h2 class="card-title">Predicted energy breakdown</h2>${shares}<div class="section-line"></div><p class="metric-caption">Component shares describe predicted energy, not causal attribution.</p><h3>Model signals</h3><p class="metric-caption">Renewable output, system demand, grid headroom, SNSP pressure and market contribution are not supplied by this API.</p></section>`
-        : `<section class="card action-card"><h2 class="card-title">Potential charging opportunity</h2><p class="action-lead">${scenarioRecovery(p) > 0 ? `Up to ${modelNumber(scenarioRecovery(p))} MWh could be absorbed by flexible charging.` : "No recoverable surplus predicted for this interval."}</p><p class="action-description">Forecast target: ${escapeHtml(modelTime(p.targetAt, true))}. Assumes available flexible load of ${modelNumber(d.flexibleCapacityMw)} MW.</p><p class="metric-caption">Uses the shared charging demand and power limit. Driver commitments have not been evaluated.</p><button class="primary-button" data-page="charging">Review charging ${icon("arrow", 24)}</button><div class="action-bottom"><div class="action-divider"></div><div class="mini-stats"><div><span class="small-value">${rate}</span><div class="metric-caption">potential recovery rate</div></div><div><span class="small-value">${modelNumber(scenarioOutcome(p).remainingWasteMwh)} MWh</span><div class="metric-caption">remaining at risk</div></div></div></div></section>`;
+        : `<section class="card action-card"><h2 class="card-title">Potential charging opportunity</h2><p class="action-lead">${scenarioRecovery(p) > 0 ? `At most ${modelNumber(scenarioRecovery(p))} MWh could be used by flexible charging, if it is connected where and when the dispatch-down happens.` : "No recoverable surplus predicted for this interval."}</p><p class="action-description">Forecast target: ${escapeHtml(modelTime(p.targetAt, true))}. Assumes available flexible load of ${modelNumber(d.flexibleCapacityMw)} MW.</p><p class="metric-caption">Uses the shared charging demand and power limit. Driver commitments have not been evaluated.</p><button class="primary-button" data-page="charging">Review charging ${icon("arrow", 24)}</button><div class="action-bottom"><div class="action-divider"></div><div class="mini-stats"><div><span class="small-value">${rate}</span><div class="metric-caption">potential recovery rate</div></div><div><span class="small-value">${modelNumber(scenarioOutcome(p).remainingWasteMwh)} MWh</span><div class="metric-caption">remaining at risk</div></div></div></div></section>`;
     return (
         top +
         `<section class="card summary-card model-summary ${forecast ? "forecast-summary" : "overview"}"><h2 class="card-title">Selected ${p.horizonMinutes}-minute forecast</h2><div class="summary-metrics">${summary}</div></section>` +
@@ -212,6 +217,8 @@ async function loadModelForecast(live = false) {
             kwhPerCharge: String(modelState.kwhPerCharge),
             chargerKw: String(modelState.chargerKw),
         });
+        if (modelState.target) query.set("target", modelState.target);
+        else query.set("selection", modelState.selectionMode);
         const response = await fetch(`/api/v1/scenario?${query}`, {
             signal: controller.signal,
         });
@@ -231,6 +238,7 @@ async function loadModelForecast(live = false) {
         if (request === modelRequest) {
             modelState.data = body;
             modelState.error = "";
+            modelState.target = pinnedTargetAfter(modelState.target, body);
         }
     } catch (error) {
         if (request === modelRequest && !(live && modelState.data))
@@ -298,5 +306,20 @@ function isDemoData() {
     return modelState.data?.dataMode === "simulated";
 }
 function dataSourceLabel() {
-    return isDemoData() ? "Simulated demo data" : "Historical prediction";
+    return isDemoData() ? "Simulated demo data" : "Historical dataset prediction";
 }
+
+// Pick another dataset target using the current selection mode.
+function newDashboardTarget() {
+    modelState.target = null;
+    loadModelForecast();
+}
+document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-new-target]")) newDashboardTarget();
+});
+document.addEventListener("change", (event) => {
+    if (event.target.id !== "target-selection") return;
+    modelState.selectionMode = event.target.value === "unfiltered" ? "unfiltered" : "predicted";
+    try { localStorage.setItem("target-selection", modelState.selectionMode); } catch {}
+    newDashboardTarget();
+});

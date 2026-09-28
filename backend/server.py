@@ -19,6 +19,9 @@ from http.client import HTTPException
 from config import load_env
 import chat
 import explorer
+import synthetic
+import targets
+from gate import FOREGROUND, PREFETCH, Busy, Superseded, gate
 
 ROOT = Path(__file__).resolve().parents[1]
 load_env(ROOT / '.env')
@@ -81,32 +84,38 @@ def normalize(payload, capacity):
         raise ValueError('Expected both forecast horizons')
     points = [normalize_row(row, capacity) for row in rows]
     points.sort(key=lambda p: p['horizonMinutes'])
-    if [p['horizonMinutes'] for p in points] != [30, 60] or len({p['issuedAt'] for p in points}) != 1 or len({p['modelVersion'] for p in points}) != 1:
-        raise ValueError('Forecast horizons must share an issue time and model')
+    # Both horizons forecast the same target half-hour, each from its own issue time.
+    if [p['horizonMinutes'] for p in points] != [30, 60] or len({p['targetAt'] for p in points}) != 1 or len({p['modelVersion'] for p in points}) != 1:
+        raise ValueError('Forecast horizons must share a target time and model')
     return dict(generatedAt=datetime.now(timezone.utc).isoformat(), source='grid-to-ev-model',
-                dataMode='historical-prediction', region='Ireland', intervalMinutes=30,
+                dataMode='historical-prediction', dataLabel='Historical dataset prediction', live=False,
+                region='Ireland', intervalMinutes=30, targetAt=points[0]['targetAt'],
                 flexibleCapacityMw=capacity, modelVersion=points[0]['modelVersion'], predictions=points,
                 fallback={'active': False, 'reason': None})
 
 
-# End of the historical window replayed in real time (must be within the dataset range)
-ISSUE_TIMESTAMP = os.environ.get('GRID_TO_EV_ISSUE_TIMESTAMP', '2026-01-10T00:00:00+00:00')
+# The dashboard shows one target half-hour from GridToEv's V1 historical dataset. Each
+# horizon is requested from its own issue time so both predict the same target (e.g. for
+# 23:00: +30 min issued 22:30, +60 min issued 22:00). Pages get a random target the model
+# predicts to have extra dispatch-down, chosen from predictions only (see targets.py); TARGET_TIMESTAMP, the dataset's
+# final half-hour, is only the fixed target for the health probe. These are historical
+# dataset predictions, not live forecasts.
+TARGET_TIMESTAMP = os.environ.get('GRID_TO_EV_TARGET_TIMESTAMP', '2026-01-31T23:00:00Z')
 
 
-def replay_issue_timestamp(now=None):
-    """The dataset half-hour matching the current UTC time of day, in the day before ISSUE_TIMESTAMP."""
-    now = now or datetime.now(timezone.utc)
-    day = (timestamp(ISSUE_TIMESTAMP) - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return (day + timedelta(minutes=(now.hour * 60 + now.minute) // 30 * 30)).isoformat()
+def issue_timestamp(horizon, target=None):
+    """The dataset issue time whose +horizon forecast lands on the target half-hour."""
+    issued = timestamp(target or TARGET_TIMESTAMP) - timedelta(minutes=horizon)
+    return issued.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def post_prediction(capacity, horizon):
+def post_prediction(capacity, horizon, target=None):
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
     key = os.environ.get('GRID_TO_EV_API_KEY')
     if key:
         headers['X-API-Key'] = key
     body = json.dumps({
-        'issue_timestamp_utc': replay_issue_timestamp(),
+        'issue_timestamp_utc': issue_timestamp(horizon, target),
         'forecast_horizon_minutes': horizon,
         'flexible_load_capacity_mw': capacity,
     }).encode()
@@ -123,8 +132,8 @@ def post_prediction(capacity, horizon):
                 raise
 
 
-def fetch_forecast(capacity):
-    rows = [post_prediction(capacity, horizon) for horizon in (30, 60)]
+def fetch_forecast(capacity, target=None):
+    rows = [post_prediction(capacity, horizon, target) for horizon in (30, 60)]
     return normalize({'predictions': rows}, capacity)
 
 
@@ -181,7 +190,7 @@ def dataset_range():
     return _dataset_range
 
 
-def fetch_day_replay(day, capacity):
+def fetch_day_replay(day, capacity, prefetch=False):
     """48 consecutive +30 minute predictions issued across one UTC day (cached by day and capacity).
 
     Concurrent requests for the same day share one upstream call: a user request for a
@@ -202,7 +211,8 @@ def fetch_day_replay(day, capacity):
         with _day_cache_lock:
             pending = _day_inflight[key] = threading.Event()
     try:
-        replay = _replay_day(day, capacity)
+        replay = gate.run(('impact-day', day.isoformat(), capacity), lambda: _replay_day(day, capacity),
+                          PREFETCH if prefetch else FOREGROUND)
         with _day_cache_lock:
             _day_cache[key] = replay
         return replay
@@ -269,7 +279,7 @@ def _prefetch_loop():
     while True:
         day, capacity = _next_prefetch()
         try:
-            fetch_day_replay(date.fromisoformat(day), capacity)
+            fetch_day_replay(date.fromisoformat(day), capacity, prefetch=True)
         except Exception:  # best effort; a real request will surface any error
             pass
 
@@ -304,8 +314,12 @@ class user_replay:
 
 
 def default_replay_day(now=None):
-    """The day the +30/+60 forecast is issued on, so the day replay and the scenario cards agree."""
-    return timestamp(replay_issue_timestamp(now)).date()
+    """Impact day when the page does not name one: the day of the fixed dataset target.
+
+    The Impact page normally sends the day of the dashboard's current (random high-MWh)
+    target, so its day replay and the scenario cards agree.
+    """
+    return timestamp(TARGET_TIMESTAMP).date()
 
 
 # def fetch_forecast(capacity):
@@ -381,51 +395,92 @@ def record_model_status(started, version=None, error=None):
     return diagnosis
 
 
-def available_forecast(capacity):
-    """Always try the model, then use validated demo data for upstream failures."""
+def available_forecast(capacity, target=None, mode='predicted'):
+    """Always try the model, then use validated demo data for upstream failures.
+
+    Without a target, one is sampled (see targets.py). Demo data never pretends to be the
+    requested target: it keeps its own example time and records the target it stands in for.
+    """
     started = time.monotonic()
     try:
-        forecast = fetch_forecast(capacity)
+        if target:
+            forecast = fetch_forecast(capacity, target)
+            forecast['selection'] = targets.selection_for(target)
+        else:
+            forecast = targets.pick(capacity, fetch_forecast, mode)
     except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
         reason = record_model_status(started, error=error)['fallbackReason']
     else:
         record_model_status(started, forecast['modelVersion'])
+        forecast.update(pinnedTarget=forecast['targetAt'].replace('+00:00', 'Z'), stale=None)
         return forecast
     forecast = normalize(demo_payload(capacity, datetime.now(timezone.utc)), capacity)
-    forecast.update(source='local-demo-fixture', dataMode='simulated',
-                    fallback={'active': True, 'reason': reason})
+    forecast.update(source='local-demo-fixture', dataMode='simulated', dataLabel='Offline example (simulated)',
+                    fallback={'active': True, 'reason': reason, 'requestedTarget': target},
+                    pinnedTarget=target, stale=None)
     return forecast
 
 FORECAST_CACHE_SECONDS = 300
 STALE_FORECAST_SECONDS = 1800
 KEEP_WARM_SECONDS = 480
 forecast_cache_lock = threading.Lock()
+# Real (never demo) forecasts only, keyed by (capacity, target half-hour).
 forecast_cache = {}
 
 
-def cached_forecast(capacity, refresh=False):
-    """Forecast shared by the pages and Volt, so both quote the same validated figures."""
+def cached_forecast(capacity, target=None, refresh=False, mode='predicted'):
+    """Forecast shared by the pages and Volt, so they all quote the same validated figures.
+
+    The pages pin the target they were given and send it back, so live refreshes, Charging,
+    Impact and Volt stay on one half-hour. During a model outage a pinned target gets its own
+    last real forecast (marked stale) for up to STALE_FORECAST_SECONDS, never another
+    target's. Otherwise demo data is returned, labelled as an unrelated offline example.
+    """
     now = time.monotonic()
     with forecast_cache_lock:
-        hit = forecast_cache.get(capacity)
+        hit = forecast_cache.get((capacity, target)) if target else None
         if hit and not refresh and now - hit[0] < FORECAST_CACHE_SECONDS:
             return json.loads(json.dumps(hit[1]))
-    forecast = available_forecast(capacity)
+    forecast = available_forecast(capacity, target, mode)
     with forecast_cache_lock:
-        previous = forecast_cache.get(capacity)
-        if (forecast['fallback']['active'] and previous and not previous[1]['fallback']['active']
-                and now - previous[0] < STALE_FORECAST_SECONDS):
-            return json.loads(json.dumps(previous[1]))  # ride out a brief model outage on the last real forecast
-        forecast_cache[capacity] = (now, forecast)
+        if forecast['fallback']['active']:
+            previous = forecast_cache.get((capacity, target)) if target else None
+            if previous and now - previous[0] < STALE_FORECAST_SECONDS:
+                kept = json.loads(json.dumps(previous[1]))
+                kept['stale'] = {'since': kept['generatedAt'], 'reason': forecast['fallback']['reason']}
+                # Keep its original time (so it still expires) but mark it stale for every reader, e.g. Volt.
+                forecast_cache[(capacity, target)] = (previous[0], kept)
+                return json.loads(json.dumps(kept))
+        else:
+            forecast_cache[(capacity, forecast['pinnedTarget'])] = (now, forecast)
     return json.loads(json.dumps(forecast))
 
 
+def dashboard_target(value):
+    """A requested dashboard target: a UTC half-hour with both horizons in the V1 dataset."""
+    if value is None:
+        return None
+    moment = timestamp(value)
+    if moment.minute not in (0, 30) or moment.second or moment.microsecond:
+        raise ValueError('Target must be a UTC half-hour')
+    target = moment.strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        known = targets.is_dataset_target(target)
+    except (URLError, TimeoutError, OSError, HTTPException, KeyError):
+        known = True  # dataset list unavailable: the model call decides (and falls back if needed)
+    if not known:
+        raise ValueError('Target is not in the V1 dataset')
+    return target
+
+
 def keep_model_warm():
-    """Wake the hosted model and cache the default day at startup, then ping it so it never sleeps mid-demo."""
+    """Wake the hosted model at startup, build the high-MWh target shortlist, cache a first
+    random-target forecast and its day replay, then ping the model so it never sleeps mid-demo."""
     try:
         model_request('/health', timeout=60)
-        cached_forecast(100.0)
-        fetch_day_replay(default_replay_day(), 100.0)
+        targets.dataset_targets()  # the population the dashboard's target is sampled from
+        forecast = cached_forecast(100.0)
+        fetch_day_replay(timestamp(forecast['targetAt']).date(), 100.0, prefetch=True)
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
     while True:
@@ -439,7 +494,7 @@ def keep_model_warm():
 def health(probe=True):
     """Backend status plus why the model is (un)available. Never exposes the URL or key."""
     if probe:
-        available_forecast(1)
+        available_forecast(1, TARGET_TIMESTAMP)
     with model_status_lock:
         model = dict(model_status)
     host = urlsplit(MODEL_URL).hostname or ''
@@ -461,16 +516,48 @@ class ProductServer(ThreadingHTTPServer):
         super().server_bind()
 
 class Handler(SimpleHTTPRequestHandler):
-    def send_json(self, status, body):
+    def send_json(self, status, body, headers=None):
         encoded = json.dumps(body, allow_nan=False).encode()
         self.send_response(status)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Content-Length', str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
 
+    def synthetic_v1(self):
+        """A synthetic V1 scenario from the model's example request; never stored or treated as a forecast."""
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 <= length <= 4_000:
+                raise ValueError('Invalid body size')
+            options = json.loads(self.rfile.read(length) or b'{}')
+            if not isinstance(options, dict):
+                raise ValueError('Expected an object')
+            horizon, scenario = options.get('horizon', 30), options.get('scenario', 'ordinary')
+            issue_mode = options.get('issueTime', 'example')
+            capacity = float(options.get('capacityMw', 100))
+            number(capacity, 'capacity', minimum=0.001, maximum=10000)
+            if (horizon not in (30, 60) or isinstance(horizon, bool) or scenario not in synthetic.SCENARIOS
+                    or issue_mode not in synthetic.ISSUE_MODES):
+                raise ValueError('Invalid options')
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use horizon 30 or 60, scenario "ordinary" or "high-curtailment", issueTime "example" or "current", and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, synthetic.run(horizon, scenario, capacity, issue_mode))
+        except synthetic.SchemaDrift as error:
+            self.send_json(502, {'error': {'code': 'EXAMPLE_SCHEMA_DRIFT', 'message': str(error)}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_POST(self):
+        if urlsplit(self.path).path == '/api/v1/synthetic-v1':
+            self.synthetic_v1()
+            return
         if urlsplit(self.path).path != '/api/v1/chat':
             self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
             return
@@ -481,11 +568,12 @@ class Handler(SimpleHTTPRequestHandler):
             messages, page, horizon, selectors = chat.validate_request(json.loads(self.rfile.read(length)))
             number(selectors['capacityMw'], 'capacity', minimum=0.001, maximum=10000)
             validate_demand(selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
+            selectors['target'] = dashboard_target(selectors['target'])
         except (ValueError, TypeError):
             self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Send a short question (up to 1000 characters).'}})
             return
         # Figures come from the server's own forecast and scenario, never from the browser.
-        forecast = cached_forecast(selectors['capacityMw'])
+        forecast = cached_forecast(selectors['capacityMw'], selectors['target'])
         scenario = build_scenario(forecast, selectors['totalDemandKwh'], selectors['flexibleDemandKwh'])
         self.send_json(200, {'reply': chat.answer(messages, page, horizon, forecast, scenario)})
 
@@ -504,6 +592,10 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             with user_replay():
                 status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
+        except Busy:
+            self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
+                           {'Retry-After': str(Busy.retry_after)})
+            return
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
@@ -531,10 +623,22 @@ class Handler(SimpleHTTPRequestHandler):
                 if target.minute not in (0, 30) or target.second or target.microsecond:
                     raise ValueError('Target must be a UTC half-hour')
                 action = partial(explorer.short_term_predict, target.strftime('%Y-%m-%dT%H:%M:%SZ'), capacity)
-            elif name in ('short-term/day', 'daily/predict', 'daily/week'):
+            elif name == 'short-term/day':
                 day = date.fromisoformat(query.get('date', '')).isoformat()
-                action = partial({'short-term/day': explorer.short_term_day, 'daily/predict': explorer.daily_predict,
-                                  'daily/week': explorer.daily_week}[name], day)
+                horizon = int(query.get('horizon', '30'))
+                if horizon not in (30, 60):
+                    raise ValueError('Horizon must be 30 or 60')
+                # Optional viewer identity so the replay gate can drop this viewer's superseded work.
+                client = query.get('client')
+                if client is not None and not (0 < len(client) <= 64):
+                    raise ValueError('Invalid client')
+                seq = int(query['seq']) if 'seq' in query else None
+                action = partial(explorer.short_term_day, day, horizon, client, seq, query.get('prefetch') == '1')
+            elif name == 'short-term/observed':
+                action = partial(explorer.day_observed, date.fromisoformat(query.get('date', '')).isoformat())
+            elif name in ('daily/predict', 'daily/week'):
+                day = date.fromisoformat(query.get('date', '')).isoformat()
+                action = partial({'daily/predict': explorer.daily_predict, 'daily/week': explorer.daily_week}[name], day)
             elif name in ('short-term', 'daily'):
                 action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
             else:
@@ -545,6 +649,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         try:
             self.send_json(200, action())
+        except Busy:
+            self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
+                           {'Retry-After': str(Busy.retry_after)})
+        except Superseded:
+            self.send_json(409, {'error': {'code': 'SUPERSEDED', 'message': 'A newer request from this page replaced this one.'}})
         except LookupError as error:
             self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
         except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
@@ -563,14 +672,18 @@ class Handler(SimpleHTTPRequestHandler):
                 total = float(query.get('totalDemandKwh', ['1000'])[0])
                 flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
                 validate_demand(total, flexible)
+                target = dashboard_target(query.get('target', [None])[0])
+                mode = query.get('selection', ['predicted'])[0]
+                if mode not in targets.MODES:
+                    raise ValueError('Unknown selection mode')
                 kwh_per_charge = float(query.get('kwhPerCharge', [DEFAULT_KWH_PER_CHARGE])[0])
                 charger_kw = float(query.get('chargerKw', [DEFAULT_CHARGER_KW])[0])
                 validate_ev(kwh_per_charge, charger_kw)
             except (ValueError, TypeError):
-                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, demand 0-1000000000 kWh with flexible demand no greater than total demand, 1-200 kWh per charge and 1-400 kW per charger.'}})
+                self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use Ireland, capacity 0.001-10000 MW, demand 0-1000000000 kWh with flexible demand no greater than total demand, 1-200 kWh per charge, 1-400 kW per charger and an optional V1 dataset target half-hour.'}})
                 return
             try:
-                forecast = cached_forecast(capacity, refresh=True)
+                forecast = cached_forecast(capacity, target, refresh=True, mode=mode)
                 if route.path == '/api/v1/scenario':
                     forecast['scenario'] = build_scenario(forecast, total, flexible, kwh_per_charge, charger_kw)
                 self.send_json(200, forecast)

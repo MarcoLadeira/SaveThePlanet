@@ -26,7 +26,7 @@ function voltCard(card) {
 
 function voltProvenance(p) {
   return `<div class="volt-source"><span class="volt-badge ${p.mode === 'simulated' ? 'is-sim' : ''}">${escapeHtml(p.label)}</span>
-    <span>${escapeHtml(p.region)} · issued ${escapeHtml(modelTime(p.issuedAt, true))}</span></div>`;
+    <span>${escapeHtml(p.region)} · target ${escapeHtml(modelTime(p.targetAt, true))} · not a live forecast</span></div>`;
 }
 
 function voltReply(m, latest) {
@@ -85,7 +85,7 @@ async function chatSend(text) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
       // Only safe selectors are sent; the server rebuilds every figure itself.
       body: JSON.stringify({ messages: history, page: pageFromHash(), horizon: modelState.horizon, capacityMw: modelState.capacity,
-        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh }),
+        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh, target: modelState.target }),
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error?.message || 'Volt could not answer.');

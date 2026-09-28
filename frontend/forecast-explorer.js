@@ -8,10 +8,10 @@ const fx = {
   picker: null, // {month:'YYYY-MM'} while the date picker is open
   caveatsOpen: { daily: false, short: false }, // survives re-renders
   daily: { info: null, infoLoading: false, infoError: '', date: null, result: null, loading: false, error: '', week: null, weekLoading: false },
-  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', day: null, dayLoading: false, horizon: 30, targets: null, byDate: null, issueSet: null },
+  short: { info: null, infoLoading: false, infoError: '', date: null, target: null, result: null, loading: false, error: '', replays: {}, observed: {}, horizon: 30, targets: null, byDate: null, issueSet: null },
 };
 try { if (localStorage.getItem('forecast-model') === 'short') fx.model = 'short'; } catch {}
-const fxTokens = { daily: 0, short: 0, week: 0, day: 0 };
+const fxTokens = { daily: 0, short: 0, week: 0 };
 const fxChevron = (dir) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${dir === 'left' ? 'm15 5-7 7 7 7' : dir === 'right' ? 'm9 5 7 7-7 7' : 'm6 9 6 6 6-6'}"/></svg>`;
 const fxPartitions = {
   train: ['Train', 'Seen while fitting'],
@@ -128,9 +128,10 @@ async function fxLoadInfo(kind) {
   try {
     s.info = await fxGet(`/api/v1/explorer/${kind === 'daily' ? 'daily' : 'short-term'}`);
     if (kind === 'short') {
-      // A target is selectable when the dataset has its +30 or +60 minute issue time.
+      // Selectable targets come from the server: only half-hours the model has a dataset row
+      // for at +30 or +60 min (e.g. not 31 Jan 23:30, which is past the last labelled target).
       s.issueSet = new Set(s.info.times);
-      s.targets = [...new Set(s.info.times.flatMap((t) => [fxShift(t, 30), fxShift(t, 60)]))].sort();
+      s.targets = s.info.targets;
       s.byDate = new Map();
       for (const t of s.targets) { const d = t.slice(0, 10); if (!s.byDate.has(d)) s.byDate.set(d, []); s.byDate.get(d).push(t); }
     }
@@ -171,19 +172,60 @@ async function fxLoadWeek(day) {
 async function fxSelectShort(target) {
   const s = fx.short, token = ++fxTokens.short, day = target.slice(0, 10);
   s.target = target; s.date = day; s.loading = true; s.error = ''; fxRerender();
-  if (s.day?.date !== day) fxLoadDay(day);
+  fxLoadObserved(day); // ~0.3 s: lets the chart show reality while the forecast replay (~13 s) runs
+  const shown = s.horizon;
+  // The horizon on screen first; the other is prefetched afterwards (if the day is still shown).
+  fxEnsureReplay(day, shown).then(() => { if (s.date === day) fxEnsureReplay(day, shown === 30 ? 60 : 30, true); });
   try {
     const result = await fxGet(`/api/v1/explorer/short-term/predict?target=${encodeURIComponent(target)}&capacityMw=${modelState.capacity}`);
     if (token === fxTokens.short) s.result = result;
   } catch (error) { if (token === fxTokens.short) { s.error = error.message; if (s.result?.targetAt !== target) s.result = null; } }
   if (token === fxTokens.short) { s.loading = false; fxRerender(); }
 }
-async function fxLoadDay(day) {
-  const s = fx.short, token = ++fxTokens.day;
-  s.day = { date: day, points: null }; s.dayLoading = true; fxRerender();
-  try { const replay = await fxGet(`/api/v1/explorer/short-term/day?date=${day}`); if (token === fxTokens.day) s.day = replay; }
-  catch { if (token === fxTokens.day) s.day = { date: day, points: null, failed: true }; }
-  if (token === fxTokens.day) { s.dayLoading = false; fxRerender(); }
+// Day replays are heavy for the hosted model (~13 s each, much slower when two overlap). The
+// server's replay gate runs one at a time for all viewers, puts on-screen requests before
+// prefetches and drops this tab's superseded work, identified by fxClient and fxSeq. It answers
+// 503 (busy: retry with backoff) or 409 (superseded: ignore).
+const fxClient = (globalThis.crypto?.randomUUID?.() || `tab-${Math.random().toString(36).slice(2)}`).slice(0, 64);
+let fxSeq = 0;
+const fxSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function fxFetchReplay(day, horizon, seq, prefetch) {
+  const query = new URLSearchParams({ date: day, horizon: String(horizon), client: fxClient, seq: String(seq) });
+  if (prefetch) query.set('prefetch', '1');
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(`/api/v1/explorer/short-term/day?${query}`);
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 409) throw Object.assign(new Error('superseded'), { superseded: true });
+    if (response.status === 503 && attempt < 3) {
+      await fxSleep((Number(response.headers.get('Retry-After')) || 2) * 1000 * 2 ** attempt);
+      if (seq < fxSeq && !prefetch) throw Object.assign(new Error('superseded'), { superseded: true });
+      continue;
+    }
+    if (!response.ok) throw new Error(body.error?.message || 'The model request failed.');
+    return body;
+  }
+}
+async function fxLoadObserved(day) {
+  const s = fx.short;
+  if (s.observed[day] && s.observed[day].status !== 'error') return;
+  s.observed[day] = { status: 'loading' };
+  try { s.observed[day] = { status: 'ok', data: await fxGet(`/api/v1/explorer/short-term/observed?date=${day}`) }; }
+  catch (error) { s.observed[day] = { status: 'error', error: error.message }; }
+  fxRerender();
+}
+function fxReplay(day = fx.short.date, horizon = fx.short.horizon) { return fx.short.replays[`${day}|${horizon}`]; }
+function fxEnsureReplay(day, horizon, prefetch = false) {
+  const s = fx.short, key = `${day}|${horizon}`;
+  const existing = s.replays[key];
+  if (existing && existing.status !== 'error' && !(existing.prefetch && !prefetch)) return existing.promise || Promise.resolve();
+  if (!prefetch) fxSeq += 1; // a new on-screen request supersedes this tab's older queued work
+  const seq = fxSeq, entry = { status: 'loading', prefetch };
+  entry.promise = fxFetchReplay(day, horizon, seq, prefetch).then(
+    (data) => { if (s.replays[key] === entry) s.replays[key] = { status: 'ok', data }; },
+    (error) => { if (s.replays[key] === entry) { if (error.superseded) delete s.replays[key]; else s.replays[key] = { status: 'error', error: error.message }; } },
+  ).then(fxRerender);
+  s.replays[key] = entry;
+  return entry.promise;
 }
 
 // Step to the previous/next selectable target without opening the picker.
@@ -378,19 +420,27 @@ fxChart('fxWeek', {
 });
 
 // One replayed day of the short-term model, as 48 target half-hours.
+// The observed values arrive first (fast route); the forecast line joins when its replay does.
 function fxDaySeries() {
-  const s = fx.short, day = s.day, empty = { pred: [], lo: [], hi: [], obs: [], sel: -1, date: day?.date || '' };
-  if (!day?.points) return empty;
-  const start = Date.parse(`${day.date}T00:00:00Z`), slot = (t) => Math.round((Date.parse(t) - start) / 18e5);
-  const out = { pred: Array(48).fill(null), lo: Array(48).fill(null), hi: Array(48).fill(null), obs: Array(48).fill(null), issued: Array(48).fill(''), sel: -1, date: day.date };
-  for (const p of day.points) {
+  const s = fx.short, date = s.date, replay = fxReplay(), fast = date ? s.observed[date] : null;
+  const points = replay?.status === 'ok' ? replay.data.points || [] : [];
+  const observed = replay?.status === 'ok' ? replay.data.observed : fast?.status === 'ok' ? fast.data.observed : null;
+  if (!date || (!points.length && !observed)) return { pred: [], lo: [], hi: [], obs: [], issued: [], sel: -1, date: date || '' };
+  const start = Date.parse(`${date}T00:00:00Z`), slot = (t) => Math.round((Date.parse(t) - start) / 18e5);
+  const out = { pred: Array(48).fill(null), lo: Array(48).fill(null), hi: Array(48).fill(null), obs: Array(48).fill(null), issued: Array(48).fill(''), sel: -1, date };
+  for (const p of points) {
     const i = slot(p.targetAt);
     if (p.horizonMinutes !== s.horizon || i < 0 || i > 47) continue;
     out.pred[i] = p.atRiskMwh; out.lo[i] = p.lowerMwh; out.hi[i] = p.upperMwh; out.issued[i] = p.issuedAt;
   }
-  for (const o of day.observed || []) { const i = slot(o.targetAt); if (i >= 0 && i < 48 && fxHas(o.actualMwh)) out.obs[i] = o.actualMwh; }
-  if (s.target?.startsWith(day.date)) out.sel = slot(s.target);
+  for (const o of observed || []) { const i = slot(o.targetAt); if (i >= 0 && i < 48 && fxHas(o.actualMwh)) out.obs[i] = o.actualMwh; }
+  if (s.target?.startsWith(date)) out.sel = slot(s.target);
   return out;
+}
+function fxDayState() {
+  const replay = fxReplay(), fast = fx.short.observed[fx.short.date];
+  if (replay?.status === 'ok' || fast?.status === 'ok') return 'ready';
+  return replay?.status === 'error' || fast?.status === 'error' ? 'failed' : 'loading';
 }
 let fxDayMax = 1; // axis top of the drawn day chart, shared with the hover layer
 fxChart('fxDay', {
@@ -398,12 +448,12 @@ fxChart('fxDay', {
     const d = fxDaySeries(), band = settings.uncertainty ? 1 : 0;
     const peak = Math.max(0, ...d.pred.filter(fxHas), ...d.obs.filter(fxHas), ...(band ? d.hi.filter(fxHas) : []));
     const { max, step } = fxScale(peak, 1);
-    return { pred: d.pred, lo: d.lo, hi: d.hi, obs: d.obs, axis: `${max}|${step}`, sel: String(d.sel), band, reveal: d.pred.some(fxHas) ? 1 : 0,
-      state: fx.short.dayLoading ? 'loading' : fx.short.day?.points ? 'ready' : 'failed' };
+    return { pred: d.pred, lo: d.lo, hi: d.hi, obs: d.obs, axis: `${max}|${step}`, sel: String(d.sel), band, reveal: d.pred.some(fxHas) || d.obs.some(fxHas) ? 1 : 0,
+      state: fxDayState(), horizon: String(fx.short.horizon) };
   },
   start: (t) => ({ ...t, reveal: 0 }),
-  draw({ pred, lo, hi, obs, axis, sel, band, reveal, state }) {
-    if (!pred.some(fxHas)) return fxChartState(state, 'Replaying every half-hour of this day… (can take ~15 s)', 'The day replay is unavailable.', 'day');
+  draw({ pred, lo, hi, obs, axis, sel, band, reveal, state, horizon }) {
+    if (!pred.some(fxHas) && !obs.some(fxHas)) return fxChartState(state, 'Loading this day\'s observed values…', 'This day could not be loaded.', 'day');
     const [max, step] = axis.split('|').map(Number);
     fxDayMax = max;
     const W = 1000, H = 300, X = (i) => (i / 47) * W, Y = (v) => H - (Math.max(0, v) / max) * H;
@@ -417,7 +467,12 @@ fxChart('fxDay', {
     const s = Number(sel), marker = s >= 0 && reveal > 0.97
       ? `<span class="fx-sel" style="left:${xp(s)}"><em>${String(Math.floor(s / 2)).padStart(2, '0')}:${s % 2 ? '30' : '00'}</em></span>${fxHas(obs[s]) ? `<i class="fx-sel-dot is-obs" style="left:${xp(s)};top:${yp(obs[s])}"></i>` : ''}${fxHas(pred[s]) ? `<i class="fx-sel-dot" style="left:${xp(s)};top:${yp(pred[s])}"></i>` : ''}`
       : '';
-    return `<div class="fx-day"><div class="fx-day-grid">${ticks}</div><div class="fx-day-area">
+    const lastOf = (vals) => { for (let i = vals.length - 1; i >= 0; i--) if (fxHas(vals[i])) return i; return -1; };
+    const lp = lastOf(pred), lo2 = lastOf(obs);
+    let predTop = lp >= 0 ? (1 - Math.max(0, pred[lp]) / max) * 100 : null, obsTop = lo2 >= 0 ? (1 - Math.max(0, obs[lo2]) / max) * 100 : null;
+    if (predTop !== null && obsTop !== null && Math.abs(predTop - obsTop) < 9) { const mid = (predTop + obsTop) / 2, up = predTop <= obsTop ? -4.5 : 4.5; predTop = mid + up; obsTop = mid - up; }
+    const direct = reveal > 0.97 ? `${predTop !== null ? `<span class="fx-direct is-pred" style="top:${predTop.toFixed(2)}%">Predicted +${horizon}</span>` : ''}${obsTop !== null ? `<span class="fx-direct is-obs" style="top:${obsTop.toFixed(2)}%">Observed</span>` : ''}` : '';
+    return `<div class="fx-day"><div class="fx-day-grid">${ticks}</div><div class="fx-day-area">${direct}
         <svg class="fx-day-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs>
           <linearGradient id="fx-band-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="band-top"/><stop offset="1" class="band-bottom"/></linearGradient>
           <linearGradient id="fx-pred-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="pred-top"/><stop offset="1" class="pred-bottom"/></linearGradient>
@@ -577,7 +632,7 @@ function fxSplitChip(partition) {
 function fxLegend(items) { return `<ul class="fx-legend">${items.map(([cls, label]) => `<li><i class="is-${cls}"></i>${label}</li>`).join('')}</ul>`; }
 
 function fxToolbar() {
-  const s = fx[fx.model], busy = s.loading || s.infoLoading || (fx.model === 'daily' ? s.weekLoading : s.dayLoading);
+  const s = fx[fx.model], busy = s.loading || s.infoLoading || (fx.model === 'daily' ? s.weekLoading : fxReplay()?.status === 'loading');
   const tab = (key, title, sub, glyph) => `<button type="button" role="tab" aria-selected="${fx.model === key}" class="fx-model${fx.model === key ? ' is-active' : ''}" data-fx-model="${key}"><span class="fx-model-icon">${icon(glyph, 18)}</span><span class="fx-model-copy"><strong>${title}</strong><small>${sub}</small></span></button>`;
   const version = s.info?.model.version ? ` · v${escapeHtml(String(s.info.model.version).replace(/^v/, ''))}` : '';
   const failed = s.error && s.result ? `<button type="button" class="fx-chip is-error" data-fx-retry="${fx.model}">${fxIcon('alert', 15)}Couldn't update · retry</button>` : '';
@@ -746,14 +801,17 @@ function fxShortView() {
     ${fxKpi('green', 'eye', `Observed at ${fxClock(r.targetAt)}`, 'fxSObs', `Observed: ${fxMwh(obs, 1)} MWh`, `<em>${fxHas(obs) ? 'EirGrid measurement' : r.actual?.status === 'pending' ? 'EirGrid figure pending' : 'no EirGrid figure'}</em>`, chartSlot('fxSObsSpark', 'Observed dispatch-down through the day', 'fx-kpi-spark'))}
     ${fxKpi('blue', 'target', `Forecast error · +${p.horizonMinutes} min`, 'fxSErr', `Forecast error: ${diff === null ? 'unknown' : `${fxMwh(Math.abs(diff), 1)} MWh`}`, diff === null ? '<em>needs an observed figure</em>' : (Math.abs(diff) < 0.05 ? '<span class="fx-pill is-good">spot on</span>' : `<span class="fx-pill is-${inRange ? 'good' : 'warn'}">${obs > 0 ? `${Math.round(Math.abs(diff / obs) * 100)}% ` : 'too '}${diff > 0 ? 'high' : 'low'}</span>`) + '<em>vs observed</em>', fxBadge(errState, inRange === null ? 'Pending' : inRange ? 'In range' : 'Outside range'))}
   </section>`;
-  const d = fxDaySeries(), sel = d.sel;
+  const d = fxDaySeries(), sel = d.sel, replay = fxReplay(), fast = s.observed[s.date];
+  const replayStatus = replay?.status === 'error' && fast?.status === 'ok'
+    ? `<p class="fx-plot-status is-error" role="alert" title="${escapeHtml(replay.error)}">${fxIcon('alert', 14)}<span>Forecast replay failed</span><button type="button" class="fx-reload" data-fx-reload="day">Retry</button></p>`
+    : replay?.status !== 'ok' && fast?.status === 'ok' ? `<p class="fx-plot-status" role="status" title="The model is re-running this day; it takes about 15 seconds">${'<i></i>'}Replaying the +${s.horizon} min forecast…</p>` : '';
   const selText = sel >= 0 ? `${fxClock(s.target)}: predicted ${fxMwh(d.pred[sel], 1)} MWh, observed ${fxMwh(d.obs[sel], 1)} MWh` : 'No half-hour selected on this day';
   const seg = `<div class="fx-seg" role="group" aria-label="Forecast horizon">${[30, 60].map((h) => `<button type="button" data-fx-horizon="${h}" aria-pressed="${s.horizon === h}" class="${s.horizon === h ? 'is-active' : ''}">+${h} min</button>`).join('')}</div>`;
   const chart = `<section class="dash-card fx-card fx-main">
-    ${fxHead('pulse', 'amber', 'Forecast vs reality through the day', `MWh switched off per half-hour on ${fxDateLabel(s.day?.date || s.date)} · click to pick a time`, seg)}
-    ${fxLegend([['pred', `Predicted (+${s.horizon} min)`], ['obs', 'Observed (EirGrid)'], ...(settings.uncertainty ? [['band', 'Likely range (P10–P90)']] : []), ['sel', 'Your half-hour']])}
-    <div class="fx-plot" data-fx-plot="${escapeHtml(s.day?.date || s.date)}" tabindex="0" role="slider" aria-label="Half-hour on ${fxDateLabel(s.day?.date || s.date)}. Use the arrow keys to move." aria-valuemin="0" aria-valuemax="47" aria-valuenow="${Math.max(0, sel)}" aria-valuetext="${escapeHtml(selText)}">
-      ${chartSlot('fxDay', `Predicted and observed dispatch-down for each half-hour of ${fxDateLabel(s.day?.date || s.date)}, ${s.horizon} minutes ahead`, 'fx-day-chart')}
+    ${fxHead('pulse', 'amber', 'Forecast vs reality through the day', `MWh switched off per half-hour on ${fxDateLabel(s.date)} · click to pick a time`, seg)}
+    <div class="fx-legend-row">${fxLegend([['pred', `Predicted (+${s.horizon} min)`], ['obs', 'Observed'], ...(settings.uncertainty ? [['band', 'Likely range']] : []), ['sel', 'Your half-hour']])}${replayStatus}</div>
+    <div class="fx-plot" data-fx-plot="${escapeHtml(s.date)}" tabindex="0" role="slider" aria-label="Half-hour on ${fxDateLabel(s.date)}. Use the arrow keys to move." aria-valuemin="0" aria-valuemax="47" aria-valuenow="${Math.max(0, sel)}" aria-valuetext="${escapeHtml(selText)}">
+      ${chartSlot('fxDay', `Predicted and observed dispatch-down for each half-hour of ${fxDateLabel(s.date)}, ${s.horizon} minutes ahead`, 'fx-day-chart')}
       <div class="fx-hover" aria-hidden="true"><i class="fx-hover-line"></i><i class="fx-hover-dot is-pred"></i><i class="fx-hover-dot is-obs"></i><div class="fx-tip"></div></div>
     </div>
   </section>`;
@@ -764,7 +822,7 @@ function fxShortView() {
     <div class="fx-block fx-cause"><p class="fx-block-head"><b>Why it gets switched off</b><span>${fxPercent(p.probability)} chance it happens</span></p>
       ${chartSlot('fxSSplit', `Grid constraint ${fxMwh(p.constraintMwh, 1)} MWh and curtailment ${fxMwh(p.curtailmentMwh, 1)} MWh`, 'fx-split')}</div>
     ${fxDayRecord()}
-    <p class="fx-absorb" title="min(forecast, capacity × 0.5 h) · set the capacity on the Dashboard">${icon('charge', 17)}<span><b>${fxMwh(p.recoverableMwh, 1)} MWh</b> could charge EVs with ${n(r.capacityMw)} MW of flexible load</span></p>
+    <p class="fx-absorb" title="min(forecast, capacity × 0.5 h), with the capacity set on the Dashboard. ${typeof RECOVERY_CAVEAT === 'string' ? escapeHtml(RECOVERY_CAVEAT) : ''}">${icon('charge', 17)}<span>Upper bound <b>${fxMwh(p.recoverableMwh, 1)} MWh</b> for ${n(r.capacityMw)} MW of flexible load</span></p>
   </section>`;
   return `<div class="fx-layout${s.loading ? ' is-updating' : ''}">${kpis}${chart}${side}${fxAccuracyCard('short')}${fxAboutCard('short')}</div>${fxProvenance('short')}`;
 }
@@ -850,8 +908,13 @@ document.addEventListener('click', (event) => {
   if ((el = pick('data-fx-target'))) { fx.picker = null; fxSelectShort(el.dataset.fxTarget); return; }
   if ((el = pick('data-fx-day'))) { if ('fxInWeek' in el.dataset) fxSelectDaily(el.dataset.fxDay, true); else fxChooseDay(el.dataset.fxDay); return; }
   if ((el = pick('data-fx-step'))) { fxStep(Number(el.dataset.fxStep)); return; }
-  if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); fxRender(); return; }
-  if ((el = pick('data-fx-reload'))) { if (el.dataset.fxReload === 'week') fxLoadWeek(fx.daily.date); else fxLoadDay(fx.short.date); return; }
+  if ((el = pick('data-fx-horizon'))) { fx.short.horizon = Number(el.dataset.fxHorizon); fxEnsureReplay(fx.short.date, fx.short.horizon); fxRender(); return; }
+  if ((el = pick('data-fx-reload'))) {
+    const s = fx.short;
+    if (el.dataset.fxReload === 'week') fxLoadWeek(fx.daily.date);
+    else { if (s.observed[s.date]?.status === 'error') fxLoadObserved(s.date); fxEnsureReplay(s.date, s.horizon); fxRender(); }
+    return;
+  }
   if ((el = pick('data-fx-plot'))) {
     const i = fxPlotIndex(el, event.clientX), day = el.dataset.fxPlot;
     const target = i < 0 ? null : `${day}T${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}:00Z`;

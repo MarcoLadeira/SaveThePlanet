@@ -54,7 +54,7 @@ class HostedRouteSmokeTests(unittest.TestCase):
     def test_v1_day_replay_is_target_aligned(self):
         # /predict/window/from-dataset per horizon + /actuals/v1/batch
         day = self.v1['times'][len(self.v1['times']) // 2][:10]
-        replay = explorer.short_term_day(day)
+        replay = explorer.short_term_day(day, 30)
         self.assertEqual(len(replay['observed']), 48)
         self.assertTrue(replay['points'])
         self.assertTrue(all(p['targetAt'].startswith(day) for p in replay['points']))
