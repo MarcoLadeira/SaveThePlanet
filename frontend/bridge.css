@@ -1,0 +1,134 @@
+/* Dashboard energy bridge: energy at risk + confidence | battery | flexible charging + next move. */
+.dashboard-main[data-current-page="overview"] .dashboard-redesign.bridge-layout {
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .86fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.1fr) minmax(0, 1fr);
+  --bridge-ink: #0d1726;
+  --bridge-muted: #5a6876;
+  --bridge-line: #e3ecea;
+  --bridge-track: #e8edf2;
+  --bridge-shell-a: #eef6f3;
+  --bridge-shell-b: #d7e8e2;
+  --bridge-empty: #f5f9f8;
+  --bridge-loss: #b9c7c3;
+  --bridge-green: #169b62;
+}
+.dashboard-main[data-current-page="overview"][data-theme="dark"] .dashboard-redesign.bridge-layout {
+  --bridge-ink: #eef9f2;
+  --bridge-muted: #a9c4b7;
+  --bridge-line: #2c4a40;
+  --bridge-track: #2c4a40;
+  --bridge-shell-a: #24443a;
+  --bridge-shell-b: #1b3a31;
+  --bridge-empty: #152c25;
+  --bridge-loss: #5d7a71;
+  --bridge-green: #4fd99b;
+}
+.bridge-layout > .dash-hero { grid-column: 1; grid-row: 1; }
+.bridge-layout > .dash-confidence { grid-column: 1; grid-row: 2; }
+.bridge-layout > .dash-battery { grid-column: 2; grid-row: 1 / 3; }
+.bridge-layout > .dash-flexible { grid-column: 3; grid-row: 1; }
+.bridge-layout > .dash-plan { grid-column: 3; grid-row: 2; }
+@media (max-aspect-ratio: 4/3) {
+  .dashboard-main[data-current-page="overview"] .dashboard-redesign.bridge-layout {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, .86fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+  .bridge-layout > .dash-plan { grid-column: 3; grid-row: 2; }
+  .bridge-layout > .dash-flexible { grid-column: 3; grid-row: 1; }
+}
+.bridge-layout > .dash-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 14px 18px 12px; }
+
+/* Forecast confidence in one column: time and odds on one line, the range below. */
+.bridge-layout .dash-confidence .dash-card-head { flex-wrap: wrap; }
+.bridge-layout .dash-confidence .dash-head-copy p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bridge-layout .conf-rows { gap: 4px; }
+.bridge-layout .conf-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "when odds" "track track";
+  gap: 0 12px;
+  padding: 6px 12px 2px;
+  border-radius: 16px;
+}
+.bridge-layout .conf-when { grid-area: when; }
+.bridge-layout .conf-when b { font-size: 14px; }
+.bridge-layout .conf-odds { grid-area: odds; flex-direction: row; align-items: baseline; gap: 5px; }
+.bridge-layout .conf-odds b { font-size: 20px; }
+.bridge-layout .conf-odds small { margin: 0; }
+.bridge-layout .conf-track { grid-area: track; height: 52px; margin: 0 14px; }
+.bridge-layout .conf-dot { width: 24px; height: 24px; margin-left: -12px; }
+.bridge-layout .conf-dot em { bottom: calc(100% + 7px); padding: 2px 8px; font-size: 10.5px; }
+.bridge-layout .conf-end { top: calc(50% + 13px); }
+
+/* Battery (middle column). */
+.dash-battery { color: var(--bridge-ink); gap: 8px; }
+.dash-battery > .dash-card-head { flex: 0 0 auto; flex-wrap: wrap; row-gap: 6px; }
+.bridge-preset { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--bridge-muted); font-size: 11px; font-weight: 700; }
+.bridge-preset select { flex: 1; max-width: 220px; padding: 4px 8px; border: 1px solid var(--bridge-line); border-radius: 10px; background: transparent; color: var(--bridge-ink); font: inherit; font-weight: 600; }
+.bridge-in { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 12px; background: linear-gradient(90deg, rgba(255, 136, 62, .14), rgba(255, 136, 62, .04)); }
+.bridge-in span { color: var(--bridge-muted); font-size: 11px; font-weight: 700; }
+.bridge-in strong { font-size: 17px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.bridge-battery { display: grid; grid-template-columns: 42% 1fr; align-items: center; gap: 10px; flex: 1 1 auto; min-height: 120px; }
+.bridge-battery svg { width: 100%; height: 100%; max-height: 230px; }
+.bridge-shell { stroke: var(--bridge-line); stroke-width: 1.5; }
+.bridge-term { fill: var(--bridge-shell-b); }
+.bridge-empty-cell { fill: var(--bridge-empty); }
+.bridge-loss { fill: var(--bridge-loss); }
+.bridge-bolt { fill: #fff; opacity: .85; filter: drop-shadow(0 2px 3px rgba(6, 60, 40, .35)); }
+.bridge-battery-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bridge-battery-copy span { color: var(--bridge-muted); font-size: 11px; font-weight: 700; }
+.bridge-battery-copy strong { font-size: 34px; font-weight: 800; letter-spacing: -.04em; line-height: 1.05; }
+.bridge-battery-copy strong small { margin-left: 4px; color: var(--bridge-muted); font-size: 14px; font-weight: 700; letter-spacing: 0; }
+.bridge-battery-copy em { display: flex; align-items: center; gap: 6px; color: var(--bridge-muted); font-size: 11px; font-style: normal; font-weight: 600; }
+.dash-battery i.is-battery, .dash-flexible i.is-battery { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--bridge-green); }
+.dash-battery i.is-loss, .dash-flexible i.is-loss { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--bridge-loss); }
+.bridge-used { flex: 0 0 auto; }
+.bridge-used-head { display: flex; justify-content: space-between; color: var(--bridge-muted); font-size: 11px; font-weight: 700; }
+.bridge-used-head b { color: var(--bridge-ink); font-size: 13px; }
+.bridge-used-track { position: relative; height: 10px; margin-top: 5px; border-radius: 99px; background: var(--bridge-track); }
+.bridge-used-track i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--bridge-green); }
+.bridge-used-track b { position: absolute; top: -3px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; background: var(--bridge-green); }
+.bridge-ledger { display: grid; gap: 2px; margin: 0; font-size: 12px; }
+.bridge-ledger div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 2px; border-bottom: 1px solid var(--bridge-line); }
+.bridge-ledger dt { color: var(--bridge-muted); font-weight: 600; }
+.bridge-ledger dd { margin: 0; font-weight: 800; white-space: nowrap; }
+.bridge-ledger .is-sub { padding-left: 14px; border-bottom-style: dashed; }
+.bridge-ledger .is-sub dt::before { content: "↳ "; }
+.bridge-ledger .is-charger dd { color: var(--bridge-green); }
+.bridge-ledger .is-left dd { color: #e0691e; }
+.bridge-note { margin: 0; color: var(--bridge-muted); font-size: 10.5px; line-height: 1.35; }
+.bridge-note b { color: var(--bridge-ink); }
+.bridge-check { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 10.5px; font-weight: 700; }
+.bridge-check.is-ok { color: var(--bridge-green); }
+.bridge-check.is-bad { color: #c9431a; }
+.bridge-foot { margin: auto 0 0; color: var(--bridge-muted); font-size: 10px; }
+.bridge-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--bridge-muted); font-size: 12px; text-align: center; }
+.bridge-empty strong { color: var(--bridge-ink); }
+.dash-plan .bridge-empty, .dash-plan .bridge-empty strong { color: #d9efe7; }
+
+/* Flexible charging (right, top): per-car equal shares. */
+.dash-flexible { color: var(--bridge-ink); gap: 8px; }
+.flex-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.flex-summary div { display: flex; flex-direction: column; }
+.flex-summary strong { font-size: 24px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.flex-summary span { color: var(--bridge-muted); font-size: 11px; font-weight: 600; }
+.bridge-cars { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.car-bars { display: grid; grid-template-columns: repeat(var(--cars), minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 4px; flex: 1; min-height: 60px; }
+.car-bar { display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 0; }
+.car-bar-value { color: var(--bridge-ink); font-size: 9.5px; font-weight: 800; white-space: nowrap; }
+.car-bar-col { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: min(100%, 26px); flex: 1 1 0; min-height: 0; margin-top: 2px; }
+.car-bar-col::before { content: ""; flex: calc(1 - var(--h)) 1 0; }
+.car-bar-col i { display: block; width: 100%; }
+.car-bar-col i.is-loss { flex: calc(var(--h) * (1 - var(--b))) 1 0; border-radius: 5px 5px 0 0; background: var(--bridge-loss); }
+.car-bar-col i.is-battery { flex: calc(var(--h) * var(--b)) 1 0; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, #6fdca6, var(--bridge-green)); }
+.car-bar small { margin-top: 3px; color: var(--bridge-muted); font-size: 9.5px; font-weight: 700; }
+.car-bars-caption { margin: 4px 0 0; color: var(--bridge-muted); font-size: 10px; }
+.bridge-empty-line { flex: 1; margin: 0; color: var(--bridge-muted); font-size: 12px; }
+.flex-foot { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-size: 11px; font-weight: 700; }
+.flex-foot .is-ok { color: var(--bridge-green); }
+.flex-foot .is-warn { color: #e0691e; }
+.flex-key { display: flex; align-items: center; gap: 5px; color: var(--bridge-muted); font-weight: 600; }
+
+/* Your next move (right, bottom): a little tighter in half the column. */
+.bridge-layout > .dash-plan .plan-headline { margin-top: 8px; font-size: 16px; }
+.bridge-layout > .dash-plan .plan-chart { flex: 1; min-height: 0; }
+.bridge-layout > .dash-plan .plan-caveat { margin: 4px 0 6px; font-size: 10px; }

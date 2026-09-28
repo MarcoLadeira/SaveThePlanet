@@ -85,7 +85,8 @@ async function chatSend(text) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
       // Only safe selectors are sent; the server rebuilds every figure itself.
       body: JSON.stringify({ messages: history, page: pageFromHash(), horizon: modelState.horizon, capacityMw: modelState.capacity,
-        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh, target: modelState.target }),
+        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh, target: modelState.target,
+        fleetPreset: modelState.fleetPreset }),  // Volt explains the same fleet plan as the Battery card
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error?.message || 'Volt could not answer.');
