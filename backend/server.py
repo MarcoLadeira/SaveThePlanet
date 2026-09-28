@@ -720,7 +720,9 @@ class Handler(SimpleHTTPRequestHandler):
         if errors:
             self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
             return
-        self.send_json(200, offers.calculate(**values))
+        result = business.ready()  # never starts a build: without a finished replay only the site caps sessions
+        known = ((result or {}).get('discountWindows') or {}).get('calculator', {}).get('capacity', {}).get('eligibleWindowsPerMonth')
+        self.send_json(200, offers.calculate(**values, eligible_windows=known))
 
     def impact_day(self, query):
         """The Dashboard's fleet + grid battery plan for each half-hour of a replayed day (backend/dayplan.py),

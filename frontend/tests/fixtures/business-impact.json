@@ -759,8 +759,9 @@
    "capacity": {
     "sessionsPerWindow": 16,
     "windowsPerDay": 2,
-    "maxPerMonth": 960,
-    "eligibleWindowsPerMonth": 26
+    "siteMaxPerMonth": 960,
+    "eligibleWindowsPerMonth": 26,
+    "maxPerMonth": 416
    }
   },
   "offers": [

@@ -441,9 +441,14 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
     per_day = totals['sessions'] / count
     factor = seasonal.get('factor') if seasonal.get('available') else None
     site_cap = site_session_cap(kwh)
-    month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
-    week_sessions = min(month_cap, round(per_day * DAYS_PER_MONTH))
-    # Stored surplus depends on how often curtailment happens, so the month is scaled like the depot's surplus.
+    site_month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
+    # Windows worth offering a month: a window without stored surplus has no discount to sell. Stored
+    # surplus depends on how often curtailment happens, so the month is scaled like the depot's surplus.
+    offered_count = sum(1 for w in windows if w['status'] == 'offer')
+    week_windows = min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH))
+    eligible_windows = week_windows if factor is None else min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH * factor))
+    month_cap = min(site_month_cap, site_cap * eligible_windows)
+    week_sessions = min(site_month_cap, site_cap * week_windows, round(per_day * DAYS_PER_MONTH))
     expected_sessions = week_sessions if factor is None else min(month_cap, round(per_day * DAYS_PER_MONTH * factor))
     basis = 'evaluation-week' if factor is None else 'seasonal'
     scenarios = {
@@ -476,8 +481,8 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
         'calculator': {'defaults': {**scenarios['expected']['inputs'], 'operatorFixedEur': COSTS['operatorFixedEurPerMonth'],
                                     'platformVariableEur': COSTS['platformVariableEurPerSession'],
                                     'platformFixedEur': COSTS['platformFixedEurPerMonth']},
-                       'capacity': {'sessionsPerWindow': site_cap, 'windowsPerDay': len(WINDOWS), 'maxPerMonth': month_cap,
-                                    'eligibleWindowsPerMonth': round(len(offered) / count * DAYS_PER_MONTH)}},
+                       'capacity': {'sessionsPerWindow': site_cap, 'windowsPerDay': len(WINDOWS), 'siteMaxPerMonth': site_month_cap,
+                                    'eligibleWindowsPerMonth': eligible_windows, 'maxPerMonth': month_cap}},
         'offers': windows,
         'ledger': {**totals, 'nights': count, 'offers': len(offered), 'byWindow': by_window, 'forecastHorizonMinutes': 30},
         'energy': {
@@ -562,22 +567,31 @@ def parse_calculator(query):
     return values, errors
 
 
-def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur):
-    """What-if month for one site. Sessions above what the site can physically deliver are not counted."""
+def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur,
+              eligible_windows=None):
+    """What-if month for one site. Sessions above what the site can physically deliver are not counted,
+    nor, when the replay is known, sessions beyond the windows it found worth offering a month
+    (`eligible_windows`): a window without stored surplus has no discount to sell."""
     per_window = site_session_cap(kwhPerSession)
-    cap = per_window * len(WINDOWS) * DAYS_PER_MONTH
+    site_cap = per_window * len(WINDOWS) * DAYS_PER_MONTH
+    windows = None if eligible_windows is None else max(0, min(int(eligible_windows), len(WINDOWS) * DAYS_PER_MONTH))
+    cap = site_cap if windows is None else min(site_cap, per_window * windows)
     counted = min(int(sessions), cap)
     month = monthly(counted, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur)
     if kwhPerSession > max_session_kwh():
-        limit = f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+        limited_by, limit = 'session-kwh', f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+    elif counted < sessions and cap < site_cap:
+        limited_by, limit = 'windows', (f'the replay found about {windows} windows a month worth offering, '
+                                        f'at most {per_window} sessions of {kwhPerSession:g} kWh each.')
     elif counted < sessions:
-        limit = (f'The site fits {per_window} sessions of {kwhPerSession:g} kWh per window ({HUB["chargers"]} x '
-                 f'{HUB["chargerKw"]:g} kW chargers, {HUB["sitePowerKw"]:g} kW connection): at most {cap:,} a month.')
+        limited_by, limit = 'site', (f'the site fits {per_window} sessions of {kwhPerSession:g} kWh per window ({HUB["chargers"]} x '
+                                     f'{HUB["chargerKw"]:g} kW chargers, {HUB["sitePowerKw"]:g} kW connection): at most {cap:,} a month.')
     else:
-        limit = None
+        limited_by, limit = None, None
     return {'version': VERSION, 'illustrative': True, 'month': month,
-            'capacity': {'sessionsPerWindow': per_window, 'maxPerMonth': cap, 'requested': int(sessions), 'counted': counted,
-                         'capped': counted < sessions, 'limit': limit},
+            'capacity': {'sessionsPerWindow': per_window, 'maxPerMonth': cap, 'siteMaxPerMonth': site_cap,
+                         'eligibleWindowsPerMonth': windows, 'requested': int(sessions), 'counted': counted,
+                         'capped': counted < sessions, 'limitedBy': limited_by, 'limit': limit},
             'noSpareEnergy': counted == 0 or savingEurPerKwh <= 0}
 
 
