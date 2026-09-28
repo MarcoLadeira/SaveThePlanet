@@ -380,3 +380,14 @@ A synthetic API demonstration and stress test, not realistic current telemetry.
 Chrome) to drive one headless session across Dashboard → Charging → Impact → Volt. It
 saves screenshots and a `summary.json` of the pinned target each view shows to
 `docs/screenshots/pr40/`.
+
+## Charging optimizer and energy ledger
+
+`POST /api/v1/charging/optimize` with `{"preset": "depot-and-retail"}` (or a `fleet/v1` object
+under `fleet`) returns baseline and optimized vehicle-level plans for the +30 and +60 minute
+forecasts of the pinned half-hour, never added together. The optimized plan shares the window's
+eligible forecast energy equally between the plugged-in vehicles (max-min fair) and every plan
+carries a server-checked `ledger`: eligible = allocated to chargers + real storage (0) +
+unallocated, and allocated = delivered into batteries + charging loss. `GET /api/v1/charging/presets`
+lists the simulated fleets. Fleets are simulated and network eligibility is unverified; window
+energy is projected, not measured. See [docs/CHARGING_OPTIMIZER.md](../docs/CHARGING_OPTIMIZER.md).

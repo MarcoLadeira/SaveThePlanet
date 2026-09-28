@@ -2,7 +2,7 @@
 // Every figure, badge and button is rendered from structured server fields; model text is shown as plain text only.
 const chatState = { open: false, busy: false, messages: [] };
 const chatPageNames = { overview: 'Dashboard', forecast: 'Forecast', charging: 'Charging', impact: 'Impact', settings: 'Settings' };
-const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Explain curtailment'];
+const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Why this charging window?', 'Explain curtailment'];
 
 function voltSourceBadge() {
   const d = modelState.data;

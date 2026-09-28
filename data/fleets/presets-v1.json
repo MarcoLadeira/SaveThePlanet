@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "fleet/v1",
+  "fixtureVersion": "demo-fleets-2026-09-27",
+  "provenance": "simulated",
+  "note": "Deterministic, hand-written demo fleets. No real vehicles, drivers, telemetry or charger data. Times are minutes relative to the forecast issue time, so the same fleet can be replayed against any historical forecast.",
+  "presets": [
+    {
+      "id": "depot-and-retail",
+      "name": "Depot and retail car park",
+      "description": "18 simulated EVs across a fleet depot and a small retail car park, with staggered arrivals and deadlines.",
+      "chargingEfficiency": 0.9,
+      "sites": [
+        {"id": "depot", "name": "Fleet depot (hypothetical)", "region": "IE", "hypotheticalConstraintZone": true,
+         "chargers": 6, "chargerKw": 22, "sitePowerKw": 100},
+        {"id": "retail", "name": "Retail car park (hypothetical)", "region": "IE", "hypotheticalConstraintZone": false,
+         "chargers": 4, "chargerKw": 11, "sitePowerKw": 30}
+      ],
+      "vehicles": [
+        {"id": "EV-01", "site": "depot", "arriveMin": -60, "departMin": 240, "requiredKwh": 30, "maxKw": 22},
+        {"id": "EV-02", "site": "depot", "arriveMin": -30, "departMin": 300, "requiredKwh": 25, "maxKw": 11},
+        {"id": "EV-03", "site": "depot", "arriveMin": 0, "departMin": 90, "requiredKwh": 12, "maxKw": 22},
+        {"id": "EV-04", "site": "depot", "arriveMin": 0, "departMin": 360, "requiredKwh": 40, "maxKw": 22},
+        {"id": "EV-05", "site": "depot", "arriveMin": 0, "departMin": 180, "requiredKwh": 18, "maxKw": 11},
+        {"id": "EV-06", "site": "depot", "arriveMin": 0, "departMin": 420, "requiredKwh": 35, "maxKw": 22},
+        {"id": "EV-07", "site": "depot", "arriveMin": 30, "departMin": 240, "requiredKwh": 20, "maxKw": 22},
+        {"id": "EV-08", "site": "depot", "arriveMin": 30, "departMin": 480, "requiredKwh": 45, "maxKw": 22},
+        {"id": "EV-09", "site": "depot", "arriveMin": 60, "departMin": 300, "requiredKwh": 22, "maxKw": 11},
+        {"id": "EV-10", "site": "depot", "arriveMin": 90, "departMin": 480, "requiredKwh": 30, "maxKw": 22},
+        {"id": "EV-11", "site": "retail", "arriveMin": -30, "departMin": 90, "requiredKwh": 8, "maxKw": 7.4},
+        {"id": "EV-12", "site": "retail", "arriveMin": 0, "departMin": 120, "requiredKwh": 10, "maxKw": 11},
+        {"id": "EV-13", "site": "retail", "arriveMin": 0, "departMin": 60, "requiredKwh": 4, "maxKw": 11},
+        {"id": "EV-14", "site": "retail", "arriveMin": 0, "departMin": 150, "requiredKwh": 12, "maxKw": 7.4},
+        {"id": "EV-15", "site": "retail", "arriveMin": 30, "departMin": 150, "requiredKwh": 9, "maxKw": 11},
+        {"id": "EV-16", "site": "retail", "arriveMin": 30, "departMin": 210, "requiredKwh": 14, "maxKw": 11},
+        {"id": "EV-17", "site": "retail", "arriveMin": 60, "departMin": 180, "requiredKwh": 6, "maxKw": 7.4},
+        {"id": "EV-18", "site": "retail", "arriveMin": 120, "departMin": 240, "requiredKwh": 10, "maxKw": 11}
+      ]
+    },
+    {
+      "id": "constrained-site",
+      "name": "Constrained site",
+      "description": "12 simulated EVs sharing 3 chargers under a 22 kW site limit; several deadlines cannot all be met.",
+      "chargingEfficiency": 0.9,
+      "sites": [
+        {"id": "yard", "name": "Small yard (hypothetical)", "region": "IE", "hypotheticalConstraintZone": false,
+         "chargers": 3, "chargerKw": 11, "sitePowerKw": 22}
+      ],
+      "vehicles": [
+        {"id": "EV-A1", "site": "yard", "arriveMin": 0, "departMin": 60, "requiredKwh": 9, "maxKw": 11},
+        {"id": "EV-A2", "site": "yard", "arriveMin": 0, "departMin": 90, "requiredKwh": 12, "maxKw": 11},
+        {"id": "EV-A3", "site": "yard", "arriveMin": 0, "departMin": 120, "requiredKwh": 15, "maxKw": 11},
+        {"id": "EV-A4", "site": "yard", "arriveMin": 0, "departMin": 240, "requiredKwh": 20, "maxKw": 11},
+        {"id": "EV-A5", "site": "yard", "arriveMin": 0, "departMin": 30, "requiredKwh": 8, "maxKw": 11},
+        {"id": "EV-A6", "site": "yard", "arriveMin": 30, "departMin": 150, "requiredKwh": 14, "maxKw": 7.4},
+        {"id": "EV-A7", "site": "yard", "arriveMin": 30, "departMin": 180, "requiredKwh": 10, "maxKw": 11},
+        {"id": "EV-A8", "site": "yard", "arriveMin": 60, "departMin": 120, "requiredKwh": 6, "maxKw": 11},
+        {"id": "EV-A9", "site": "yard", "arriveMin": 60, "departMin": 300, "requiredKwh": 25, "maxKw": 11},
+        {"id": "EV-A10", "site": "yard", "arriveMin": 90, "departMin": 210, "requiredKwh": 12, "maxKw": 11},
+        {"id": "EV-A11", "site": "yard", "arriveMin": 120, "departMin": 240, "requiredKwh": 10, "maxKw": 7.4},
+        {"id": "EV-A12", "site": "yard", "arriveMin": 150, "departMin": 300, "requiredKwh": 16, "maxKw": 11}
+      ]
+    }
+  ]
+}
