@@ -6,6 +6,8 @@ from http.client import IncompleteRead
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 import test_server as support
+
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 import server
 from server import diagnose, normalize
 

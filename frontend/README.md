@@ -51,6 +51,33 @@ reason code and explanation, model version, response time, last check, service t
 whether an API key is set) plus the data mode and last-updated time. Timezone,
 appearance and the display toggles remain local preferences.
 
+## Forecast page
+
+`forecast-explorer.js` and `forecast-explorer.css` hold the page. It replays GridToEv's two
+models on dates from their own datasets (`/api/v1/explorer/*`): the daily curtailment model
+(chance of any curtailment on a UTC day, and its MWh) and the short-term model (dispatch-down
+in one half-hour, 30 or 60 minutes ahead). Every figure is a historical replay compared with
+what EirGrid observed, never a live forecast.
+
+![Forecast page](../docs/screenshots/forecast-after-daily.png)
+
+- **Toolbar**: model switch, day or half-hour navigator (arrows and a dataset calendar with
+  train/validation/test markers) and a "Historical replay" status chip.
+- **KPI row**: the model's figures, the observed value and the forecast error, with sparklines,
+  a chance gauge or the P10–P90 range.
+- **Main chart**: predicted vs observed per day for the week (daily model), or per half-hour
+  through the day with the likely range (short-term model). Hover for details; click or use the
+  arrow keys to move.
+- **Side card**: how the selected day or half-hour turned out, the forecast range, the cause
+  split and what flexible load could absorb. Taller screens add the week's calls or the day's
+  range hit rate.
+- **How accurate is it?** and **About the model**: held-out scores against simple baselines,
+  the training timeline with the selected date pinned, and the model's own caveats.
+
+The page fits one 1440×900 screen like the others, so the app is not scaled down for it. Its
+charts are `standalone` engine charts in `charts3d.js`: they animate like the other pages without
+needing the Dashboard's model data, and everything is instant under reduced motion.
+
 ## Charging page
 
 `charging.js` and `charging.css` hold the whole page (loaded after `studio.js` and

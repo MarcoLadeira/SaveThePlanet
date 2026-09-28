@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 from http.client import IncompleteRead
 import test_server as support
+
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
 from server import available_forecast, normalize, post_prediction
 from demo import demo_payload
 from scenario import build_scenario
@@ -37,7 +39,7 @@ class FallbackTests(unittest.TestCase):
             with self.subTest(failure=type(failure).__name__):
                 open_url.side_effect = failure
                 result = available_forecast(100)
-                self.assertEqual(result['fallback'], {'active': True, 'reason': 'MODEL_UNAVAILABLE'})
+                self.assertEqual(result['fallback'], {'active': True, 'reason': 'MODEL_UNAVAILABLE', 'requestedTarget': None})
                 self.assertEqual(result['source'], 'local-demo-fixture')
         open_url.side_effect = None
         for raw in (b'not json', b'{}', b'{"predictions": []}', b'null', b'[]'):

@@ -54,8 +54,11 @@ async function cgLoadRange() {
         cgRerender();
     }
 }
+// The schedule follows the pinned dashboard target's day (see pinning.js), like Impact, so
+// Dashboard, Charging, Impact and Volt always describe the same half-hour.
+function cgTargetDay() { return modelState.target ? modelState.target.slice(0, 10) : null; }
 function cgKey() {
-    return [modelState.capacity, modelState.totalDemandKwh, modelState.flexibleDemandKwh].join('|');
+    return [cgTargetDay(), modelState.capacity, modelState.totalDemandKwh, modelState.flexibleDemandKwh].join('|');
 }
 function cgRerender() {
     if (pageFromHash() === 'charging') render();
@@ -80,6 +83,7 @@ async function cgLoadDay() {
     cgDay.key = cgKey();
     cgDay.status = 'loading';
     const query = new URLSearchParams({ capacityMw: String(modelState.capacity), totalDemandKwh: String(modelState.totalDemandKwh), flexibleDemandKwh: String(modelState.flexibleDemandKwh) });
+    if (cgTargetDay()) query.set('date', cgTargetDay());
     try {
         const response = await fetch(`/api/v1/impact/day?${query}`);
         const body = await response.json();

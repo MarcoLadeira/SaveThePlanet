@@ -18,7 +18,7 @@ function comparisonChart(kind='forecast'){
   const all=rows.map(series);
   const max=Math.max(1,...all.flatMap(pair=>pair.map(item=>item.value)));
   const bar=item=>`<div class="energy-lane"><div class="energy-lane-label"><span>${item.label}</span><strong>${n(item.value)} <small>MWh</small></strong></div><div class="energy-track" role="img" aria-label="${item.label}: ${n(item.value)} megawatt-hours"><div class="energy-track-fill is-${item.tone}" style="width:${Math.max(0,Math.min(100,item.value/max*100))}%"></div></div></div>`;
-  return `<div class="energy-chart" aria-label="Two separate model forecast targets"><div class="energy-chart-scale"><span>0</span><span>${n(max/2)}</span><span>${n(max)} MWh</span></div><div class="energy-chart-rows">${rows.map((p,i)=>`<div class="energy-target ${p.horizonMinutes===modelState.horizon?'is-selected':''}"><div class="energy-target-info"><span>+${p.horizonMinutes} MINUTES</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong><small>Separate half-hour forecast</small></div><div class="energy-target-lanes">${all[i].map(bar).join('')}</div></div>`).join('')}</div><div class="energy-chart-foot">Bar lengths use the same scale across both targets. Values are model predictions or scenario estimates.</div></div>`;
+  return `<div class="energy-chart" aria-label="Two forecasts of the same target half-hour"><div class="energy-chart-scale"><span>0</span><span>${n(max/2)}</span><span>${n(max)} MWh</span></div><div class="energy-chart-rows">${rows.map((p,i)=>`<div class="energy-target ${p.horizonMinutes===modelState.horizon?'is-selected':''}"><div class="energy-target-info"><span>+${p.horizonMinutes} MINUTES</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong><small>Issued ${escapeHtml(modelTime(p.issuedAt))} · historical dataset</small></div><div class="energy-target-lanes">${all[i].map(bar).join('')}</div></div>`).join('')}</div><div class="energy-chart-foot">Both rows forecast the same half-hour from different issue times; bars share one scale. Historical dataset predictions or scenario estimates, not live forecasts.</div></div>`;
 }
 
 const healthLabels={up:'Model online',down:'Model unavailable',unknown:'Not checked yet'};
@@ -35,7 +35,7 @@ function healthGrid(){
     items.push(healthItem('Last checked',m.checkedAt?escapeHtml(modelTime(m.checkedAt,true)):'—'));
     items.push(healthItem('Service',`${m.target==='local'?'Local':'Hosted'} · key ${m.apiKeyConfigured?'set':'not set'} · ${n(m.timeoutSeconds)} s`));
   }
-  const mode={'historical-prediction':'Historical model prediction',simulated:'Simulated demo fallback'}[live?.dataMode]||(live?escapeHtml(live.dataMode):'—');
+  const mode={'historical-prediction':'Historical dataset prediction (not a live forecast)',simulated:'Simulated demo fallback'}[live?.dataMode]||(live?escapeHtml(live.dataMode):'—');
   items.push(healthItem('Data shown',mode));
   items.push(healthItem('Last updated',live?escapeHtml(modelTime(live.generatedAt,true)):'—'));
   return `<div class="settings-health">${items.join('')}</div>`;

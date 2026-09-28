@@ -19,9 +19,11 @@ function chartNiceMax(value) {
   return (ratio <= 1 ? 1 : ratio <= 2 ? 2 : ratio <= 2.5 ? 2.5 : ratio <= 5 ? 5 : 10) * step;
 }
 
+// The API's target timestamp is the START of the predicted half-hour ("the half-hour beginning
+// 30 or 60 minutes after issue"), matching PR #26's charging_window.
 function targetWindow(p) {
-  const end = new Date(p.targetAt);
-  const start = new Date(end.getTime() - (modelState.data?.intervalMinutes || 30) * 60000);
+  const start = new Date(p.targetAt);
+  const end = new Date(start.getTime() + (modelState.data?.intervalMinutes || 30) * 60000);
   return `${modelTime(start)}–${modelTime(end)}`;
 }
 
@@ -45,11 +47,11 @@ function chartsRestore(root, kept) {
 }
 
 function chartsSync(root) {
-  if (!modelState.data) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   root.querySelectorAll('[data-chart]').forEach((el) => {
     const chart = dashCharts[el.dataset.chart];
-    if (!chart) return;
+    // Standalone charts (the Forecast page) bring their own data; the rest read the model state.
+    if (!chart || (!chart.standalone && !modelState.data)) return;
     const target = chart.values();
     const key = JSON.stringify(target);
     if (key === el.chartKey) return;
@@ -59,7 +61,8 @@ function chartsSync(root) {
     const duration = el.chartValues ? 750 : 1300;
     cancelAnimationFrame(el.chartFrame);
     const step = (now) => {
-      const t = reduce ? 1 : Math.min(1, (now - started) / duration);
+      // The first frame's timestamp can precede `started`, so clamp at 0 as well.
+      const t = reduce ? 1 : Math.min(1, Math.max(0, (now - started) / duration));
       el.chartValues = chartLerp(from, target, 1 - (1 - t) ** 3);
       el.innerHTML = chart.draw(el.chartValues);
       if (t < 1) el.chartFrame = requestAnimationFrame(step);
@@ -202,7 +205,7 @@ dashCharts.fleetSplit = {
     return { absorbed: o.potentialRecoveryMwh, left: o.remainingFlexibleMwh, flexible: modelState.data.scenario.flexibleDemandMwh };
   },
   start: (target) => ({ ...target, absorbed: 0, left: 0 }),
-  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Absorbable', fleetShare(absorbed, flexible))
+  draw: ({ absorbed, left, flexible }) => fleetStat('green', 'charge', absorbed, 'Upper bound', fleetShare(absorbed, flexible))
     + fleetStat('orange', 'clock', left, 'Flexibility left', fleetShare(left, flexible)),
 };
 
@@ -225,10 +228,10 @@ dashCharts.planHeadline = {
   },
   start: (target) => ({ ...target, energy: 0, gain: 0 }),
   draw(v) {
-    if (!v.fleet) return `<h3 class="plan-headline">Use up to <em>${n(v.energy)} MWh</em> of flexible charging at <em>${escapeHtml(v.time)}</em>.</h3>`;
+    if (!v.fleet) return `<h3 class="plan-headline">At most <em>${n(v.energy)} MWh</em> for flexible charging at <em>${escapeHtml(v.time)}</em>.</h3>`;
     if (!(v.atRisk > 0)) return `<h3 class="plan-headline">Nothing is forecast to be wasted at <em>${escapeHtml(v.time)}</em>. Charge as usual.</h3><p class="plan-sub">${v.met} of ${v.total} simulated vehicles fully charged.</p>`;
     const gain = v.gain > 0.05 ? ` · <b>+${n(Math.round(v.gain * 10) / 10)} kWh</b> vs charging on arrival` : ' · same as charging on arrival';
-    const other = v.recommended !== modelState.horizon ? ` · +${v.recommended} min window recommended` : '';
+    const other = v.recommended !== modelState.horizon ? (fpState.data.sharedTarget ? ` · the latest (+${v.recommended} min) forecast is planned` : ` · +${v.recommended} min window recommended`) : '';
     return `<h3 class="plan-headline">Plan <em>${n(Math.round(v.energy * 10) / 10)} kWh</em> of fleet charging at <em>${escapeHtml(v.time)}</em>.</h3><p class="plan-sub">${v.met} of ${v.total} simulated vehicles fully charged${gain}${other}</p>`;
   },
 };
@@ -247,7 +250,7 @@ dashCharts.planBars = {
     return { rise: 1, unit: 'MWh', bars: [
       { key: 'risk', label: 'At risk', value: p.atRiskMwh },
       { key: 'flex', label: 'Flexible', value: modelState.data.scenario.flexibleDemandMwh },
-      { key: 'recovery', label: 'Absorbable', value: scenarioNow().potentialRecoveryMwh },
+      { key: 'recovery', label: 'Upper bound', value: scenarioNow().potentialRecoveryMwh },
     ] };
   },
   start: (target) => ({ ...target, rise: 0 }),
@@ -264,7 +267,7 @@ dashCharts.confidence = {
     const rows = [...modelState.data.predictions]
       .sort((a, b) => a.horizonMinutes - b.horizonMinutes)
       .map((p) => ({
-        horizon: String(p.horizonMinutes), window: targetWindow(p), risk: p.risk,
+        horizon: String(p.horizonMinutes), issued: modelTime(p.issuedAt), window: targetWindow(p), risk: p.risk,
         probability: p.probability, low: p.lowerMwh, high: p.upperMwh, expected: p.atRiskMwh,
       }));
     return { rows, max: chartNiceMax(Math.max(...rows.map((row) => Math.max(row.high, row.expected)))), selected: String(modelState.horizon) };
@@ -273,7 +276,7 @@ dashCharts.confidence = {
   draw({ rows, max, selected }) {
     const at = (value) => `${Math.min(100, Math.max(0, (value / max) * 100)).toFixed(2)}%`;
     return `<div class="conf-rows">${rows.map((row) => `<button type="button" class="conf-row is-${escapeHtml(row.risk)}${row.horizon === selected ? ' is-selected' : ''}" data-horizon="${row.horizon}" aria-pressed="${row.horizon === selected}">
-        <span class="conf-when"><small>+${row.horizon} min</small><b>${escapeHtml(row.window)}</b></span>
+        <span class="conf-when"><small>+${row.horizon} min · issued ${escapeHtml(row.issued)}</small><b>${escapeHtml(row.window)}</b></span>
         <span class="conf-track"><span class="conf-glass"></span><span class="conf-band" style="left:${at(row.low)};width:calc(${at(row.high)} - ${at(row.low)})"></span>
           <span class="conf-end" style="left:${at(row.low)}">${n(row.low)}</span><span class="conf-end is-high" style="left:${at(row.high)}">${n(row.high)}</span>
           <span class="conf-dot" style="left:${at(row.expected)}"><em>${n(row.expected)} MWh</em></span></span>

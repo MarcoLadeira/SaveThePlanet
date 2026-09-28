@@ -47,7 +47,7 @@ GLOSSARY = {
     'p10': 'P10 and P90 are the model\'s lower and upper estimates; the central estimate is P50.',
     'p90': 'P10 and P90 are the model\'s lower and upper estimates; the central estimate is P50.',
     'flexible': 'Flexible demand is EV charging that can move in time to soak up surplus renewable energy.',
-    'horizon': 'The +30 and +60 minute targets are two separate 30-minute intervals forecast from the same issue time.',
+    'horizon': 'The +30 and +60 minute values are two forecasts of the same half-hour, issued 30 and 60 minutes before it.',
 }
 
 SYSTEM_PROMPT = """You are Volt, the assistant inside the Renewable Energy Planner, a Hack the Climate 2026 prototype for Ireland.
@@ -61,8 +61,10 @@ Reply with JSON only, matching the schema:
 - followUp: one short next question the user might ask, under 8 words.
 
 Facts rules:
-- The +30 and +60 minute targets are two separate 30-minute intervals forecast from one issue time. They are not cumulative and nothing "increases over the hour". Never add them together.
-- FACTS.live is false: the data is a historical or simulated forecast. Never say "next 30 minutes", "right now" or "currently"; say "forecast target +30 min".
+- The +30 and +60 minute values are two forecasts of the SAME target half-hour (FACTS.targetAt), issued 30 and 60 minutes before it. They are alternative estimates, not a sequence: nothing "increases over the hour". Never add them together.
+- FACTS.live is false: the data is a historical dataset prediction (or a simulated example), not a live forecast. Never say "next 30 minutes", "right now" or "currently"; say "the +30 min forecast".
+- The half-hour was selected, not typical. If asked how it was chosen or whether it is representative, answer from FACTS.selectionNote; never call it typical or representative. If FACTS.dataMode is "simulated", say it is an offline example, not the pinned half-hour.
+- Potential recovery is an upper bound: it assumes flexible load is connected where and when the dispatch-down happens. Never promise that EVs could absorb it; mention that location, local grid constraints, fleet connection, charging power and response time limit it.
 - Only name a main predicted component if FACTS gives mainComponent, and call it the "main predicted component". Never say it drives, causes or is due to anything: components are predictions, not proven causes.
 - Recovery and impact are projections ("could absorb"). Never say energy was saved, EVs were charged or emissions were prevented.
 - For off_topic, politely say you only help with this planner.
@@ -112,6 +114,9 @@ def validate_request(body):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f'Invalid {key}')
         selectors[key] = float(value)
+    # The dashboard target the page is showing, so Volt answers about the same half-hour.
+    target = body.get('target')
+    selectors['target'] = target if isinstance(target, str) and len(target) <= 40 else None
     return cleaned[-MAX_TURNS * 2:], page, horizon, selectors
 
 
@@ -149,7 +154,7 @@ def build_facts(forecast, scenario, horizon):
     for p in forecast['predictions']:
         o = outcomes.get(p['horizonMinutes'], {})
         targets.append(dict(
-            horizonMinutes=p['horizonMinutes'], targetAt=p['targetAt'], risk=p['risk'],
+            horizonMinutes=p['horizonMinutes'], issuedAt=p['issuedAt'], targetAt=p['targetAt'], risk=p['risk'],
             probability=p['probability'], probabilityPct=pct(p['probability']), atRiskMwh=r1(p['atRiskMwh']),
             curtailmentMwh=r1(p['curtailmentMwh']), constraintMwh=r1(p['constraintMwh']),
             p10Mwh=r1(p['lowerMwh']), p50Mwh=r1(p['medianMwh']), p90Mwh=r1(p['upperMwh']),
@@ -158,10 +163,16 @@ def build_facts(forecast, scenario, horizon):
             recoveryRatePct=pct(o.get('recoveryRate')), cleanChargingSharePct=pct(o.get('cleanChargingShare')),
         ))
     simulated = forecast['dataMode'] == 'simulated'
+    stale = bool(forecast.get('stale'))
+    selection = forecast.get('selection') or {}
     return dict(
         region=forecast['region'], live=False, dataMode=forecast['dataMode'],
-        sourceLabel='Example forecast' if simulated else 'Historical model forecast',
-        modelVersion=forecast['modelVersion'], issuedAt=forecast['predictions'][0]['issuedAt'],
+        sourceLabel=('Offline example (not the pinned half-hour)' if simulated
+                     else 'Historical dataset prediction (last real result; model unreachable)' if stale
+                     else 'Historical dataset prediction'),
+        stale=stale, pinnedTarget=forecast.get('pinnedTarget'),
+        selectionNote=None if simulated else selection.get('note'),
+        modelVersion=forecast['modelVersion'], targetAt=forecast['predictions'][0]['targetAt'],
         intervalMinutes=forecast['intervalMinutes'], selectedHorizonMinutes=horizon,
         flexibleCapacityMw=forecast['flexibleCapacityMw'], totalDemandMwh=r1(scenario['totalDemandMwh']),
         flexibleDemandMwh=r1(scenario['flexibleDemandMwh']),
@@ -171,7 +182,8 @@ def build_facts(forecast, scenario, horizon):
 
 def provenance(facts):
     return dict(mode='simulated' if facts['dataMode'] == 'simulated' else 'historical', label=facts['sourceLabel'],
-                region=facts['region'], issuedAt=facts['issuedAt'], modelVersion=facts['modelVersion'])
+                region=facts['region'], targetAt=facts['targetAt'], modelVersion=facts['modelVersion'],
+                stale=facts['stale'], selectionNote=facts['selectionNote'])
 
 
 def row(value, unit, label, target=None):
@@ -183,7 +195,7 @@ def build_card(intent, facts):
     targets = facts['targets']
     selected = next((t for t in targets if t['horizonMinutes'] == facts['selectedHorizonMinutes']), targets[0])
     tag = lambda t: f"Forecast target +{t['horizonMinutes']} min"
-    separate = f"Separate {facts['intervalMinutes']}-minute forecast intervals, not an hourly total."
+    separate = f"Two forecasts of the same {facts['intervalMinutes']}-minute target, not an hourly total."
     if intent == 'at_risk':
         meta = [dict(label='Risk', value=f"{selected['risk'].capitalize()} ({likelihood(selected['probability'])}) at +{selected['horizonMinutes']} min")]
         if selected['mainComponent']:
