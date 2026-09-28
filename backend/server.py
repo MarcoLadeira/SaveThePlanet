@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
-from scenario import build_day, build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW
+from scenario import build_day, build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
 from demo import demo_day_rows, demo_payload
 from http.client import HTTPException
 from config import load_env
@@ -780,6 +780,8 @@ class Handler(SimpleHTTPRequestHandler):
             elif name in ('daily/predict', 'daily/week'):
                 day = date.fromisoformat(query.get('date', '')).isoformat()
                 action = partial({'daily/predict': explorer.daily_predict, 'daily/week': explorer.daily_week}[name], day)
+            elif name == 'formulas':
+                action = explorer.model_formulas  # About page: both models' fitted formulas
             elif name in ('short-term', 'daily'):
                 action = explorer.short_term_info if name == 'short-term' else explorer.daily_info
             else:
@@ -849,6 +851,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.offers_estimate(parse_qs(route.query))
             return
 
+        if route.path == '/api/v1/about/example':
+            self.send_json(200, worked_example())  # About page: the real formulas on fixed example inputs
+            return
         if route.path.startswith('/api/v1/explorer/'):
             self.explorer(route)
             return

@@ -323,7 +323,8 @@ test('the Impact page sits after EV in the navigation and has its own route', ()
   const nav = app.match(/const navItems=(\[.*?\]);/)[1];
   const order = [...nav.matchAll(/\['(\w+)','([^']+)'/g)].map((m) => `${m[1]}:${m[2]}`);
   assert.deepEqual(order, ['overview:Dashboard', 'forecast:Forecast', 'impact:Battery', 'charging:EV', 'business:Impact']);
-  assert.match(app, /\['overview','forecast','charging','impact','business','settings'\]\.includes\(p\)/);
+  // 'about' is the Settings → About page (issue #48); it has a route but no navigation item.
+  assert.match(app, /\['overview','forecast','charging','impact','business','settings','about'\]\.includes\(p\)/);
   assert.match(app, /business:renderBusiness/);
   assert.match(app, /business:'Impact'/);
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');

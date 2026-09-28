@@ -36,9 +36,11 @@ try{settings={...defaults,...JSON.parse(localStorage.getItem('planner-preference
 let dashboardTheme='light';
 try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'}catch{}
 let saved=true;
-function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings'].includes(p)?p:'overview'}
+function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings','about'].includes(p)?p:'overview'}
+// About opens from Settings and has no navigation item of its own, so Settings stays highlighted.
+function navPage(page){return page==='about'?'settings':page}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function sidebar(page){page=navPage(page);return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
 // Pages with their own phone layout; every other page keeps the scaled desktop canvas on phones.
 const PHONE_PAGES=['business'];
 function fitDesktop(){
@@ -48,6 +50,8 @@ function fitDesktop(){
   // The layout viewport (clientWidth), not innerWidth: on phones innerWidth can grow to the width of a
   // scaled canvas shown just before, which would keep this page scaled down after navigating back.
   const vw=document.documentElement.clientWidth||innerWidth,vh=document.documentElement.clientHeight||innerHeight;
+  // About on a narrow screen is a normal full-width page (about.css), not a scaled-down desktop.
+  if(pageFromHash()==='about'&&vw<=760){shell.classList.remove('is-phone');shell.style.width=shell.style.height=shell.style.transform='';return}
   const phone=vw<=700&&PHONE_PAGES.includes(main?.dataset.currentPage);
   shell.classList.toggle('is-phone',phone);
   if(phone){
@@ -69,7 +73,7 @@ function fitDesktop(){
 // moments after navigation, so rebuilding the sidebar used to reset the highlight to the top.
 function syncSidebar(shell,page){
   shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{
-    const active=item.dataset.page===page;
+    const active=item.dataset.page===navPage(page);
     item.classList.toggle('active',active);
     if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
   });
@@ -150,7 +154,7 @@ function render(){
   const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
   const charts=chartsCollect(app);
-  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings}[page];
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout}[page];
   // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
   const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
   let shell=app.querySelector(':scope>.app-shell');
@@ -164,6 +168,7 @@ function render(){
     shell=app.firstElementChild;
   }
   shell.classList.toggle('is-live',liveRender);
+  shell.classList.toggle('is-about',page==='about');
   const main=shell.querySelector(':scope>main');
   if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
   // Once the entrance has played, drop it so finished animations don't keep content on separate

@@ -48,7 +48,9 @@ function renderSettings(){
   const targets=live?live.predictions.map(p=>`+${p.horizonMinutes} min`).join(' · '):'—';
   const methodology=s?.methodology?.length?s.methodology.map(line=>`<p class="settings-explain">${escapeHtml(line)}</p>`).join(''):'<p class="settings-explain">Methodology loads with the forecast.</p>';
   const capacity=live?live.flexibleCapacityMw:modelState.capacity,total=s?s.totalDemandKwh:modelState.totalDemandKwh,flexible=s?s.flexibleDemandKwh:modelState.flexibleDemandKwh;
-  return studioHeader('Settings','Model display and workspace preferences.')+`<div class="settings-layout">
+  // One About button (issue #48): opens the plain-English How-it-works page.
+  const about=`<button type="button" class="about-open" data-page="about">${icon('leaf',17)}About · How SaveThePlanet works</button>`;
+  return studioHeader('Settings','Model display and workspace preferences.',about)+`<div class="settings-layout">
     <div class="settings-upper">
       <section class="dash-card settings-section">${cardHead('green','General','Location, display and appearance')}
         <div class="settings-rows">
