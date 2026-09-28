@@ -99,16 +99,6 @@
 /* Week bars and scatter */
 [data-current-page="charging"] .cg-bar{fill:var(--cg-risk);opacity:.78}
 [data-current-page="charging"] .cg-bar.is-sel{opacity:1;stroke:var(--cg-sel);stroke-width:3}
-[data-current-page="charging"] .cg-zone{fill:var(--green-soft);opacity:.7}
-[data-current-page="charging"] .cg-zone-label{font-size:12px;fill:var(--green-deep);font-weight:700}
-[data-current-page="charging"] .cg-dot{fill:var(--cg-risk);opacity:.45}
-[data-current-page="charging"] .cg-dot.is-best{opacity:1;stroke:var(--surface);stroke-width:2}
-[data-current-page="charging"] .cg-scatter-body{display:flex;gap:12px;flex:1;min-height:0}
-[data-current-page="charging"] .cg-scatter-body .cg-chart{flex:1}
-[data-current-page="charging"] .cg-best{flex:0 0 150px;align-self:flex-start;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--green-soft);font-size:12px;color:var(--ink-2)}
-[data-current-page="charging"] .cg-best b{font-size:13px;color:var(--green-deep)}
-[data-current-page="charging"] .cg-best.is-none{background:var(--surface-2)}
-[data-current-page="charging"] .cg-best small{color:var(--ink-3)}
 
 /* Tags and footer */
 [data-current-page="charging"] .cg-tag{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--green-soft);color:var(--green-deep);font-size:12px;font-weight:700}
@@ -124,3 +114,14 @@
 [data-current-page="charging"] .cg-mix .cg-assumptions>summary{min-height:36px;padding:0 12px;border-radius:12px;background:var(--surface-2);box-shadow:none;border:1px solid var(--line);font-size:13px}
 [data-current-page="charging"] .cg-retry{width:auto;margin:4px 0 0;padding:0 16px;min-height:36px}
 [data-current-page="charging"] .cg-mix{z-index:6}
+[data-current-page="charging"] .cg-rank{display:flex;flex-direction:column;justify-content:space-between;gap:2px;flex:1;min-height:0;margin:0;padding:0;list-style:none}
+[data-current-page="charging"] .cg-rank li{display:grid;grid-template-columns:26px 54px minmax(0,1fr) 78px 78px 58px;align-items:center;gap:10px;padding:3px 10px;border-radius:10px;font-size:13px;color:var(--ink-2)}
+[data-current-page="charging"] .cg-rank li.is-top{background:var(--green-soft)}
+[data-current-page="charging"] .cg-rank-no{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--surface-2);font-size:12px;font-weight:800;color:var(--ink-2)}
+[data-current-page="charging"] .cg-rank li.is-top .cg-rank-no{background:var(--green);color:#fff}
+[data-current-page="charging"] .cg-rank-time{font-size:15px;color:var(--ink)}
+[data-current-page="charging"] .cg-rank-track{height:12px;border-radius:99px;background:var(--grey-soft);overflow:hidden}
+[data-current-page="charging"] .cg-rank-track i{display:block;height:100%;border-radius:inherit;background:var(--cg-risk)}
+[data-current-page="charging"] .cg-rank-mwh{font-weight:750;color:var(--ink);text-align:right}
+[data-current-page="charging"] .cg-rank-prob{text-align:right}
+[data-current-page="charging"] .cg-rank-best{font-style:normal;font-size:12px;font-weight:800;color:var(--green-deep)}

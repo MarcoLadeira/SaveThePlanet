@@ -151,7 +151,7 @@ deliverability are not modelled. No charging time window is claimed, because whe
 target time labels the start or the end of its half-hour is not yet confirmed.
 
 Day replay intervals (`/api/v1/impact/day`) also carry the model `probability`, used by
-the Charging page's "When is charging most useful?" chart.
+the Charging page's "Best half-hours to charge" ranking.
 
 ## Automatic demo fallback
 

@@ -60,14 +60,14 @@ appearance and the display toggles remain local preferences.
 - **KPI row** for the selected forecast half-hour: total and flexible demand (your
   assumptions), energy at risk (model) and potential absorption (upper bound), with
   replay-day profiles as sparklines.
-- **Charging opportunity through the day**: energy at risk and potential absorption for
-  each half-hour of the replay day (`/api/v1/impact/day`), with a hover tooltip.
+- **Charging schedule**: average MW per half-hour of the replay day (`/api/v1/impact/day`):
+  renewable supply at risk, charging demand on renewable and charging demand on grid, with a hover tooltip.
 - **Charging mix**: share of total demand that could use renewable energy at risk, with
   the EV readings (charge equivalents and minimum concurrent ports) stated separately.
 - **Chargeable energy opportunity**: predicted curtailment per day from the daily model
   (`/api/v1/explorer/daily/week`); shows "unavailable" when that model cannot be reached.
-- **When is charging most useful?**: each replay-day half-hour by energy at risk and event
-  probability; half-hours with probability of at least 70% and top-quarter energy are listed.
+- **Best half-hours to charge**: the top five replay-day half-hours ranked by energy at risk
+  x event probability, with the energy bar and likelihood for each.
 - **Assumptions** drawer: demand and EV assumptions with field-level validation, plus the
   backend methodology.
 

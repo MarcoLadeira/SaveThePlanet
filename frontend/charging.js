@@ -207,30 +207,14 @@ dashCharts.cgWeek = {
     },
 };
 
-// Half-hours with both a likely dispatch-down event and high predicted energy.
-function cgBestWindows(list) {
-    const energies = list.map((i) => i.atRiskMwh).filter((v) => v > 0).sort((a, b) => a - b);
-    if (!energies.length) return [];
-    const cut = energies[Math.floor(energies.length * 0.75)];
-    return list.filter((i) => i.atRiskMwh > 0 && i.atRiskMwh >= cut && (i.probability ?? 0) >= 0.7);
+// Best half-hours to charge: ranked by expected surplus = energy at risk x event probability,
+// so a half-hour needs both plenty of energy and a likely event to rank high.
+function cgBestHalfHours(list, limit = 5) {
+    return list.filter((i) => i.atRiskMwh > 0)
+        .map((i) => ({ ...i, score: i.atRiskMwh * (i.probability ?? 0) }))
+        .sort((a, b) => b.score - a.score || a.targetAt.localeCompare(b.targetAt))
+        .slice(0, limit);
 }
-dashCharts.cgScatter = {
-    values() {
-        const list = cgDayIntervals(), best = new Set(cgBestWindows(list).map((i) => i.targetAt));
-        return { x: list.map((i) => i.atRiskMwh), y: list.map((i) => (i.probability ?? 0) * 100), best: list.map((i) => (best.has(i.targetAt) ? 1 : 0)), status: cgDay.status };
-    },
-    start: (t) => ({ ...t, y: t.y.map(() => 0) }),
-    draw({ x, y, best, status }) {
-        if (!x.length) return cgChartState(status, 'Loading the replay day…', 'The replay day could not be loaded.');
-        const w = 380, h = 140, left = 40, bottom = 32, top = 8, right = 8, xmax = chartNiceMax(Math.max(...x, 0.001));
-        const px = (v) => left + (w - left - right) * (v / xmax), py = (v) => top + (h - top - bottom) * (1 - v / 100);
-        const zone = `<rect class="cg-zone" x="${left}" y="${py(100)}" width="${w - left - right}" height="${py(70) - py(100)}"/><text class="cg-zone-label" x="${left + 6}" y="${py(100) + 14}">Likely event ≥ 70%</text>`;
-        const grid = [0, 50, 100].map((v) => `<line x1="${left}" x2="${w - right}" y1="${py(v)}" y2="${py(v)}"/><text x="${left - 8}" y="${py(v) + 4}" text-anchor="end">${v}%</text>`).join('')
-            + [0, 0.5, 1].map((f) => `<text x="${px(xmax * f)}" y="${h - 14}" text-anchor="middle">${n(xmax * f)}</text>`).join('');
-        const dots = x.map((v, i) => `<circle class="cg-dot${best[i] ? ' is-best' : ''}" cx="${px(v).toFixed(1)}" cy="${py(y[i]).toFixed(1)}" r="${best[i] ? 6.5 : 4.5}"/>`).join('');
-        return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true">${zone}<g class="cg-grid">${grid}</g><text class="cg-axis-unit" x="${(left + w) / 2}" y="${h - 1}" text-anchor="middle">Energy at risk per half-hour (MWh)</text>${dots}</svg>`;
-    },
-};
 
 // ---------- page ----------
 function cgKpi(tone, label, figure, note, spark, sparkLabel) {
@@ -267,12 +251,18 @@ function cgWeekCard() {
     const select = `<label class="cg-select"><span class="sr-only">Week</span><select id="cg-week-select"><option value="this"${cgWeekMode === 'this' ? ' selected' : ''}>This week</option><option value="last"${cgWeekMode === 'last' ? ' selected' : ''}>Last week</option></select></label>`;
     return `<section class="dash-card cg-card cg-week">${cardHead('orange', 'Chargeable energy opportunity', `Daily model · predicted curtailment${range}`, select)}${chartSlot('cgWeek', 'Predicted curtailment for each day of the week, Monday to Sunday', 'cg-chart')}</section>`;
 }
-function cgScatterCard() {
-    const best = cgBestWindows(cgDayIntervals());
-    const box = cgDay.status !== 'ready' ? '' : best.length
-        ? `<div class="cg-best"><b>Best charging windows</b><span>${best.slice(0, 4).map((i) => escapeHtml(modelTime(i.targetAt))).join(' · ')} forecast half-hours</span><small>High probability and high predicted energy</small></div>`
-        : '<div class="cg-best is-none"><b>No standout window</b><small>No half-hour combines a likely event (≥ 70%) with top-quarter energy.</small></div>';
-    return `<section class="dash-card cg-card cg-scatter">${cardHead('green', 'When is charging most useful?', 'Replay day · each dot is one half-hour')}<div class="cg-scatter-body">${chartSlot('cgScatter', 'Dispatch-down probability against predicted energy at risk for each half-hour', 'cg-chart')}${box}</div></section>`;
+function cgBestCard() {
+    const sub = cgDay.status === 'ready' ? `Replay day ${escapeHtml(cgDayLabel(cgDay.data.date))} · bar = energy at risk · ranked by energy × likelihood` : 'Replay day · bar = energy at risk · ranked by energy × likelihood';
+    let body;
+    if (cgDay.status !== 'ready') {
+        body = cgChartState(cgDay.status, 'Loading the replay day…', 'The replay day could not be loaded.');
+    } else {
+        const best = cgBestHalfHours(cgDay.data.intervals), max = Math.max(...best.map((i) => i.atRiskMwh), 0.001);
+        body = best.length
+            ? `<ol class="cg-rank">${best.map((i, k) => `<li class="${k === 0 ? 'is-top' : ''}"><span class="cg-rank-no">${k + 1}</span><b class="cg-rank-time">${escapeHtml(modelTime(i.targetAt))}</b><span class="cg-rank-track" role="img" aria-label="${escapeHtml(`${n(i.atRiskMwh)} MWh at risk`)}"><i style="width:${((i.atRiskMwh / max) * 100).toFixed(1)}%"></i></span><span class="cg-rank-mwh">${n(i.atRiskMwh)} MWh</span><span class="cg-rank-prob">${i.probability == null ? '—' : `${n(Math.round(i.probability * 100))}% likely`}</span>${k === 0 ? '<em class="cg-rank-best">★ Best</em>' : '<em></em>'}</li>`).join('')}</ol>`
+            : '<div class="cg-empty" role="status">No renewable energy is predicted at risk on this day, so there is no good time to shift charging.</div>';
+    }
+    return `<section class="dash-card cg-card cg-best-card">${cardHead('green', 'Best half-hours to charge', sub)}${body}</section>`;
 }
 function cgAssumptions() {
     const s = modelState.data.scenario;
@@ -297,7 +287,7 @@ function renderCharging() {
         cgEnsureData();
         const d = modelState.data;
         const foot = `<p class="studio-provenance">${cgSourceTag()} ${escapeHtml(d.modelVersion)} · selected: ${cgTarget()} (+${modelState.horizon} min forecast) · Proposed charging = min(renewable surplus at risk, flexible demand, ${n(d.flexibleCapacityMw)} MW × 0.5 h). Upper-bound estimates; vehicles, ports and local grid limits are not modelled.</p>`;
-        return `${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgScatterCard()}</div>${foot}`;
+        return `${cgKpis()}<div class="cg-row">${cgScheduleCard()}${cgMixCard()}</div><div class="cg-row is-bottom">${cgWeekCard()}${cgBestCard()}</div>${foot}`;
     });
 }
 
