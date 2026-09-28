@@ -17,6 +17,9 @@ import optimizer
 import server
 from server import Handler, normalize
 
+# Route tests pick a target without a model: use test_server's fixed target shortlist, never the network.
+setUpModule, tearDownModule = support.start_hermetic_targets, support.stop_hermetic_targets
+
 
 def site(**overrides):
     return dict(dict(id='s', name='Site', region='IE', hypotheticalConstraintZone=False,
