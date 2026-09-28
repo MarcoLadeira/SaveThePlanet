@@ -108,6 +108,22 @@ class CapacityTests(unittest.TestCase):
         self.assertEqual((too_big['month']['sessions'], too_big['noSpareEnergy']), (0, True))
         self.assertIn('22 kWh', too_big['capacity']['limit'])
 
+    def test_calculator_counts_only_windows_the_replay_found_worth_offering(self):
+        values, _ = offers.parse_calculator({'sessions': '900', 'kwhPerSession': '20', 'savingEurPerKwh': '0.1'})
+        out = offers.calculate(**values, eligible_windows=26)
+        self.assertEqual((out['capacity']['counted'], out['capacity']['maxPerMonth'], out['capacity']['siteMaxPerMonth']), (416, 416, 960))
+        self.assertIn('about 26 windows a month worth offering', out['capacity']['limit'])
+        self.assertEqual(out['capacity']['limitedBy'], 'windows')
+        self.assertEqual(offers.calculate(**values)['capacity']['counted'], 900, 'without a replay only the site caps sessions')
+        none = offers.calculate(**values, eligible_windows=0)
+        self.assertEqual((none['month']['sessions'], none['noSpareEnergy']), (0, True))
+        # The replay's own scenarios stay inside the cap it reports.
+        d = business.simulated_result('MODEL_UNAVAILABLE')['discountWindows']
+        cap = d['calculator']['capacity']
+        self.assertEqual(cap['maxPerMonth'], min(cap['siteMaxPerMonth'], cap['sessionsPerWindow'] * cap['eligibleWindowsPerMonth']))
+        for key in ('expected', 'evaluationWeek', 'example'):
+            self.assertLessEqual(d['scenarios'][key]['inputs']['sessions'], cap['maxPerMonth'], key)
+
     def test_calculator_validation(self):
         _, errors = offers.parse_calculator({'sessions': '1.5', 'kwhPerSession': '', 'savingEurPerKwh': '2'})
         self.assertEqual(set(errors), {'sessions', 'kwhPerSession', 'savingEurPerKwh'})
@@ -355,6 +371,11 @@ class RouteTests(unittest.TestCase):
         status, body = self.call('/api/v1/business/offers/estimate?sessions=400&kwhPerSession=20&savingEurPerKwh=0.1')
         self.assertEqual(status, 200)
         self.assertEqual(body['month']['platform']['profitEur'], 40.0)
+        # With a finished replay, only the windows it found worth offering count.
+        known = {'discountWindows': {'calculator': {'capacity': {'eligibleWindowsPerMonth': 10}}}}
+        with patch('business.ready', return_value=known):
+            status, body = self.call('/api/v1/business/offers/estimate?sessions=400&kwhPerSession=20&savingEurPerKwh=0.1')
+        self.assertEqual((status, body['capacity']['counted'], body['capacity']['eligibleWindowsPerMonth']), (200, 160, 10))
         status, body = self.call('/api/v1/business/offers/estimate?sessions=-1&kwhPerSession=20&savingEurPerKwh=0.1')
         self.assertEqual((status, body['error']['code']), (400, 'INVALID_REQUEST'))
         self.assertIn('sessions', body['error']['fields'])

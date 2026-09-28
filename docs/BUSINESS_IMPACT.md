@@ -1,11 +1,15 @@
 # Business and environmental impact (Impact page)
 
 The Impact page (`#business`, labelled **Impact** in the navigation after EV) answers one question for a
-charging business: *who saves and who earns when our AI finds cheaper energy?* Its headline figures,
-"where the € goes", the two profit bridges, the what-if calculator and the energy proof are the
-discount-window business case ([below](#discount-windows-who-saves-who-earns-issue-56)); the depot's
-waterfall, the normal / basic smart / AI comparison and the depot investment details follow the method
-described first.
+charging business: *who saves and who earns when our AI finds cheaper energy?* It has two views, one
+story each, so the two scenarios' figures never sit side by side:
+
+- **Who earns** (per month, the default): the discount-window business case
+  ([below](#discount-windows-who-saves-who-earns-issue-56)). The KPI row, labelled "Illustrative replay ·
+  projected revenue, simulated profit · ex VAT", then "where the € goes" as a what-if (presets and three
+  inputs drive the 50/25/25 bar and both profit bridges) beside the energy proof.
+- **Depot savings** (per year): the depot's waterfall, the normal / basic smart / AI comparison and its
+  investment case, following the method described first.
 
 Code: [`backend/business.py`](../backend/business.py) (simulation, money, CO2, annual projection),
 [`backend/offers.py`](../backend/offers.py) (discount windows, settlement, profit, calculator, demo bookings),
@@ -255,7 +259,9 @@ Only the +30 minute forecast is used; a +60 estimate of the same half-hour is ne
 The hub has the depot's hardware: 20 × 11 kW chargers and a 180 kW connection. An 11 kW charger delivers
 at most **22 kWh** in a two-hour window, so a 40 kWh charge cannot fit. The energy bridge
 (`optimizer.run_policy` + `check_plan`) plans each window: it fits **16** sessions of 20 kWh (so at most
-960 a month across both windows); the calculator counts no more than that and says why.
+960 a month across both windows). Only windows worth offering can sell a discount, so the what-if also
+counts no more than **16 × the windows a month the replay found worth offering** (about 26 in the
+simulated example; evenings only), and says which limit applied.
 
 The **battery is hypothetical** (not built, never shown as working storage): 700 kWh, 180 kW,
 92% charge and 92% discharge efficiency (85% round trip), EUR 0.08/kWh wear. It fills only while the
@@ -355,8 +361,10 @@ Example strategy (historical replay against a local mock of GridToEv, not hosted
 ### `GET /api/v1/business/offers/estimate?sessions=&kwhPerSession=&savingEurPerKwh=[&operatorFixedEur=&platformVariableEur=&platformFixedEur=]`
 
 The Impact page's what-if calculator. Sessions 0-100,000 (whole), kWh 1-100, saving EUR 0-1/kWh; omitted
-costs use the defaults above. `200 {"month": {...split, operator, platform, yearly}, "capacity": {"sessionsPerWindow",
-"maxPerMonth", "requested", "counted", "capped", "limit"}, "noSpareEnergy"}` or `400` with `fields`.
+costs use the defaults above. Sessions are capped by the site and, once the replay has finished, by the
+windows it found worth offering a month. `200 {"month": {...split, operator, platform, yearly}, "capacity":
+{"sessionsPerWindow", "maxPerMonth", "siteMaxPerMonth", "eligibleWindowsPerMonth", "requested", "counted",
+"capped", "limitedBy": "windows" | "site" | "session-kwh" | null, "limit"}, "noSpareEnergy"}` or `400` with `fields`.
 
 ### `GET /api/v1/business/offers?member=` and `POST /api/v1/business/offers`
 
