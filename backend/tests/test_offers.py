@@ -154,7 +154,7 @@ class ReplayTests(unittest.TestCase):
         windows, _, _ = offers.replay(week())
         mornings = [w for w in windows if w['window'] == 'morning']
         self.assertTrue(mornings)
-        self.assertTrue(all(w['status'] == 'none' and w['reason'] == 'not-cheaper' for w in mornings))
+        self.assertTrue(all(w['status'] == 'none' and w['reason'] in ('not-cheaper', 'too-small') for w in mornings))
 
     def test_no_surplus_means_no_offer_and_a_next_opportunity(self):
         nights = week(3, surplus=())

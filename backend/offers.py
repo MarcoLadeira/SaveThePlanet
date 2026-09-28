@@ -53,7 +53,7 @@ SPLIT = {'driver': 50, 'operator': 25, 'platform': 25}
 SESSION_KWH = 20.0  # delivered at the charger
 DAYS_PER_MONTH = 30
 QUOTE_KWH = (10.0, 15.0, 20.0, 22.0)  # charge sizes the EV page offers, each priced by the server
-MIN_SAVING_EUR_PER_KWH = 0.02  # the AI only stores energy that could clear at least this at the peak
+MIN_SAVING_EUR_PER_KWH = 0.05  # the AI only stores energy that could clear at least this at the peak
 EPS = 1e-9
 
 HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', 'region': 'IE', 'public': True,
@@ -62,7 +62,7 @@ HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', '
 BATTERY = {
     'name': 'Hypothetical site battery', 'provenance': 'hypothetical',
     'capacityKwh': 700.0, 'powerKw': 180.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
-    'wearEurPerKwh': 0.08,
+    'wearEurPerKwh': 0.04,
     'note': 'Not built and not claimed as real storage: an illustrative extension to show what stored surplus would cost.',
 }
 PRICES = {

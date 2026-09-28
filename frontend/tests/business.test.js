@@ -75,10 +75,10 @@ test('KPI figures come straight from the backend business case', () => {
   assert.equal(run('dashCharts.bzDrivers.values().v'), k.driversSavedEur);
   assert.equal(run('dashCharts.bzOperator.values().v'), k.operatorProfitEur);
   assert.equal(run('dashCharts.bzPlatform.values().v'), k.platformProfitEur);
-  assert.match(draw(run, 'bzExtra'), /€810<small>\/month/);
-  assert.match(draw(run, 'bzPlatform'), /€41<small>\/month/);
+  assert.match(draw(run, 'bzExtra'), /€1,132<small>\/month/);
+  assert.match(draw(run, 'bzPlatform'), /€122<small>\/month/);
   const kpis = run('bzKpiRow(bz.result)');
-  for (const text of ['Extra savings from our AI', 'vs basic smart charging', 'Drivers saved', 'Charging operator profit', 'SaveThePlanet operating profit', 'from €201.50 gross commission']) {
+  for (const text of ['Extra savings from our AI', 'vs basic smart charging', 'Drivers saved', 'Charging operator profit', 'SaveThePlanet operating profit', 'from €282.10 gross commission']) {
     assert.ok(kpis.includes(text), text);
   }
 });
@@ -99,19 +99,19 @@ test('a loss is never coloured as profit, and zero is neutral', () => {
 test('where the € goes: one 50/25/25 bar and two profit bridges, all from the ledger', () => {
   const run = load(), r = ready(run), m = r.discountWindows.month;
   const v = JSON.parse(run('JSON.stringify(dashCharts.bzSplit.values())'));
-  assert.deepEqual(v.amounts, [407.03, 201.5, 201.5]);
+  assert.deepEqual(v.amounts, [568.23, 282.1, 282.1]);
   assert.equal(v.pool, m.poolEur);
   assert.ok(Math.abs(v.w.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'the parts fill the bar');
   const bar = draw(run, 'bzSplit');
-  assert.match(bar, /<b>€810\.03<\/b><span>extra AI savings a month · 403 sessions/);
-  assert.match(bar, /<span>Drivers<\/span> €407\.03[\s\S]*<span>Operator<\/span> €201\.50[\s\S]*<span>SaveThePlanet<\/span> €201\.50/, 'the bar names its parts: no legend to read');
+  assert.match(bar, /<b>€1,132\.43<\/b><span>extra AI savings a month<\/span>/);
+  assert.match(bar, /<span>Drivers<\/span> €568<\/b>[\s\S]*<span>Operator<\/span> €282<\/b>[\s\S]*<span>SaveThePlanet<\/span> €282<\/b>/, 'the bar names its parts: no legend to read');
   const card = run('bzSplitCard(bz.result)');
   assert.match(card, /Where the € goes[\s\S]*split 50 \/ 25 \/ 25/);
   // Our bridge: commission, costs, profit. The parts add up on screen.
-  assert.match(card, /Commission<\/span><b>€201\.50[\s\S]*Per-session costs<\/span><b>−€40\.30[\s\S]*Overhead<\/span><b>−€120\.00[\s\S]*is-profit"><span>Operating profit<\/span><b>€41\.20/);
-  assert.match(card, /25% share<\/span><b>€201\.50[\s\S]*Programme costs<\/span><b>−€100\.00[\s\S]*Extra profit<\/span><b>€101\.50/);
+  assert.match(card, /Commission<\/span><b>€282\.10[\s\S]*Per-session costs<\/span><b>−€40\.30[\s\S]*Overhead<\/span><b>−€120\.00[\s\S]*is-profit"><span>Operating profit<\/span><b>€121\.80/);
+  assert.match(card, /25% share<\/span><b>€282\.10[\s\S]*Programme costs<\/span><b>−€100\.00[\s\S]*Extra profit<\/span><b>€182\.10/);
   assert.equal(Math.round((m.platform.grossEur - m.platform.variableEur - m.platform.fixedEur) * 100), Math.round(m.platform.profitEur * 100), 'the bridge adds up to the cent');
-  assert.match(card, /Breaks even at 300 sessions · <span class="is-profit">€494<\/span> a year[\s\S]*Breaks even at 200 sessions · <span class="is-profit">€1,218<\/span> a year/);
+  assert.match(card, /Breaks even at 200 sessions · <span class="is-profit">€1,462<\/span> a year[\s\S]*Breaks even at 143 sessions · <span class="is-profit">€2,185<\/span> a year/);
 });
 
 test('where the € goes with no eligible savings: empty bar, no commission, both losses', () => {
@@ -428,7 +428,7 @@ test('simulated data and projections are labelled everywhere they could be mista
   Object.assign(real, { dataMode: 'historical-replay', fallback: { active: false, reason: null } });
   ready(run, real);
   html = run('renderBusiness()');
-  assert.match(run('bzScenario()'), /Historical replay/);
+  assert.match(run('bzScenario()'), /7 nights · GridToEv [\w.-]+ replay/);
   assert.match(run('bzScenario()'), /24–31 Jan 2026/);
   assert.match(html, /SaveThePlanet Rewards · illustrative replay · projected revenue, simulated profit · ex VAT/);
   assert.doesNotMatch(html, /Money earned/);

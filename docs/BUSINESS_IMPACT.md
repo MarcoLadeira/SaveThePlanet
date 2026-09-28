@@ -181,7 +181,8 @@ and curtailment is often outside both windows and partly local
 window is offered **only** when surplus is already stored and every check passes; otherwise the EV page
 says *"No discounted window right now — next opportunity: …"* and normal charging stays open. Load is
 never moved into the peak to keep a marketing promise. In the replay, mornings are never discounted:
-off-peak grid energy (EUR 0.205/kWh) is cheaper than stored surplus (about EUR 0.24/kWh all-in).
+off-peak grid energy (EUR 0.205/kWh) is within half a cent of stored surplus (about EUR 0.20/kWh all-in),
+too little to cover the per-session costs.
 
 ### The comparable baseline and the eligible pool
 
@@ -199,7 +200,7 @@ eligible pool      = max(0, basic smart cost − AI all-in cost) × kWh, in whol
 ```
 
 With the illustrative prices, surplus bought at night costs EUR 0.08/kWh, so the delivered cost is
-0.08 / 0.92 / 0.92 + 0.08 wear + 0.04 network + 0.025 session ≈ **EUR 0.24/kWh** against the EUR 0.34 peak.
+0.08 / 0.92 / 0.92 + 0.04 wear + 0.04 network + 0.025 session ≈ **EUR 0.20/kWh** against the EUR 0.34 peak.
 Energy is never called free, and surplus coinciding with a window adds nothing: normal charging would
 get the same low price, so there is no extra saving to share (the energy proof shows it as 0 kWh).
 
@@ -233,8 +234,8 @@ Costs already inside the pool (energy, losses, wear, network, session) are never
 | No eligible spare energy | no commission; operator −EUR 100, SaveThePlanet −EUR 120 a month |
 
 The page's KPIs come from the replay, not from this example: in the simulated week the hub sells 94
-sessions (6 of 7 evenings, no mornings), which projects to 403 sessions a month, EUR 810 of extra savings,
-EUR 407 for drivers, EUR 101.50 operator profit and EUR 41.20 operating profit for SaveThePlanet from EUR 201.50 gross
+sessions (6 of 7 evenings, no mornings), which projects to 403 sessions a month, EUR 1,132 of extra savings,
+EUR 568 for drivers, EUR 182.10 operator profit and EUR 121.80 operating profit for SaveThePlanet from EUR 282.10 gross
 commission. The month is the replayed sessions per day × 30, scaled like the depot by how often
 curtailment happens over a full year when that is known.
 
@@ -264,8 +265,8 @@ counts no more than **16 × the windows a month the replay found worth offering*
 simulated example; evenings only), and says which limit applied.
 
 The **battery is hypothetical** (not built, never shown as working storage): 700 kWh, 180 kW,
-92% charge and 92% discharge efficiency (85% round trip), EUR 0.08/kWh wear. It fills only while the
-forecast calls surplus and the price could clear a EUR 0.02/kWh saving at the peak; its charge carries
+92% charge and 92% discharge efficiency (85% round trip), EUR 0.04/kWh wear (an LFP pack's cost spread over its rated cycles). It fills only while the
+forecast calls surplus and the price could clear a EUR 0.05/kWh saving at the peak (night surplus does, day surplus does not); its charge carries
 from one night to the next. `optimizer.py` still models real storage as 0.
 
 ### Prices and provenance
