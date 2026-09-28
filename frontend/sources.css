@@ -15,9 +15,18 @@
   --fx-grid:#26382d;--fx-text:#a9bdb1;--fx-tip:#08140f;--fx-sel:#b4efc8;
 }
 
-.sw-page{flex:1 1 0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:0 4px 18px 0}
+.sw-page{flex:1 1 0;min-height:0;overflow-y:auto;scrollbar-gutter:stable;display:flex;flex-direction:column;gap:12px;padding:0 2px 14px 0}
 .sw-page>*{flex:0 0 auto}
-.sw-layout{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);gap:12px;align-items:stretch}
+/* With every fold closed the layout fills the frame exactly (the chart row takes what is left), so
+   there is no scroll bar; opening a fold makes the page taller and the styled scroll bar appears. */
+.sw-page>.sw-layout{flex:1 0 auto}
+.sw-layout{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);grid-template-rows:auto minmax(300px,1fr) auto auto;gap:12px;align-items:start}
+.sw-layout>.sw-main,.sw-layout>.sw-side{align-self:stretch}
+.sw-page::-webkit-scrollbar{width:12px}
+.sw-page::-webkit-scrollbar-track{margin:4px 0;background:transparent}
+.sw-page::-webkit-scrollbar-thumb{border:3px solid transparent;border-radius:999px;background:linear-gradient(180deg,var(--sw-wind),var(--sw-solar)) padding-box;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.sw-page::-webkit-scrollbar-thumb:hover{border-width:2px;background:linear-gradient(180deg,var(--sw-wind-top),var(--sw-solar)) padding-box}
+@supports not selector(::-webkit-scrollbar){.sw-page{scrollbar-width:thin;scrollbar-color:var(--sw-wind) transparent}}
 .sw-layout.is-updating .fx-kpi,.sw-layout.is-updating .sw-main,.sw-layout.is-updating .sw-side{opacity:.72;transition:opacity .2s ease}
 .sw-month,.sw-layout .fx-kpis{grid-column:1/-1}
 .sw-layout.is-loading .sw-main{min-height:320px}
@@ -60,12 +69,13 @@
 .sw-spark i.is-sel{background:var(--orange)}
 
 /* "When was it wasted?" */
-.sw-main,.sw-side,.sw-forecast,.sw-method,.sw-month{padding:16px 18px}
+.sw-main,.sw-side{padding:14px 18px}
+.sw-main{display:flex;flex-direction:column}
 .fx-legend i.is-sw-wind,.fx-tip i.is-sw-wind{background:var(--sw-wind)}
 .fx-legend i.is-sw-solar,.fx-tip i.is-sw-solar{background:var(--sw-solar)}
 .fx-legend i.is-sw-window{background:var(--sw-window);box-shadow:inset 0 0 0 1.5px var(--sw-window-edge)}
 .fx-legend i.is-sw-cap{height:0;border-top:2px dashed var(--sw-cap);border-radius:0}
-.sw-plot{position:relative;height:250px;outline-offset:4px;border-radius:12px}
+.sw-plot{position:relative;flex:1 1 auto;min-height:190px;outline-offset:4px;border-radius:12px}
 .sw-day-chart{position:absolute;inset:0}
 .sw-day{position:relative;height:100%}
 .sw-cols{position:absolute;left:var(--fx-l);right:4px;top:var(--fx-t);bottom:var(--fx-b);display:grid;grid-template-columns:repeat(48,minmax(0,1fr));align-items:end;column-gap:2px}
@@ -95,17 +105,23 @@
 
 /* "Could EVs have used it?" */
 .sw-side{display:flex;flex-direction:column;gap:10px}
-.sw-window-lead{margin:0;font-size:14px;line-height:1.5;color:var(--ink-2)}
-.sw-window-lead b{color:var(--ink)}
-.sw-window-figure{display:flex;align-items:baseline;gap:6px;margin:-4px 0 0}
-.sw-window-figure strong{font-size:40px;line-height:1;color:var(--sw-good);font-variant-numeric:tabular-nums}
-.sw-window-figure small{font-size:15px;font-weight:800;color:var(--ink-2)}
+.sw-side{gap:9px}
+.sw-window-hero{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+.sw-window-figure{display:flex;align-items:baseline;gap:6px;margin:0}
+.sw-window-figure strong{font-size:38px;line-height:1;color:var(--sw-good);font-variant-numeric:tabular-nums}
+.sw-window-figure small{font-size:14px;font-weight:800;color:var(--ink-2)}
+.sw-window-when{margin:0;font-size:13.5px;color:var(--ink-2)}
+.sw-window-when b{color:var(--ink)}
+.sw-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0;padding:0;list-style:none}
+.sw-tiles li{display:grid;gap:2px;min-width:0;padding:8px 10px;border-radius:10px;background:var(--surface-2)}
+.sw-tiles span{font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-tiles b{font-size:14.5px;color:var(--ink);font-variant-numeric:tabular-nums}
 .sw-stats{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .sw-stats li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 12px;padding:8px 12px;border-radius:10px;background:var(--surface-2)}
 .sw-stats span{font-size:12.5px;color:var(--ink-2)}
 .sw-stats b{font-size:13.5px;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
 .sw-stats small{grid-column:1/-1;font-size:11.5px;color:var(--ink-3)}
-.sw-caveat{margin:0;padding:9px 12px;border-radius:10px;background:var(--amber-soft);color:var(--amber-ink);font-size:12.5px;line-height:1.5}
+.sw-caveat{margin:auto 0 0;padding:8px 12px;border-radius:10px;background:var(--amber-soft);color:var(--amber-ink);font-size:12.5px;line-height:1.5}
 .sw-caveat b{color:inherit}
 .sw-empty{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;padding:14px;border-radius:12px;background:var(--surface-2);font-size:13.5px;line-height:1.5;color:var(--ink-2)}
 .sw-empty p{flex:1 1 220px;margin:0}
@@ -130,8 +146,23 @@
 .sw-fresh-track i{display:block;height:100%;min-width:3px;border-radius:6px;background:var(--green)}
 .sw-fresh small{font-size:11.5px;color:var(--ink-3)}
 
+/* Folding sections: one summary line when closed, the full card when open. */
+.sw-fold{padding:0;overflow:hidden}
+.sw-fold-head{display:flex;align-items:center;gap:12px;padding:11px 14px 11px 16px;list-style:none;cursor:pointer;border-radius:inherit}
+.sw-fold-head::-webkit-details-marker{display:none}
+.sw-fold-head:hover .sw-fold-toggle{background:var(--green-soft)}
+.sw-fold-copy{display:grid;flex:1;gap:1px;min-width:0}
+.sw-fold-copy strong{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
+.sw-fold-copy>span{font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sw-fold-copy>span b{color:var(--ink)}
+.sw-fold[open] .sw-fold-copy>span{white-space:normal}
+.sw-fold-toggle{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border-radius:50%;background:var(--surface-2);transition:background .15s ease}
+.sw-fold-toggle i{width:8px;height:8px;margin-top:-3px;border-right:2px solid var(--ink-2);border-bottom:2px solid var(--ink-2);transform:rotate(45deg);transition:transform .2s ease}
+.sw-fold[open] .sw-fold-toggle i{margin-top:3px;transform:rotate(225deg)}
+.sw-fold-body{display:grid;gap:10px;padding:2px 18px 16px;animation:sw-unfold .22s ease}
+@keyframes sw-unfold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
 /* "What did the model expect?" */
-.sw-forecast{display:flex;flex-direction:column;gap:10px}
 .sw-exp{padding:4px 10px;border-radius:999px;background:var(--sw-fair-soft);color:var(--sw-fair);font-size:11.5px;font-weight:800;white-space:nowrap}
 .sw-exp.is-validated{background:var(--sw-good-soft);color:var(--sw-good)}
 .sw-forecast-lead{margin:0;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
@@ -162,7 +193,9 @@
 .sw-capacity svg{flex:0 0 auto;margin-top:1px}
 
 /* Month at a glance */
-.sw-month-nav{display:flex;align-items:center;gap:8px;margin-left:auto}
+.sw-month-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px}
+.sw-month-bar p{margin:0;font-size:12.5px;color:var(--ink-3)}
+.sw-month-nav{display:flex;align-items:center;gap:8px}
 .sw-month-nav strong{min-width:130px;font-size:14px;text-align:center;color:var(--ink)}
 .sw-month-nav .fx-step{height:34px;width:32px}
 .sw-month-summary{margin:0;font-size:13.5px;color:var(--ink-2)}
@@ -182,7 +215,7 @@
 .sw-cell-mix em{background:var(--sw-solar)}
 .sw-provenance{margin:0}
 
-@media (max-width:1100px){.sw-layout{grid-template-columns:1fr}}
+@media (max-width:1100px){.sw-layout{grid-template-columns:1fr;grid-template-rows:none}.sw-plot{min-height:240px}}
 /* Narrow screens: a normal, unscaled page without the sidebar (Back to Forecast stays). */
 @media (max-width:760px){
   .app-shell.is-sources{position:static;width:auto!important;height:auto!important;transform:none!important;overflow:visible}
@@ -209,4 +242,4 @@
   .sw-cell{min-height:48px;padding:4px 5px 10px}
   .sw-cell small{display:none}
 }
-@media (prefers-reduced-motion:reduce){.sw-cell,.sources-open{transition:none}.sources-open:hover,.sw-cell:not(.is-blank):hover{transform:none}}
+@media (prefers-reduced-motion:reduce){.sw-fold-body{animation:none}.sw-fold-toggle i{transition:none}.sw-cell,.sources-open{transition:none}.sources-open:hover,.sw-cell:not(.is-blank):hover{transform:none}}

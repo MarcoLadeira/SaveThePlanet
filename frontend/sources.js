@@ -307,18 +307,16 @@ function swWindowCard(d) {
   }
   const share = w.curtailedMwh > 0 ? (w.absorbableMwh / w.curtailedMwh) * 100 : 0;
   const formula = `<p class="sw-eq" role="math">absorbable = Σ min(curtailed in the half-hour, ${n(cap)} MW × 0.5 h)</p>
-    <p>Each half-hour, chargers can take at most <b>${n(slotCap)} MWh</b> (${n(cap)} MW for half an hour), and never more than was curtailed. The window is the run of up to 4 hours with the largest total. Ties go to the run with the most curtailed energy, then the shortest, then the earliest.</p>`;
+    <p>Each half-hour, chargers can take at most <b>${n(slotCap)} MWh</b> (${n(cap)} MW for half an hour), and never more than was curtailed. The window is the run of up to 4 hours with the largest total. Ties go to the run with the most curtailed energy, then the shortest, then the earliest. That much energy would drive an EV about <b>${fxMwh(w.ev.rangeKm)} km</b>.</p>`;
   return `<section class="dash-card fx-card sw-side">${head}
-    <p class="sw-window-lead">Between <b>${swTime(w.start)}</b> and <b>${swTime(w.end)}</b>, flexible charging could have absorbed up to</p>
-    <p class="sw-window-figure"><strong>${fxMwh(w.absorbableMwh, 1)}</strong><small>MWh</small></p>
-    <ul class="sw-stats">
-      <li><span>Curtailed in that window</span><b>${fxMwh(w.curtailedMwh)} MWh</b></li>
-      <li><span>Share the chargers could take</span><b>${swPct(share)}</b></li>
-      <li><span>EV charging equivalent</span><b title="${SW_KWH_PER_CHARGE_NOTE}">≈ ${fxMwh(w.ev.charges)} charges</b></li>
-      <li><span>Driving range equivalent</span><b>≈ ${fxMwh(w.ev.rangeKm)} km</b></li>
+    <div class="sw-window-hero"><p class="sw-window-figure"><small>up to</small><strong>${fxMwh(w.absorbableMwh, 1)}</strong><small>MWh</small></p><p class="sw-window-when">between <b>${swTime(w.start)}</b> and <b>${swTime(w.end)}</b></p></div>
+    <ul class="sw-tiles">
+      <li><span>Curtailed then</span><b>${fxMwh(w.curtailedMwh)} MWh</b></li>
+      <li><span>Chargers take</span><b>${swPct(share)}</b></li>
+      <li><span>EV charges</span><b title="${SW_KWH_PER_CHARGE_NOTE}">≈ ${fxMwh(w.ev.charges)}</b></li>
     </ul>
     ${swDetails('window-formula', 'How is this worked out?', formula)}
-    <p class="sw-caveat">An <b>upper bound</b>: the most that could have been used <i>if</i> chargers had been connected where and when the power was curtailed. It is not energy that was saved.</p>
+    <p class="sw-caveat">An <b>upper bound</b>: the most that could have been used <i>if</i> chargers had been connected where and when the power was curtailed. Not energy that was saved.</p>
   </section>`;
 }
 
@@ -326,42 +324,67 @@ function swVerdict(label, text, tone, title) {
   return `<span class="sw-verdict is-${tone}" title="${escapeHtml(title)}"><small>${label}</small><b>${text}</b></span>`;
 }
 
+// A card that folds to one line: its heading plus a summary of what is inside, so the closed page
+// fits the screen and still tells the story. Open state survives re-renders (sw.open).
+function swFold(key, cls, glyph, tone, title, summary, body, badge = '') {
+  return `<details class="dash-card fx-card sw-fold ${cls}" data-sw-open="${key}"${sw.open.has(key) ? ' open' : ''}>
+    <summary class="sw-fold-head"><span class="fx-head-icon is-${tone}" aria-hidden="true">${fxIcon(glyph, 19)}</span>
+      <span class="sw-fold-copy"><strong>${title}${badge}</strong><span>${summary}</span></span>
+      <span class="sw-fold-toggle" aria-hidden="true"><i></i></span></summary>
+    <div class="sw-fold-body">${body}</div>
+  </details>`;
+}
+
+function swForecastVerdicts(f, r, c) {
+  if (!c || c.nothingCurtailed) return { chips: '', line: '' };
+  const pts = c.shareErrorPoints, abs = Math.abs(pts ?? 0);
+  const splitText = pts === null ? '' : `${pts > 0 ? '+' : pts < 0 ? '−' : ''}${fxRound(abs, 1)} pts wind`;
+  const ratio = r.totalMwh > 0 ? f.totalMwh / r.totalMwh : null;
+  const tone = ratio === null ? 'fair' : ratio >= 0.8 && ratio <= 1.25 ? 'good' : ratio >= 0.5 && ratio <= 2 ? 'fair' : 'off';
+  const totalText = `${swSigned(c.totalErrorMwh)} MWh${ratio !== null && tone === 'off' ? ` (${ratio < 1 ? `${fxRound(1 / ratio, 1)}× too low` : `${fxRound(ratio, 1)}× too high`})` : ''}`;
+  const chips = (pts === null ? '' : swVerdict('Split', splitText, abs <= 10 ? 'good' : abs <= 20 ? 'fair' : 'off',
+    'Predicted wind share minus recorded wind share, in percentage points. This is the split method’s own error.'))
+    + swVerdict('Total', totalText, tone, 'Predicted daily total minus recorded total. This error comes from V2’s total, not from the split.');
+  return { chips, line: `${splitText ? `split ${splitText} · ` : ''}total ${totalText}` };
+}
+
 function swForecastCard(d) {
   const f = d.forecast, r = d.recorded, c = d.derived.comparison;
-  const badge = f.status === 'ok' ? `<span class="sw-exp${f.validationStatus === 'passed_release_gate' ? ' is-validated' : ''}">${f.validationStatus === 'passed_release_gate' ? 'Validated' : 'Experimental'}</span>` : '';
-  const head = fxHead('forecast', 'orange', 'What did the model expect?', 'V2’s daily total, split into wind and solar from the day-ahead weather', badge);
-  if (f.status === 'loading') return `<section class="dash-card fx-card sw-forecast">${head}<p class="sw-empty" role="status"><span class="fx-busy is-on"><i></i>Asking the model…</span> The first look at a day takes a few seconds while the weather forecast is fetched.</p></section>`;
-  if (f.status === 'not_forecastable') return `<section class="dash-card fx-card sw-forecast">${head}<p class="sw-empty">${escapeHtml(f.message)}</p></section>`;
+  const title = 'What did the model expect?';
+  const fold = (summary, body, badge) => swFold('fold-forecast', 'sw-forecast', 'forecast', 'orange', title, summary, body, badge);
+  if (f.status === 'loading') return fold('<span class="fx-busy is-on"><i></i>Asking the model…</span>', '<p class="sw-empty" role="status">The first look at a day takes a few seconds while the weather forecast is fetched.</p>');
+  if (f.status === 'not_forecastable') return fold(escapeHtml(f.message), `<p class="sw-empty">${escapeHtml(f.message)}</p>`);
   if (f.status !== 'ok') {
-    return `<section class="dash-card fx-card sw-forecast">${head}<div class="sw-empty is-error" role="alert">${fxIcon('alert', 18)}<p>The experimental forecast can’t be reached right now (${escapeHtml(f.message || 'unavailable')}). The recorded figures above are unaffected.</p><button type="button" class="studio-button" data-sw-retry="forecast">Try again ${icon('arrow', 16)}</button></div></section>`;
+    return fold('Unavailable right now · open to retry', `<div class="sw-empty is-error" role="alert">${fxIcon('alert', 18)}<p>The experimental forecast can’t be reached right now (${escapeHtml(f.message || 'unavailable')}). The recorded figures above are unaffected.</p><button type="button" class="studio-button" data-sw-retry="forecast">Try again ${icon('arrow', 16)}</button></div>`);
   }
+  const badge = ` <span class="sw-exp${f.validationStatus === 'passed_release_gate' ? ' is-validated' : ''}">${f.validationStatus === 'passed_release_gate' ? 'Validated' : 'Experimental'}</span>`;
   const made = `Made at 00:00 UTC from weather forecasts published by ${f.weatherAvailableAt ? `${fxClock(f.weatherAvailableAt)} UTC the day before` : 'the day before'}`;
-  let verdicts = '';
-  if (c && !c.nothingCurtailed) {
-    const pts = c.shareErrorPoints, abs = Math.abs(pts ?? 0);
-    const split = pts === null ? '' : swVerdict('Split', `${pts > 0 ? '+' : pts < 0 ? '−' : ''}${fxRound(abs, 1)} pts wind`, abs <= 10 ? 'good' : abs <= 20 ? 'fair' : 'off',
-      'Predicted wind share minus recorded wind share, in percentage points. This is the split method’s own error.');
-    const ratio = r.totalMwh > 0 ? f.totalMwh / r.totalMwh : null;
-    const tone = ratio === null ? 'fair' : ratio >= 0.8 && ratio <= 1.25 ? 'good' : ratio >= 0.5 && ratio <= 2 ? 'fair' : 'off';
-    const total = swVerdict('Total', `${swSigned(c.totalErrorMwh)} MWh${ratio !== null && tone === 'off' ? ` (${ratio < 1 ? `${fxRound(1 / ratio, 1)}× too low` : `${fxRound(ratio, 1)}× too high`})` : ''}`, tone,
-      'Predicted daily total minus recorded total. This error comes from V2’s total, not from the split.');
-    verdicts = `<div class="sw-verdicts">${split}${total}</div><p class="sw-note">The split only divides V2’s total, so it can be right about the <i>mix</i> even when the <i>amount</i> is off.</p>`;
+  const v = swForecastVerdicts(f, r, c);
+  let note = '', outcome = '';
+  if (v.chips) {
+    note = `<div class="sw-verdicts">${v.chips}</div><p class="sw-note">The split only divides V2’s total, so it can be right about the <i>mix</i> even when the <i>amount</i> is off.</p>`;
+    outcome = ` · ${v.line}`;
   } else if (c?.nothingCurtailed) {
-    verdicts = `<p class="sw-note">The model expected a small amount (${fxPercent(f.probability)} chance of any curtailment). Nothing was curtailed on the day.</p>`;
+    note = `<p class="sw-note">The model expected a small amount (${fxPercent(f.probability)} chance of any curtailment). Nothing was curtailed on the day.</p>`;
+    outcome = ' · nothing was curtailed';
   } else if (r.status === 'pending') {
-    verdicts = '<p class="sw-note">Awaiting EirGrid’s figures for this day. Check back after the archive refresh to see how the forecast did.</p>';
+    note = '<p class="sw-note">Awaiting EirGrid’s figures for this day. Check back after the archive refresh to see how the forecast did.</p>';
+    outcome = ' · awaiting EirGrid';
   }
-  return `<section class="dash-card fx-card sw-forecast">${head}
-    <p class="sw-forecast-lead"><b>${fxPercent(f.probability)}</b> chance of curtailment · <b>${fxMwh(f.totalMwh)} MWh</b> predicted: ${fxMwh(f.windMwh)} wind + ${fxMwh(f.solarMwh)} solar. <span>${made}.</span></p>
+  const summary = `<b>${fxPercent(f.probability)}</b> chance · <b>${fxMwh(f.totalMwh)} MWh</b> predicted (${swPct(f.windSharePercent)} wind)${outcome}`;
+  const body = `<p class="sw-forecast-lead">V2’s daily total, split into wind and solar from the day-ahead weather: <b>${fxMwh(f.windMwh)} MWh wind</b> + <b>${fxMwh(f.solarMwh)} MWh solar</b>. <span>${made}.</span></p>
     ${chartSlot('swCompare', `Predicted ${fxMwh(f.windMwh)} MWh wind and ${fxMwh(f.solarMwh)} MWh solar; recorded ${fxMwh(r.windMwh)} MWh wind and ${fxMwh(r.solarMwh)} MWh solar`, 'sw-compare')}
-    ${verdicts}
-    <p class="sw-capacity">${fxIcon('scale', 15)}<span>Assumes ${fxMwh(f.capacity.windMw)} MW wind and ${fxMwh(f.capacity.solarMw)} MW solar installed (estimated from EirGrid data to ${f.capacity.dataThrough ? fxDateLabel(f.capacity.dataThrough, 'short') : '—'}).</span></p>
-  </section>`;
+    ${note}
+    <p class="sw-capacity">${fxIcon('scale', 15)}<span>Assumes ${fxMwh(f.capacity.windMw)} MW wind and ${fxMwh(f.capacity.solarMw)} MW solar installed (estimated from EirGrid data to ${f.capacity.dataThrough ? fxDateLabel(f.capacity.dataThrough, 'short') : '—'}).</span></p>`;
+  return fold(summary, body, badge);
 }
 
 function swMethodCard(d) {
-  const i = sw.info, head = fxHead('info', 'green', 'How is this predicted?', i ? `Physics-share split ${escapeHtml(i.version || '')} · ${i.experimental ? 'experimental' : 'validated'}` : 'The experimental wind/solar split');
-  if (!i) return `<section class="dash-card fx-card sw-method">${head}<p class="sw-empty">${sw.infoError ? `The method details are unavailable right now (${escapeHtml(sw.infoError)}).` : 'Loading the method…'}</p></section>`;
+  const i = sw.info, title = 'How is this predicted?';
+  if (!i) {
+    const text = sw.infoError ? `The method details are unavailable right now (${escapeHtml(sw.infoError)}).` : 'Loading the method…';
+    return swFold('fold-method', 'sw-method', 'info', 'green', title, text, `<p class="sw-empty">${text}</p>`);
+  }
   const f = d?.forecast.status === 'ok' ? d.forecast : null, ratio = d?.derived.potentialRatio, k = i.constants;
   const signed = (value) => String(fxRound(value, 4)).replace('-', '−');
   const a = signed(i.intercept), b = signed(i.slope);
@@ -383,17 +406,18 @@ function swMethodCard(d) {
     swDetails('m-lim', 'Limitations', `<ul class="sw-list">${i.limitations.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}<li>A planning estimate, not a dispatch instruction.</li></ul>`),
     swDetails('m-raw', 'Exact formula from the API', `<code class="sw-code">${escapeHtml(i.formula || '')}</code>`),
   ];
-  return `<section class="dash-card fx-card sw-method">${head}<div class="sw-drops">${steps.join('')}</div></section>`;
+  const summary = `Splits V2’s total by forecast wind vs sunshine · 2 fitted numbers · <b>${n(fresh.rows || 0)} of ${n(fresh.required || 60)}</b> fresh days confirmed`;
+  return swFold('fold-method', 'sw-method', 'info', 'green', title, summary, `<div class="sw-drops">${steps.join('')}</div>`);
 }
 
 function swMonthCard() {
-  const month = sw.month, m = sw.months[month], c = sw.coverage;
+  const month = sw.month, m = sw.months[month], c = sw.coverage, title = 'Month at a glance';
   const canPrev = fxShiftMonth(month, -1) >= c.from.slice(0, 7), canNext = fxShiftMonth(month, 1) <= c.to.slice(0, 7);
-  const nav = `<div class="sw-month-nav"><button type="button" class="fx-step" data-sw-mstep="-1" aria-label="Previous month" ${canPrev ? '' : 'disabled'}>${fxChevron('left')}</button><strong>${fxMonthLabel(month)}</strong><button type="button" class="fx-step" data-sw-mstep="1" aria-label="Next month" ${canNext ? '' : 'disabled'}>${fxChevron('right')}</button></div>`;
-  const head = fxHead('calendar', 'blue', 'Month at a glance', 'Darker = more curtailed · the yellow part of each bar is solar · click a day to open it', nav);
+  const nav = `<div class="sw-month-bar"><p>Darker = more curtailed · the yellow part of each bar is solar · click a day to open it</p><div class="sw-month-nav"><button type="button" class="fx-step" data-sw-mstep="-1" aria-label="Previous month" ${canPrev ? '' : 'disabled'}>${fxChevron('left')}</button><strong>${fxMonthLabel(month)}</strong><button type="button" class="fx-step" data-sw-mstep="1" aria-label="Next month" ${canNext ? '' : 'disabled'}>${fxChevron('right')}</button></div></div>`;
   if (!m) {
     const error = sw.monthErrors[month];
-    return `<section class="dash-card fx-card sw-month">${head}<p class="sw-empty">${error ? `${escapeHtml(error)} <button type="button" class="fx-reload" data-sw-retry="month">Retry</button>` : '<span class="fx-busy is-on"><i></i>Loading the month…</span>'}</p></section>`;
+    const text = error ? `${fxMonthLabel(month)} · couldn’t be loaded` : `${fxMonthLabel(month)} · loading…`;
+    return swFold('fold-month', 'sw-month', 'calendar', 'blue', title, text, `${nav}<p class="sw-empty">${error ? `${escapeHtml(error)} <button type="button" class="fx-reload" data-sw-retry="month">Retry</button>` : '<span class="fx-busy is-on"><i></i>Loading the month…</span>'}</p>`);
   }
   const top = Math.max(1, ...m.days.map((x) => x.totalMwh ?? x.windMwh ?? 0));
   const [y, mo] = month.split('-').map(Number), offset = (new Date(Date.UTC(y, mo - 1, 1)).getUTCDay() + 6) % 7;
@@ -407,9 +431,9 @@ function swMonthCard() {
       <b>${Number(x.date.slice(8))}</b><small>${total === null ? '—' : fxMwh(total)}</small>${total > 0 && fxHas(x.solarSharePercent) ? `<span class="sw-cell-mix"><i style="width:${(100 - solar).toFixed(1)}%"></i><em style="width:${solar.toFixed(1)}%"></em></span>` : ''}</button>`);
   }
   const t = m.totals;
-  const summary = `<b>${fxMwh(t.totalMwh)} MWh</b> curtailed on <b>${t.daysCurtailed}</b> of ${t.daysKnown} recorded days${fxHas(t.solarSharePercent) ? ` · <b>${swPct(t.solarSharePercent)}</b> solar` : ''}${t.daysKnown ? ` · ≈ ${fxMwh((t.totalMwh * 1000) / 30)} charges’ worth` : ''}`;
-  return `<section class="dash-card fx-card sw-month">${head}<p class="sw-month-summary">${summary}</p>
-    <div class="sw-heat">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => `<span class="sw-heat-week">${w}</span>`).join('')}${cells.join('')}</div></section>`;
+  const summary = `${fxMonthLabel(month)} · <b>${fxMwh(t.totalMwh)} MWh</b> curtailed on <b>${t.daysCurtailed}</b> of ${t.daysKnown} recorded days${fxHas(t.solarSharePercent) ? ` · <b>${swPct(t.solarSharePercent)}</b> solar` : ''}${t.daysKnown ? ` · ≈ ${fxMwh((t.totalMwh * 1000) / 30)} charges’ worth` : ''}`;
+  return swFold('fold-month', 'sw-month', 'calendar', 'blue', title, summary,
+    `${nav}<div class="sw-heat">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => `<span class="sw-heat-week">${w}</span>`).join('')}${cells.join('')}</div>`);
 }
 
 function swProvenance(d) {
@@ -514,6 +538,9 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('focusout', (event) => { if (event.target.matches?.('[data-sw-plot]')) event.target.classList.remove('is-hovering'); });
 // <details> toggle does not bubble, so listen in the capture phase; open dropdowns survive re-renders.
 document.addEventListener('toggle', (event) => {
-  const key = event.target.dataset?.swOpen;
-  if (key) sw.open[event.target.open ? 'add' : 'delete'](key);
+  const el = event.target, key = el.dataset?.swOpen;
+  if (!key || el.open === sw.open.has(key)) return;  // a re-render restoring the state, not the viewer
+  sw.open[el.open ? 'add' : 'delete'](key);
+  // A section folded open below the fold scrolls into view, so the new content is not off-screen.
+  if (el.open && key.startsWith('fold-')) requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
 }, true);

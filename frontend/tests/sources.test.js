@@ -71,10 +71,11 @@ test('times switch to UTC when the display timezone is UTC', () => {
 test('the best charging window card is an upper bound from min(curtailed, capacity × 0.5 h)', () => {
   const run = load();
   const html = text(run('swWindowCard(swDay())'));
-  assert.match(html, /Between 11:30 and 15:30/);
-  assert.match(html, /400 MWh/);
-  assert.match(html, /3,799 MWh/);
-  assert.match(html, /≈ 13,333\.3 charges|≈ 13,333 charges/);
+  assert.match(html, /up to 400 MWh between 11:30 and 15:30/);
+  assert.match(html, /Curtailed then 3,799 MWh/);
+  assert.match(html, /Chargers take 11%/);
+  assert.match(html, /EV charges ≈ 13,333/);
+  assert.match(html, /about 2,222,222 km/);
   assert.match(html, /upper bound/);
   assert.match(html, /min\(curtailed in the half-hour, 100 MW × 0\.5 h\)/);
 });
@@ -83,7 +84,7 @@ test('forecast vs recorded keeps the split error apart from the total error', ()
   const run = load();
   const html = text(run('swForecastCard(swDay())'));
   assert.match(html, /Experimental/);
-  assert.match(html, /79% chance of curtailment/);
+  assert.match(html, /79% chance · 2,035 MWh predicted \(71% wind\) · split \+8\.5 pts wind · total −4,882 MWh \(3\.4× too low\)/);
   assert.match(html, /\+8\.5 pts wind/);
   assert.match(html, /−4,882 MWh \(3\.4× too low\)/);
   assert.match(html, /23:00 UTC the day before/);
@@ -98,7 +99,7 @@ test('the forecast panel loads on its own and never blocks the recorded figures'
   assert.equal(run('swDay().forecast.status'), 'loading');
   const html = run('renderSources()');
   assert.match(text(html), /Asking the model/);
-  assert.match(text(html), /Between 11:30 and 15:30/);
+  assert.match(text(html), /between 11:30 and 15:30/);
 });
 
 test('a forecast that cannot be reached shows a retry, not an error page', () => {
@@ -172,4 +173,16 @@ test('the page is reached from the Forecast header only and keeps Forecast highl
   assert.doesNotMatch(app.match(/const navItems=(\[.*?\]);/)[1], /sources/, 'no new navigation item');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.ok(html.indexOf('sources.js') > html.indexOf('forecast-explorer.js') && html.indexOf('sources.js') < html.indexOf('app.js'));
+});
+
+test('forecast, method and month fold to one summary line and start closed', () => {
+  const run = load();
+  const html = run('renderSources()');
+  const folds = html.match(/<details class="dash-card fx-card sw-fold [^"]+" data-sw-open="(fold-[a-z]+)"( open)?>/g);
+  assert.deepEqual(folds.map((f) => f.match(/fold-[a-z]+/)[0]), ['fold-forecast', 'fold-method', 'fold-month']);
+  assert.ok(folds.every((f) => !f.includes(' open')), 'closed by default, so the page fits without a scroll bar');
+  assert.match(text(html), /Month at a glance May 2026 · 6,917 MWh curtailed on 1 of 31 recorded days/);
+  assert.match(text(html), /How is this predicted\? Splits V2’s total by forecast wind vs sunshine · 2 fitted numbers · 0 of 60 fresh days confirmed/);
+  run(`sw.open.add('fold-month')`);
+  assert.match(run('swMonthCard()'), /data-sw-open="fold-month" open>/, 'an opened fold stays open across re-renders');
 });
