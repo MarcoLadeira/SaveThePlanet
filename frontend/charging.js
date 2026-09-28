@@ -185,10 +185,12 @@ function cgSelectedIndex(intervals) {
 dashCharts.cgSchedule = {
     values() {
         const toMw = 60 / (cgDay.data?.intervalMinutes || 30), d = cgDaySeries();
-        return { renewable: d.renewable.map((v) => v * toMw), charging: d.charging.map((v) => v * toMw), grid: d.grid.map((v) => v * toMw), sel: cgSelectedIndex(cgDayIntervals()), status: cgDay.status };
+        return { renewable: d.renewable.map((v) => v * toMw), charging: d.charging.map((v) => v * toMw), grid: d.grid.map((v) => v * toMw), sel: String(cgSelectedIndex(cgDayIntervals())), status: cgDay.status };
     },
     start: (t) => ({ ...t, renewable: t.renewable.map(() => 0), charging: t.charging.map(() => 0), grid: t.grid.map(() => 0) }),
-    draw({ renewable, charging, grid, sel, status }) {
+    draw({ renewable, charging, grid, sel: selText, status }) {
+        // The index travels as text so the animation engine does not interpolate it.
+        const sel = Number(selText);
         const { w, h, left, right, top, bottom } = CG_PLOT;
         if (!renewable.length) return cgChartState(status, 'Loading the replay day…', 'The replay day could not be loaded. Other figures on this page are unaffected.');
         const max = chartNiceMax(Math.max(...renewable, ...charging, ...grid, 0.001));
@@ -199,7 +201,7 @@ dashCharts.cgSchedule = {
         const series = (name, vals) => `<path class="cg-area is-${name}" d="${area(vals)}"/><path class="cg-line is-${name}" d="${cgSmooth(pts(vals))}"/>`;
         const grid2 = [0, 0.25, 0.5, 0.75, 1].map((f) => `<line x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text x="${left - 8}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
         const hours = [0, 8, 16, 24, 32, 40, 47].map((i) => `<text x="${x(i)}" y="${h - 8}" text-anchor="middle">${escapeHtml(modelTime(cgDay.data.intervals[i].targetAt))}</text>`).join('');
-        const marker = sel >= 0 ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel])}" r="5"/>` : '';
+        const marker = sel >= 0 && Number.isFinite(charging[sel]) ? `<line class="cg-sel" x1="${x(sel)}" x2="${x(sel)}" y1="${top}" y2="${h - bottom}"/><circle class="cg-sel-dot" cx="${x(sel)}" cy="${y(charging[sel])}" r="5"/>` : '';
         return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><g class="cg-grid">${grid2}</g><text class="cg-axis-unit" x="0" y="${top - 9}">MW</text>
             ${series('grid', grid)}${series('renewable', renewable)}${series('charging', charging)}
             ${marker}<g class="cg-hours">${hours}</g><line class="cg-hover" x1="0" x2="0" y1="${top}" y2="${h - bottom}"/></svg>`;
