@@ -191,9 +191,9 @@ bzChart('bzSplit', {
   },
   start: (t) => ({ ...t, w: t.w.map(() => 0), amounts: t.amounts.map(() => 0), pool: 0, reveal: 0 }),
   draw({ w, amounts, pool, sessions, empty, reveal }) {
-    const sum = `<p class="bz-split-sum"><b>${bzCents(pool)}</b><span>extra AI savings a month · ${n(Number(sessions))} sessions</span></p>`;
+    const sum = `<p class="bz-split-sum"><b>${bzCents(pool)}</b><span>extra AI savings a month</span></p>`;
     if (empty) return `${sum}<div class="bz-split is-empty"><span>No eligible extra savings: nothing to share, no commission.</span></div>`;
-    const segs = BZ_PARTS.map(([id, label], i) => `<i class="is-${id}" style="width:${(w[i] * 100).toFixed(2)}%"><b style="opacity:${reveal > 0.85 ? 1 : 0}"><span>${label}</span> ${bzCents(amounts[i])}</b></i>`).join('');
+    const segs = BZ_PARTS.map(([id, label], i) => `<i class="is-${id}" style="width:${(w[i] * 100).toFixed(2)}%"><b style="opacity:${reveal > 0.85 ? 1 : 0}"><span>${label}</span> ${bzEur(amounts[i])}</b></i>`).join('');
     return `${sum}<div class="bz-split">${segs}</div>`;
   },
 });
@@ -415,8 +415,6 @@ function bzCalcPaint() {
   if (detail) detail.innerHTML = bzWhatIf();
   const active = bzActivePreset();
   main.querySelectorAll('[data-bz-preset]').forEach((b) => { const on = b.dataset.bzPreset === active; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', String(on)); });
-  const note = bz.calc.view === 'main' && main.querySelector('.bz-adv-note'); // the costs view explains, it does not summarise
-  if (note) note.textContent = bzCostNote();
   for (const name of Object.keys(BZ_FIELDS)) {
     const field = main.querySelector(`[data-bz-field="${name}"]`);
     if (!field) continue;
@@ -428,10 +426,6 @@ function bzCalcPaint() {
   }
   const chart = card.querySelector('[data-chart="bzSplit"]');
   if (chart) { chart.setAttribute('aria-label', bzSplitLabel()); chartsSync(chart.parentElement); }
-}
-function bzCostNote() {
-  const v = bz.calc.values || {}, num = (k) => Number(String(v[k] ?? '').replace(/,/g, ''));
-  return `Costs: operator ${bzEur(num('operatorFixedEur'))}/month · SaveThePlanet ${bzCents(num('platformVariableEur'))}/session + ${bzEur(num('platformFixedEur'))}/month`;
 }
 
 // ---------------------------------------------------------------- building blocks
@@ -454,10 +448,10 @@ function bzScenario(intro = '') {
   const sim = r.dataMode === 'simulated', d = r.discountWindows;
   const mode = sim
     ? `<button type="button" class="bz-chip is-sim" data-bz-retry="model" title="GridToEv is unavailable (${escapeHtml(r.fallback?.reason || '')}); this is a fixed simulated example. Click to try the model again.">${bzIcon('alert', 14)}Simulated data · retry model</button>`
-    : `<span class="bz-chip is-replay" title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">Historical replay</span>`;
+    : '';
   return `<div class="bz-scenario${intro ? ' is-intro' : ''}"${intro} aria-label="Scenario">
     <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>Example site</b><small>${n(d.hub.chargers)} × ${n(d.hub.chargerKw)} kW · simulated</small></span></span>
-    <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small>${n(r.period.nights)} nights replayed</small>`}</span></span>
+    <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">${n(r.period.nights)} nights · GridToEv ${escapeHtml(r.modelVersion || '')} replay</small>`}</span></span>
     ${mode}</div>`;
 }
 
@@ -500,7 +494,7 @@ function bzSplitCard(r) {
   const updating = '<span class="bz-updating" aria-hidden="true"><i class="bz-out-spin motion-loop"></i>Updating</span>';
   const fields = costs
     ? `${BZ_COSTS.map(bzField).join('')}<div class="bz-adv"><span class="bz-adv-note">Savings are shared first; these costs come out of each share.</span><button type="button" class="bz-link" data-bz-costs="done">${icon('check', 14)}Done</button>${updating}</div>`
-    : `${BZ_MAIN.map(bzField).join('')}<div class="bz-adv"><span class="bz-adv-note">${escapeHtml(bzCostNote())}</span><button type="button" class="bz-link" data-bz-costs="open">Edit costs</button>${updating}</div>`;
+    : `${BZ_MAIN.map(bzField).join('')}<div class="bz-adv"><button type="button" class="bz-link" data-bz-costs="open">Edit costs</button>${updating}</div>`;
   const stale = Object.keys(c.errors).length || c.error;
   return `<section class="dash-card bz-card bz-split-card${c.pending ? ' is-pending' : ''}${stale ? ' is-stale' : ''}">
     ${bzHead('split', 'blue', 'Where the € goes', `One site, one month · split ${d.split.driver} / ${d.split.operator} / ${d.split.platform}`, presets)}

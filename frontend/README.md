@@ -124,7 +124,7 @@ so they agree to the cent. Contract and methodology:
 ![Impact page, depot savings](../docs/screenshots/impact/impact-depot.png)
 
 - **Header**: title, subtitle and a scenario indicator (the example site, the evaluation week, and
-  "Historical replay" or an amber "Simulated data · retry model" chip).
+  the GridToEv model version replayed, or an amber "Simulated data · retry model" chip).
 - **Two views** (remembered per browser), each one story: *Who earns · per month* and *Depot savings · per
   year*, with a label beside the switch saying what the figures are ("SaveThePlanet Rewards · illustrative replay · projected
   revenue, simulated profit · ex VAT").
