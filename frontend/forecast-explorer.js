@@ -45,6 +45,8 @@ function fxDayMonth(day) { return new Intl.DateTimeFormat('en-IE', { timeZone: '
 function fxClock(stamp) { return stamp.slice(11, 16); }
 function fxShift(stamp, minutes) { return new Date(Date.parse(stamp) + minutes * 6e4).toISOString().replace('.000Z', 'Z'); }
 // Issue time relative to the target's day, e.g. "23:30 prev. day" for a 00:00 target.
+// "12:00–12:30": a target names the half-hour that STARTS at that time.
+function fxSpan(stamp) { return `${fxClock(stamp)}–${fxClock(fxShift(stamp, 30))}`; }
 function fxIssueLabel(issue, day) { return issue.slice(0, 10) === day ? fxClock(issue) : `${fxClock(issue)} prev. day`; }
 function fxMonthLabel(month) { return new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${month}-01T00:00:00Z`)); }
 function fxShiftMonth(month, delta) { const d = new Date(`${month}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + delta); return d.toISOString().slice(0, 7); }
@@ -798,7 +800,7 @@ function fxShortView() {
   const errState = inRange === null ? 'pending' : inRange ? 'right' : 'wrong';
   const kpis = `<section class="fx-kpis" aria-label="Selected half-hour at a glance">
     ${horizonKpi(30)}${horizonKpi(60)}
-    ${fxKpi('green', 'eye', `Observed at ${fxClock(r.targetAt)}`, 'fxSObs', `Observed: ${fxMwh(obs, 1)} MWh`, `<em>${fxHas(obs) ? 'EirGrid measurement' : r.actual?.status === 'pending' ? 'EirGrid figure pending' : 'no EirGrid figure'}</em>`, chartSlot('fxSObsSpark', 'Observed dispatch-down through the day', 'fx-kpi-spark'))}
+    ${fxKpi('green', 'eye', `Observed at ${fxClock(r.targetAt)}`, 'fxSObs', `Observed: ${fxMwh(obs, 1)} MWh`, `<em${fxHas(obs) ? ' title="What really happened in this half-hour. It is the same whichever forecast you look at: only the prediction changes between +30 and +60 min."' : ''}>${fxHas(obs) ? 'EirGrid · same for +30 and +60' : r.actual?.status === 'pending' ? 'EirGrid figure pending' : 'no EirGrid figure'}</em>`, chartSlot('fxSObsSpark', 'Observed dispatch-down through the day', 'fx-kpi-spark'))}
     ${fxKpi('blue', 'target', `Forecast error · +${p.horizonMinutes} min`, 'fxSErr', `Forecast error: ${diff === null ? 'unknown' : `${fxMwh(Math.abs(diff), 1)} MWh`}`, diff === null ? '<em>needs an observed figure</em>' : (Math.abs(diff) < 0.05 ? '<span class="fx-pill is-good">spot on</span>' : `<span class="fx-pill is-${inRange ? 'good' : 'warn'}">${obs > 0 ? `${Math.round(Math.abs(diff / obs) * 100)}% ` : 'too '}${diff > 0 ? 'high' : 'low'}</span>`) + '<em>vs observed</em>', fxBadge(errState, inRange === null ? 'Pending' : inRange ? 'In range' : 'Outside range'))}
   </section>`;
   const d = fxDaySeries(), sel = d.sel, replay = fxReplay(), fast = s.observed[s.date];
@@ -808,15 +810,15 @@ function fxShortView() {
   const selText = sel >= 0 ? `${fxClock(s.target)}: predicted ${fxMwh(d.pred[sel], 1)} MWh, observed ${fxMwh(d.obs[sel], 1)} MWh` : 'No half-hour selected on this day';
   const seg = `<div class="fx-seg" role="group" aria-label="Forecast horizon">${[30, 60].map((h) => `<button type="button" data-fx-horizon="${h}" aria-pressed="${s.horizon === h}" class="${s.horizon === h ? 'is-active' : ''}">+${h} min</button>`).join('')}</div>`;
   const chart = `<section class="dash-card fx-card fx-main">
-    ${fxHead('pulse', 'amber', 'Forecast vs reality through the day', `MWh switched off per half-hour on ${fxDateLabel(s.date)} · click to pick a time`, seg)}
-    <div class="fx-legend-row">${fxLegend([['pred', `Predicted (+${s.horizon} min)`], ['obs', 'Observed'], ...(settings.uncertainty ? [['band', 'Likely range']] : []), ['sel', 'Your half-hour']])}${replayStatus}</div>
+    ${fxHead('pulse', 'amber', 'Forecast vs reality through the day', `MWh per half-hour on ${fxDateLabel(s.date)} · forecasts made ${s.horizon} min ahead · click a time`, seg)}
+    <div class="fx-legend-row">${fxLegend([['pred', `Predicted (+${s.horizon} min)`], ['obs', 'Observed (same for +30 and +60)'], ...(settings.uncertainty ? [['band', 'Likely range']] : []), ['sel', 'Your half-hour']])}${replayStatus}</div>
     <div class="fx-plot" data-fx-plot="${escapeHtml(s.date)}" tabindex="0" role="slider" aria-label="Half-hour on ${fxDateLabel(s.date)}. Use the arrow keys to move." aria-valuemin="0" aria-valuemax="47" aria-valuenow="${Math.max(0, sel)}" aria-valuetext="${escapeHtml(selText)}">
       ${chartSlot('fxDay', `Predicted and observed dispatch-down for each half-hour of ${fxDateLabel(s.date)}, ${s.horizon} minutes ahead`, 'fx-day-chart')}
       <div class="fx-hover" aria-hidden="true"><i class="fx-hover-line"></i><i class="fx-hover-dot is-pred"></i><i class="fx-hover-dot is-obs"></i><div class="fx-tip"></div></div>
     </div>
   </section>`;
   const side = `<section class="dash-card fx-card fx-side">
-    ${fxHead('clock', 'green', `${fxClock(r.targetAt)} half-hour`, `+${p.horizonMinutes} min forecast, made at ${fxIssueLabel(p.issuedAt, s.date)} UTC`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
+    ${fxHead('clock', 'green', `${fxSpan(r.targetAt)} half-hour`, `+${p.horizonMinutes} min forecast: made at ${fxIssueLabel(p.issuedAt, s.date)} UTC, ${p.horizonMinutes} min before it starts`, `<span class="fx-risk is-${escapeHtml(p.risk)}">${escapeHtml(p.risk)} risk</span>`)}
     <div class="fx-block"><p class="fx-block-head"><b>${settings.uncertainty ? 'Forecast and likely range' : 'Forecast'}</b><span>${settings.uncertainty ? '8 in 10 outcomes land in the band' : 'median estimate'}</span></p>
       ${chartSlot('fxSRange', `Forecast ${fxMwh(p.atRiskMwh, 1)} MWh, likely range ${fxMwh(p.lowerMwh)} to ${fxMwh(p.upperMwh)} MWh, observed ${fxMwh(obs, 1)} MWh`, 'fx-srange')}</div>
     <div class="fx-block fx-cause"><p class="fx-block-head"><b>Why it gets switched off</b><span>${fxPercent(p.probability)} chance it happens</span></p>
@@ -881,7 +883,8 @@ function fxHover(plot, i) {
   obsDot.style.cssText = fxHas(d.obs[i]) ? `left:${x};top:${at(d.obs[i])}` : 'display:none';
   const clock = `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`;
   const range = settings.uncertainty && fxHas(d.lo[i]) ? `<small>likely ${fxMwh(d.lo[i])}–${fxMwh(d.hi[i])}</small>` : '';
-  tip.innerHTML = `<b>${clock} half-hour</b><span><i class="is-pred"></i>Predicted<strong>${fxMwh(d.pred[i], 1)} MWh</strong></span>${range}<span><i class="is-obs"></i>Observed<strong>${fxMwh(d.obs[i], 1)} MWh</strong></span>${d.issued[i] ? `<small>made ${fxIssueLabel(d.issued[i], d.date)} UTC · click to open</small>` : '<small>no forecast for this time</small>'}`;
+  const h = fx.short.horizon, end = `${String(Math.floor((i + 1) / 2) % 24).padStart(2, '0')}:${i % 2 ? '00' : '30'}`;
+  tip.innerHTML = `<b>${clock}–${end} half-hour</b><span><i class="is-pred"></i>Predicted (+${h} min)<strong>${fxMwh(d.pred[i], 1)} MWh</strong></span>${range}<span><i class="is-obs"></i>Observed<strong>${fxMwh(d.obs[i], 1)} MWh</strong></span>${d.issued[i] ? `<small>made ${fxIssueLabel(d.issued[i], d.date)} UTC, ${h} min ahead · click to open</small>` : '<small>no forecast for this time</small>'}`;
   tip.style.left = x;
   tip.classList.toggle('is-left', i > 30);
   plot.classList.add('is-hovering');
