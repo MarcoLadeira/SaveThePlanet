@@ -296,6 +296,86 @@ test('the planet section draws the energy ledger, labels what is modelled, and c
   assert.equal(env.flows.rewardsOutKwh, r.discountWindows.month.kwh, 'the EV energy is the month of Rewards charging');
 });
 
+test('beyond EVs: the hydrogen subsection draws the backend figures, battery first, and carries no money', () => {
+  const run = load(), r = ready(run), h = r.hydrogen, s = h.stages.find((x) => x.id === h.defaultStage), t = s.totals;
+  const html = run('bzSection3(bz.result)');
+  for (const text of ['Beyond EVs: green hydrogen', 'Where the spare energy could go', 'When hydrogen could take the surplus',
+    'As EV demand grows, our AI adapts', 'Illustrative hydrogen', 'Commercial potential: not yet priced', 'Who could pay',
+    'Grid battery 100% full', 'Sent to hydrogen', 'Hydrogen, potential', 'Still unused', 'CO₂ impact not verified',
+    'no contract, sale or agreement', 'How we count hydrogen', 'data-bz-h2-stage="growing"', 'role="switch"']) {
+    assert.ok(html.includes(text), text);
+  }
+  assert.doesNotMatch(html, /€/, 'hydrogen is not priced: no money in the planet section');
+  assert.doesNotMatch(html, /NaN|undefined|Infinity/);
+  // Every part of the bar is a backend total, and the parts add up to the eligible energy.
+  const bar = draw(run, 'bzH2Alloc'), mwh = (kwh) => run(`bzMwh(${kwh})`);
+  for (const kwh of [t.evTotalKwh, t.batteryKwh, t.hydrogenKwh, t.unusedKwh]) assert.ok(bar.includes(`<b>${mwh(kwh)}</b>`), mwh(kwh));
+  assert.ok(Math.abs(t.evTotalKwh + t.batteryKwh + t.hydrogenKwh + t.unusedKwh - t.eligibleKwh) < 0.01, 'EV + battery + hydrogen + unused = eligible');
+  assert.match(bar, /EVs planned: about 1\/3/);
+  assert.equal(run('dashCharts.bzH2In.values().v'), t.hydrogenKwh / 1000);
+  assert.equal(run('dashCharts.bzH2Kg.values().v'), t.hydrogenKg);
+  assert.equal(run('dashCharts.bzH2Unused.values().v'), t.unusedKwh / 1000);
+});
+
+test('every half-hour reconciles, and hydrogen only starts once the grid battery reads 100%', () => {
+  const run = load(), r = ready(run), h = r.hydrogen, slots = h.slots;
+  for (const s of h.stages) {
+    const full = s.gridBattery.fullIndex;
+    slots.eligibleKwh.forEach((pool, i) => {
+      const parts = slots.hubKwh[i] + s.series.ev[i] + s.series.battery[i] + s.series.hydrogen[i] + s.series.unused[i];
+      assert.ok(Math.abs(parts - pool) < 0.3, `${s.id} half-hour ${i}: ${parts} vs ${pool}`);
+    });
+    assert.ok(full !== null, `${s.id}: the battery fills in the example week`);
+    assert.equal(s.series.hydrogen.slice(0, full).reduce((a, x) => a + x, 0), 0, `${s.id}: no hydrogen before the battery is full`);
+    assert.equal(s.series.batteryLevel[full] >= 0.999, true);
+  }
+  const s = h.stages[0], night = h.nights.findIndex((x) => x.from <= s.gridBattery.fullIndex && s.gridBattery.fullIndex < x.to);
+  run(`bz.h2.night = ${night}`);
+  const svg = draw(run, 'bzH2Night');
+  assert.match(svg, /Battery 100%: surplus to hydrogen/);
+  assert.match(svg, /class="bz-h2-charge"[\s\S]*class="bz-h2-take"/, 'battery charging first, then hydrogen');
+  assert.match(svg, /1 MW plant limit/);
+  const tip = run(`bzH2Tip(${s.gridBattery.fullIndex - h.nights[night].from})`);
+  for (const text of ['Forecast', 'EirGrid record', 'Network access', 'conditional', 'Grid battery', 'Electrolyser', 'kWh']) assert.ok(tip.includes(text), text);
+});
+
+test('the stage control, the electrolyser switch and a failed recalculation', async () => {
+  let asked = '';
+  const off = JSON.parse(JSON.stringify(FIXTURE.hydrogen));
+  off.plant.enabled = false;
+  off.stages.forEach((s) => { s.totals.unusedKwh += s.totals.hydrogenKwh; s.totals.hydrogenKwh = 0; s.totals.hydrogenKg = 0; });
+  let reply = response(200, off);
+  const run = load({ fetch: (url) => { asked = url; return reply; } });
+  ready(run);
+  run('bz.h2.stage = "mature"');
+  assert.equal(run('bzH2Stage().id'), 'mature');
+  assert.match(draw(run, 'bzH2Stages'), /<li class="is-shown"><div class="bz-h2-step-name"><b>Mature EV market/);
+  run('bz.h2.plant = "off"');
+  await run('bzH2Fetch()');
+  assert.match(asked, /\/api\/v1\/business\/hydrogen\?plant=off/);
+  assert.equal(run('bzH2Stage().totals.hydrogenKwh'), 0);
+  assert.match(run('bzSection3(bz.result)'), /Electrolyser off/);
+  reply = response(400, { error: { message: 'kWh per kg must be between 39.4 and 80.' } });
+  run('bz.h2.plant = "on"; bz.h2.kwhPerKg = 30');
+  await run('bzH2Fetch()');
+  assert.match(run('bzSection3(bz.result)'), /role="alert">kWh per kg must be between 39\.4 and 80\./);
+  assert.equal(run('bz.h2.plant'), 'off', 'the controls go back to what is drawn');
+  run('bz.h2.plant = "on"; bz.h2.kwhPerKg = null');
+  await run('bzH2Fetch()');
+  assert.equal(run('bz.h2.block'), null, 'the defaults come from the page result, no call needed');
+});
+
+test('without the hydrogen block, section 03 is as it was', () => {
+  const run = load(), r = copy();
+  r.hydrogen = null;
+  ready(run, r);
+  assert.doesNotMatch(run('bzSection3(bz.result)'), /Beyond EVs|bz-h2/);
+  r.hydrogen = { version: 'hydrogen/v1', status: 'unavailable', message: 'The hydrogen scenario could not be calculated from this replay, so none of it is shown.' };
+  ready(run, r);
+  assert.match(run('bzSection3(bz.result)'), /bz-h2 is-unavailable[\s\S]*could not be calculated/);
+  assert.equal(run('bzH2()'), null);
+});
+
 test('preparing, failed, empty and ready states render the right content', async () => {
   const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: 3, total: 10, stage: 'Replaying historical forecasts' } }) });
   run('bz.status = "loading"');

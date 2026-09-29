@@ -566,6 +566,178 @@
 .bz-how p{margin:10px 0 6px!important;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .bz-how ul{margin:0;padding-left:16px;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
 
+/* 03, beyond EVs: green hydrogen (issue #76). Violet is hydrogen; green is EV charging (the Rewards hub battery
+   is striped green: EV energy too, stored first); hatched grey is energy nobody could use. */
+[data-current-page="business"]{--bz-h2:#7a5af8;--bz-h2-top:#b3a2ff;--bz-h2-soft:#f0ecff;--bz-h2-ink:#5a3fd8;--bz-batt:#d9822b;--bz-batt-top:#f3b877;--bz-batt-ink:#a65b12;
+  --bz-hatch:repeating-linear-gradient(135deg,var(--bz-grey-top) 0 4px,var(--surface-2) 4px 8px)}
+[data-current-page="business"][data-theme="dark"]{--bz-h2:#8a6cff;--bz-h2-top:#b9a8ff;--bz-h2-soft:#241d44;--bz-h2-ink:#c2b4ff;--bz-batt:#c8741f;--bz-batt-top:#e6a45e;--bz-batt-ink:#f0b775}
+.bz-h2{display:flex;flex-direction:column;gap:14px;min-width:0;margin-top:10px}
+.bz-h2-head{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px 20px;min-width:0;padding:0 2px}
+.bz-h2-title{flex:1 1 380px;min-width:0}
+.bz-h2-title h3{font-size:20px;line-height:1.2;font-weight:820;letter-spacing:-.03em;color:var(--ink)}
+.bz-h2-title p{max-width:660px;margin-top:4px!important;font-size:13px;line-height:1.4;font-weight:600;color:var(--ink-2)}
+.bz-h2-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.bz-h2-controls .bz-sec-tag{margin-left:0;cursor:help}
+.bz-h2-switch{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 7px;border:0;border-radius:11px;background:var(--surface-2);color:var(--ink-2);font:inherit;font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer}
+.bz-h2-switch i{position:relative;flex:0 0 30px;height:18px;border-radius:99px;background:var(--bz-grey);transition:background-color .2s ease}
+.bz-h2-switch i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s ease}
+.bz-h2-switch.is-on{color:var(--ink)}
+.bz-h2-switch.is-on i{background:var(--bz-h2)}
+.bz-h2-switch.is-on i::after{transform:translateX(12px)}
+.bz-h2-switch:focus-visible,.bz-h2-kg:focus-visible,.bz-h2-nav button:focus-visible,.bz-h2-info summary:focus-visible{outline:3px solid var(--bz-h2);outline-offset:2px}
+.bz-h2-error{margin:0!important;padding:8px 12px;border-radius:12px;background:var(--bz-bad-soft);color:var(--bz-bad);font-size:12.5px;font-weight:700}
+.bz-h2-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;transition:opacity .2s ease}
+.bz-h2.is-pending .bz-h2-grid{opacity:.55}
+.bz-h2-alloc{grid-column:1/-1}
+.bz-h2-time{grid-column:1}
+.bz-h2-scale{grid-column:2}
+
+/* Where: forecast (context) and eligible energy, the allocation bar, its legend and the three figures */
+.bz-h2-context{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 34px;margin:0!important;font-size:12.5px;font-weight:620;color:var(--ink-3)}
+.bz-h2-context span{position:relative;display:inline-flex;align-items:baseline;gap:7px;min-width:0}
+.bz-h2-context b{font-size:15px;font-weight:850;letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-h2-context span+span::before{content:"";position:absolute;left:-23px;top:50%;width:10px;height:10px;border-top:2px solid var(--ink-3);border-right:2px solid var(--ink-3);transform:translateY(-40%) rotate(45deg)}
+.bz-h2-body{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:24px;align-items:start}
+.bz-h2-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.bz-h2-alloc-chart{min-width:0;padding-top:24px}
+.bz-h2-bar{position:relative;display:flex;height:52px;border-radius:14px;background:var(--surface-2)}
+.bz-h2-bar>i{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;height:100%;overflow:hidden;box-shadow:inset -3px 0 0 var(--surface)}
+.bz-h2-bar>i:first-child{border-radius:14px 0 0 14px}
+.bz-h2-bar>i:last-of-type{border-radius:0 14px 14px 0;box-shadow:none}
+.bz-h2-bar>i b{position:relative;z-index:1;font-size:13px;font-weight:850;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);font-variant-numeric:tabular-nums}
+.bz-h2-bar>i.is-ev{display:flex;align-items:stretch;justify-content:flex-start}
+.bz-h2-bar>i.is-ev b{position:absolute;inset:0;display:grid;place-items:center}
+.bz-h2-bar .is-sites,.bz-h2-bar .is-hub{display:block;min-width:0;height:100%}
+.bz-h2-bar .is-sites,.bz-h2-legend .is-ev i,.bz-h2-step-bar .is-ev{background:linear-gradient(180deg,var(--bz-green-top),var(--bz-green))}
+.bz-h2-bar .is-hub{background:repeating-linear-gradient(135deg,rgba(255,255,255,.34) 0 3px,transparent 3px 7px),linear-gradient(180deg,var(--bz-green-top),var(--bz-green))}
+.bz-h2-bar .is-h2,.bz-h2-legend .is-h2 i,.bz-h2-step-bar .is-h2{background:linear-gradient(180deg,var(--bz-h2-top),var(--bz-h2))}
+.bz-h2-bar .is-battery,.bz-h2-legend .is-battery i,.bz-h2-step-bar .is-battery{background:linear-gradient(180deg,var(--bz-batt-top),var(--bz-batt))}
+.bz-h2-legend .is-battery b,.bz-h2-step-fig .is-battery b{color:var(--bz-batt-ink)}
+.bz-h2-bar .is-unused,.bz-h2-legend .is-unused i,.bz-h2-step-bar .is-unused{background:var(--bz-hatch)}
+.bz-h2-bar .is-unused b{color:var(--ink-2);text-shadow:none}
+.bz-h2-target{position:absolute;top:-24px;bottom:-5px;width:0;border-left:2px dashed var(--ink-2);pointer-events:none;z-index:2}
+.bz-h2-target em{position:absolute;top:-2px;left:6px;font-size:11.5px;font-style:normal;font-weight:780;color:var(--ink-2);white-space:nowrap}
+.bz-h2-target.is-end em{left:auto;right:6px}
+.bz-h2-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 0;padding:0;list-style:none}
+.bz-h2-legend li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:10px;row-gap:3px;align-items:baseline;min-width:0;padding:11px 13px;border-radius:14px;background:var(--surface-2)}
+.bz-h2-legend i{grid-row:1/3;align-self:stretch;width:10px;border-radius:4px}
+.bz-h2-legend span{grid-column:2/4;display:flex;flex-direction:column;gap:1px;min-width:0;font-size:12.5px;font-weight:800;color:var(--ink)}
+.bz-h2-legend small{font-size:11px;font-weight:620;line-height:1.3;color:var(--ink-3)}
+.bz-h2-legend b{grid-column:2;font-size:20px;font-weight:850;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-h2-legend em{grid-column:3;font-size:12.5px;font-style:normal;font-weight:820;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.bz-h2-legend .is-ev b{color:var(--green-deep)}
+.bz-h2-legend .is-h2 b{color:var(--bz-h2-ink)}
+.bz-h2-empty{margin:0!important;padding:18px;border-radius:14px;background:var(--surface-2);font-size:12.5px;font-weight:650;color:var(--ink-3)}
+.bz-h2-kpis{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bz-h2-kpis-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;font-weight:820;color:var(--ink)}
+.bz-h2-batt{display:flex;align-items:center;gap:10px;margin:0!important;padding:9px 12px;border-radius:14px;background:var(--surface-2);font-size:11px;font-weight:640;line-height:1.3;color:var(--ink-3)}
+.bz-h2-batt i{position:relative;flex:0 0 34px;height:16px;border-radius:4px;box-shadow:inset 0 0 0 2px var(--bz-batt-ink);overflow:hidden}
+.bz-h2-batt i::before{content:"";position:absolute;inset:3px auto 3px 3px;width:calc((100% - 6px) * var(--level) / 100%);border-radius:2px;background:var(--bz-batt)}
+.bz-h2-batt i::after{content:"";position:absolute;right:-5px;top:4px;width:3px;height:8px;border-radius:0 2px 2px 0;background:var(--bz-batt-ink)}
+.bz-h2-batt span{display:flex;flex-direction:column;min-width:0}
+.bz-h2-batt b{font-size:12.5px;font-weight:820;color:var(--bz-batt-ink)}
+.bz-h2-kpi{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:10px;row-gap:1px;padding:10px 14px;border-radius:14px;background:var(--bz-h2-soft)}
+.bz-h2-kpi>span{font-size:12px;font-weight:760;color:var(--ink-2)}
+.bz-h2-kpi>small{grid-column:1/-1;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:640;color:var(--ink-3)}
+.bz-h2-figure strong{font-size:25px;line-height:1.1;font-weight:850;letter-spacing:-.04em;color:var(--bz-h2-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-h2-figure small{margin-left:3px;font-size:12px;font-weight:720;letter-spacing:0;color:var(--ink-3)}
+.bz-h2-kpi.is-unused{background:var(--surface-2)}
+.bz-h2-kpi.is-unused .bz-h2-figure strong{color:var(--ink)}
+.bz-h2-kg{height:22px;padding:0 2px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:11.5px;font-weight:800;cursor:pointer}
+.bz-h2-info{position:relative}
+.bz-h2-info summary{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;color:var(--ink-3);cursor:pointer;list-style:none}
+.bz-h2-info summary::-webkit-details-marker{display:none}
+.bz-h2-info summary:hover,.bz-h2-info[open] summary{color:var(--ink);background:var(--surface-2)}
+.bz-h2-pop{position:absolute;right:0;top:32px;z-index:20;width:330px;padding:12px 14px;border-radius:14px;background:var(--bz-tip);color:#d9e9e0;font-size:11.5px;font-weight:560;line-height:1.45;box-shadow:0 16px 36px rgba(4,20,14,.3)}
+.bz-h2-pop p{margin:0 0 9px!important}
+.bz-h2-pop p:last-child{margin:0!important}
+.bz-h2-pop b{display:block;margin-bottom:1px;font-size:12px;font-weight:800;color:#fff}
+.bz-h2-why{margin:0!important;font-size:12px;line-height:1.45;color:var(--ink-3)}
+.bz-h2-why b{font-weight:780;color:var(--ink-2)}
+
+/* When: one night of what EVs leave, the electrolyser's share and its power limit */
+.bz-h2-nav{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.bz-h2-nav b{min-width:170px;font-size:12px;font-weight:800;text-align:center;color:var(--ink-2);white-space:nowrap}
+.bz-h2-nav button{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:9px;background:var(--surface-2);color:var(--ink-2);cursor:pointer}
+.bz-h2-nav button:first-child svg{transform:rotate(90deg)}
+.bz-h2-nav button:last-child svg{transform:rotate(-90deg)}
+.bz-h2-nav button:hover:not(:disabled){color:var(--ink)}
+.bz-h2-nav button:disabled{opacity:.35;cursor:default}
+.bz-h2-key{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0!important;font-size:11.5px;font-weight:720;color:var(--ink-3)}
+.bz-h2-key span{display:inline-flex;align-items:center;gap:6px}
+.bz-h2-key i{width:12px;height:12px;border-radius:3px}
+.bz-h2-key .is-h2 i{background:var(--bz-h2)}
+.bz-h2-key .is-battery i{background:var(--bz-batt)}
+.bz-h2-key .is-level i{width:16px;height:0;border-top:2px solid var(--bz-batt-ink);border-radius:0}
+.bz-h2-key .is-unused i{background:var(--bz-hatch);box-shadow:inset 0 0 0 1px var(--bz-grey)}
+.bz-h2-key .is-limit i{width:18px;height:0;border-top:2px dashed var(--ink-2);border-radius:0}
+.bz-h2-plot{position:relative;border-radius:12px;outline:none}
+.bz-h2-plot:focus-visible{box-shadow:0 0 0 3px var(--bz-h2-soft),0 0 0 5px var(--bz-h2)}
+.bz-h2-svg{display:block;width:100%;height:auto;overflow:visible}
+.bz-h2-gl{stroke:var(--bz-grid);stroke-width:1}
+.bz-h2-ytick,.bz-h2-xtick{font-size:10.5px;font-weight:700;fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.bz-h2-take{fill:var(--bz-h2)}
+.bz-h2-charge{fill:var(--bz-batt)}
+.bz-h2-level{fill:none;stroke:var(--bz-batt-ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.bz-h2-level-label{font-size:11px;font-weight:800;fill:var(--bz-batt-ink);paint-order:stroke;stroke:var(--surface);stroke-width:4px}
+.bz-h2-full line{stroke:var(--bz-batt-ink);stroke-width:1.5}
+.bz-h2-full text{font-size:11px;font-weight:800;fill:var(--bz-batt-ink);paint-order:stroke;stroke:var(--surface);stroke-width:4px}
+.bz-h2-left{fill:url(#bz-h2-hatch)}
+.bz-h2-hatch-bg{fill:var(--surface-2)}
+.bz-h2-hatch{fill:var(--bz-grey)}
+.bz-h2-hit{fill:transparent}
+.bz-h2-col.is-at .bz-h2-hit{fill:var(--bz-h2-soft)}
+.bz-h2-col.is-at .bz-h2-take{fill:var(--bz-h2-ink)}
+.bz-h2-limit{stroke:var(--ink-2);stroke-width:1.5;stroke-dasharray:5 4}
+.bz-h2-limit-label{font-size:11px;font-weight:800;fill:var(--ink-2);paint-order:stroke;stroke:var(--surface);stroke-width:4px}
+.bz-h2-none{font-size:13px;font-weight:700;fill:var(--ink-3)}
+.bz-h2-tip{position:absolute;top:6px;z-index:6;display:flex;flex-direction:column;gap:3px;width:268px;padding:10px 12px;border-radius:12px;background:var(--bz-tip);color:#fff;font-size:11.5px;line-height:1.35;pointer-events:none;transform:translateX(14px);box-shadow:0 12px 26px rgba(4,20,14,.28)}
+.bz-h2-tip[hidden]{display:none}
+.bz-h2-tip.is-flip{transform:translateX(calc(-100% - 14px))}
+.bz-h2-tip b{margin-bottom:3px;font-size:12.5px;font-weight:850}
+.bz-h2-tip span{display:grid;grid-template-columns:88px minmax(0,1fr);gap:8px;color:#dcebe3}
+.bz-h2-tip em{font-style:normal;font-weight:650;color:#98bcaa}
+.bz-h2-sum{margin:0!important;font-size:12px;line-height:1.4;font-weight:650;color:var(--ink-2)}
+
+/* How it scales: three stages on the same eligible energy; the dashed tick is the planned EV share */
+.bz-h2-steps{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.bz-h2-steps li{display:flex;flex-direction:column;gap:7px;padding:10px 12px;border-radius:14px;transition:background-color .25s ease,box-shadow .25s ease}
+.bz-h2-steps li.is-shown{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--forest)}
+.bz-h2-step-name{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+.bz-h2-step-name b{flex:0 0 auto;font-size:13px;font-weight:820;color:var(--ink)}
+.bz-h2-step-name small{min-width:0;font-size:11px;font-weight:650;text-align:right;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-h2-step-bar{position:relative;display:flex;height:18px;border-radius:6px;background:var(--surface-2)}
+.bz-h2-steps li.is-shown .bz-h2-step-bar{background:var(--surface)}
+.bz-h2-step-bar i{height:100%;box-shadow:inset -2px 0 0 var(--surface)}
+.bz-h2-step-bar i:first-child{border-radius:6px 0 0 6px}
+.bz-h2-step-bar i:nth-child(3){border-radius:0 6px 6px 0;box-shadow:none}
+.bz-h2-mark{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--ink-2)}
+.bz-h2-step-fig{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0!important;font-size:11.5px;font-weight:700;color:var(--ink-3)}
+.bz-h2-step-fig b{font-weight:850;color:var(--ink);font-variant-numeric:tabular-nums}
+.bz-h2-step-fig .is-ev b{color:var(--green-deep)}
+.bz-h2-step-fig .is-h2 b{color:var(--bz-h2-ink)}
+.bz-h2-note{display:flex;align-items:flex-start;gap:8px;margin:auto 0 0!important;font-size:11.5px;line-height:1.4;color:var(--ink-3)}
+.bz-h2-mark-key{flex:0 0 auto;width:0;height:14px;margin:1px 2px 0 3px;border-left:2px dashed var(--ink-2)}
+
+/* The proposed buyer, the separate business model, and how it is counted */
+.bz-h2-foot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 22px;padding:14px 18px;border-radius:18px;background:var(--surface);box-shadow:0 2px 0 var(--edge)}
+.bz-h2-foot>p{margin:0!important;font-size:12.5px;line-height:1.45;color:var(--ink-2)}
+.bz-h2-foot>p b{display:block;margin-bottom:2px;font-size:12.5px;font-weight:820;color:var(--ink)}
+.bz-h2-foot .bz-h2-how{grid-column:1/-1;margin:0}
+.bz-h2-how ul{margin:8px 0 0;padding-left:16px;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
+.bz-h2-how p{margin:8px 0 0!important;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
+.bz-h2-how p b{color:var(--ink-2)}
+.bz-h2-sources a{color:var(--green-deep);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.bz-h2.is-unavailable p{margin:0!important;padding:12px 16px;border-radius:16px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.bz-h2.is-unavailable b{display:block;margin-bottom:2px;color:var(--ink)}
+
+/* The hydrogen block rises in when it scrolls into view, like a section. */
+.bz-h2[data-bz-reveal]:not(.is-seen) :is(.bz-h2-head,.bz-card,.bz-h2-foot){opacity:0;transform:translateY(22px)}
+.app-shell .bz-h2.is-revealing :is(.bz-h2-head,.bz-card,.bz-h2-foot){animation:bz-card-in .7s cubic-bezier(.16,.84,.38,1) var(--d,0s) backwards!important}
+.bz-h2.is-revealing .bz-h2-alloc{--d:.06s}
+.bz-h2.is-revealing :is(.bz-h2-time,.bz-h2-scale){--d:.16s}
+.bz-h2.is-revealing .bz-h2-foot{--d:.26s}
+
 /* The what-if drawer: slides in from the right; the donut on the page follows its inputs. */
 .bz-scrim{position:fixed;inset:0;z-index:70;background:rgba(6,24,17,.14);animation:bz-fade-in .25s ease}
 .bz-drawer{position:fixed;top:98px;right:18px;bottom:18px;z-index:71;display:flex;flex-direction:column;gap:14px;width:540px;padding:20px 22px;border-radius:26px;background:var(--surface);box-shadow:-24px 0 60px rgba(6,30,20,.22),0 4px 0 var(--edge);overflow-y:auto;animation:bz-drawer-in .38s cubic-bezier(.2,.8,.2,1)}
@@ -594,7 +766,20 @@
 @keyframes bz-fade-in{from{opacity:0}}
 
 /* Phones: the sections stack (desktop is the target; this keeps the page usable). */
-.app-shell.is-phone :is(.bz-s1,.bz-s2,.bz-s3){display:flex;flex-direction:column}
+.app-shell.is-phone :is(.bz-s1,.bz-s2,.bz-s3,.bz-h2-grid){display:flex;flex-direction:column}
+.app-shell.is-phone :is(.bz-h2-body,.bz-h2-foot){grid-template-columns:minmax(0,1fr)}
+.app-shell.is-phone .bz-h2-legend{grid-template-columns:minmax(0,1fr)}
+.app-shell.is-phone .bz-h2-controls{width:100%}
+.app-shell.is-phone .bz-h2-pick{flex:1 1 100%;overflow-x:auto}
+.app-shell.is-phone .bz-h2-time .bz-card-head{flex-wrap:wrap}
+.app-shell.is-phone .bz-h2-nav{width:100%;justify-content:space-between}
+.app-shell.is-phone .bz-h2-nav b{min-width:0}
+.app-shell.is-phone .bz-h2-context{flex-direction:column;gap:6px}
+.app-shell.is-phone .bz-h2-context span+span::before{display:none}
+.app-shell.is-phone .bz-h2-tip{width:230px}
+.app-shell.is-phone .bz-h2-pop{width:min(300px,78vw)}
+.app-shell.is-phone .bz-h2-step-name{flex-direction:column;gap:1px}
+.app-shell.is-phone .bz-h2-step-name small{text-align:left;white-space:normal}
 .app-shell.is-phone .bz-donut-legend{grid-template-columns:minmax(0,1fr)}
 .app-shell.is-phone .bz-sec-head{flex-wrap:wrap}
 .app-shell.is-phone .bz-drawer{inset:8px;width:auto}
@@ -603,8 +788,9 @@
 
 @media (prefers-reduced-motion:reduce){
   .bz-hero::before,.bz-gr-col.is-top .bz-gr-bar::after,.bz-op-track i.is-up::after,.bz-flow-dots,.bz-drawer,.bz-scrim,.bz-levers li{animation:none}
-  .app-shell .bz-sec.is-revealing *{animation:none!important}
-  .bz-sec:not(.is-seen) *{opacity:1;transform:none}
+  .app-shell .bz-sec.is-revealing *,.app-shell .bz-h2.is-revealing *{animation:none!important}
+  .bz-sec:not(.is-seen) *,.bz-h2:not(.is-seen) *{opacity:1;transform:none}
+  .bz-h2-switch i,.bz-h2-switch i::after,.bz-h2-steps li,.bz-h2-grid{transition:none}
   .bz-story .bz-card,.bz-nav button,.bz-cta{transition:none}
   .bz-story .bz-card:hover{transform:none}
 }
