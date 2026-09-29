@@ -567,26 +567,28 @@ async function dwAct(action, extra = {}) {
 }
 const dwDays = () => [...new Set((dw.data?.offers || []).map((o) => o.date))];
 const dwEur = (v) => `€${v.toFixed(2)}`;
-const dwKwhPrice = (v) => `€${v.toFixed(3).replace(/0$/, '')}`;
+// The EV page shows energy in MWh, so prices are per MWh too (the server quotes €/kWh: €0.49/kWh = €490/MWh).
+const dwKwhPrice = (v) => `€${n(Math.round(v * 1000))}`;
+const dwMwh = (kwh) => new Intl.NumberFormat('en-IE', { maximumFractionDigits: 3 }).format(kwh / 1000);
 function dwWindowTile(o, booked) {
     const on = o.window === dw.window, price = o.status === 'offer'
-        ? `<b>${dwKwhPrice(o.memberEurPerKwh)}<small>/kWh</small></b><em>−${dwKwhPrice(o.discountEurPerKwh)}</em>`
+        ? `<b>${dwKwhPrice(o.memberEurPerKwh)}<small>/MWh</small></b><em>−${dwKwhPrice(o.discountEurPerKwh)}</em>`
         : '<b class="is-none">No discount</b><em>normal price</em>';
     return `<button type="button" class="dw-tile${on ? ' is-on' : ''}${o.status === 'offer' ? ' is-offer' : ''}" data-dw-window="${o.window}" aria-pressed="${on}"><span>${escapeHtml(o.label)}${booked ? ` ${icon('check', 13)}` : ''}</span>${price}</button>`;
 }
 function dwDetail(o, booking, d) {
     if (o.status !== 'offer') {
         const next = o.next ? `<button type="button" class="dw-link" data-dw-day="${o.next.date}" data-dw-pick="${o.next.id.split(':').pop()}">Next opportunity: ${escapeHtml(cgDayLabel(o.next.date))} ${escapeHtml(o.next.label)} ›</button>` : '<span class="dw-muted">No other discount in this replay.</span>';
-        return `<div class="dw-none"><b>No discounted window right now</b><span>${escapeHtml(o.reasonText || '')} Normal charging stays open at ${dwKwhPrice(d.prices.publicEurPerKwh)}/kWh.</span>${next}</div>`;
+        return `<div class="dw-none"><b>No discounted window right now</b><span>${escapeHtml(o.reasonText || '')} Normal charging stays open at ${dwKwhPrice(d.prices.publicEurPerKwh)}/MWh.</span>${next}</div>`;
     }
     if (booking && booking.status === 'reserved') {
-        return `<div class="dw-booked"><b>${icon('check', 15)} Reserved · ${n(booking.kwh)} kWh<button type="button" class="dw-link is-quiet" data-dw-act="cancel"${dw.busy ? ' disabled' : ''}>Cancel (no fee)</button></b>
+        return `<div class="dw-booked"><b>${icon('check', 15)} Reserved · ${dwMwh(booking.kwh)} MWh<button type="button" class="dw-link is-quiet" data-dw-act="cancel"${dw.busy ? ' disabled' : ''}>Cancel (no fee)</button></b>
             <span>Arrive ${escapeHtml(o.label)}, plug in, pick “Discount window” on the charger.</span>
             <span class="dw-price">You pay <b>${dwEur(booking.priceEur)}</b> instead of ${dwEur(booking.publicEur)} · save <b>${dwEur(booking.discountEur)}</b></span>
             <span class="dw-share">Operator keeps ${dwEur(booking.split.operatorEur)} · SaveThePlanet commission ${dwEur(booking.split.platformEur)}</span></div>`;
     }
     const q = o.quotes.find((x) => x.kwh === dw.kwh) || o.quotes.at(-1);
-    const sizes = o.quotes.map((x) => `<button type="button" class="${x.kwh === q.kwh ? 'is-on' : ''}" data-dw-kwh="${x.kwh}" aria-pressed="${x.kwh === q.kwh}">${n(x.kwh)}${x === o.quotes.at(-1) ? ' kWh' : ''}</button>`).join('');
+    const sizes = o.quotes.map((x) => `<button type="button" class="${x.kwh === q.kwh ? 'is-on' : ''}" data-dw-kwh="${x.kwh}" aria-pressed="${x.kwh === q.kwh}">${dwMwh(x.kwh)}${x === o.quotes.at(-1) ? ' MWh' : ''}</button>`).join('');
     return `<div class="dw-offer"><div class="dw-row"><div class="dw-sizes" role="group" aria-label="Energy to charge">${sizes}</div>
         <button type="button" class="studio-button dw-reserve" data-dw-act="book"${dw.busy ? ' disabled' : ''}>Reserve ${icon('arrow', 15)}</button></div>
         <span class="dw-price">You pay <b>${dwEur(q.priceEur)}</b> instead of ${dwEur(q.publicEur)} · save <b>${dwEur(q.discountEur)}</b></span>
@@ -614,7 +616,7 @@ function dwCard() {
     } else if (!d.member.joined) {
         body = `<div class="dw-join"><p>Book a cheaper charge at <b>07:00–09:00</b> or <b>17:00–19:00</b> when our AI has stored surplus energy. You get half of the extra saving.</p>
             <button type="button" class="studio-button" data-dw-act="join"${dw.busy ? ' disabled' : ''}>Join free (demo) ${icon('arrow', 16)}</button>
-            <small>Optional: anyone can charge at the normal price, ${dwKwhPrice(d.prices.publicEurPerKwh)}/kWh, without joining. Prices shown before you charge; no fees.</small></div>`;
+            <small>Optional: anyone can charge at the normal price, ${dwKwhPrice(d.prices.publicEurPerKwh)}/MWh, without joining. Prices shown before you charge; no fees.</small></div>`;
     } else {
         const windows = d.offers.filter((o) => o.date === dw.day);
         const pick = windows.find((o) => o.window === dw.window) || windows.find((o) => o.status === 'offer') || windows[0];
