@@ -211,3 +211,14 @@
 .bridge-added i { width: 10px; height: 10px; border-radius: 3px; background: var(--bridge-ink); }
 .bridge-layout .bridge-charge b small { margin-left: 4px; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }
 .bridge-layout > .dash-battery { padding-bottom: 18px; }
+
+/* Battery full: the level tag reads FULL, the surplus goes to the ESB hydrogen plants (simulated). */
+.bridge-cabinet-art.is-full .bridge-level-tag { background: #b8ffd9; }
+.bridge-h2-badge { position: absolute; bottom: calc(100% + 10px); left: 50%; translate: -50% 0; z-index: 2; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 5px; border-radius: 99px; background: #0c4a6e; color: #e0f2fe; font-size: 12px; font-weight: 800; box-shadow: 0 4px 14px rgba(56, 189, 248, .35); animation: bridge-h2-rise 2.4s ease-in-out infinite; }
+.bridge-h2-badge b, .bridge-surplus > b { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #38bdf8; color: #06283d; font-size: 11px; font-weight: 900; }
+@keyframes bridge-h2-rise { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .bridge-h2-badge { animation: none; } }
+.bridge-surplus { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 2px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #38bdf8 14%, transparent); border: 1px solid color-mix(in srgb, #38bdf8 40%, transparent); color: var(--bridge-ink); font-size: 13px; font-weight: 600; }
+.bridge-surplus span { flex: 1; }
+.bridge-surplus small { color: var(--bridge-muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.bridge-layout .bridge-surplus strong { font-size: 15px; font-weight: 800; letter-spacing: 0; line-height: inherit; color: #38bdf8; }
