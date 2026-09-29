@@ -196,7 +196,9 @@ dashCharts.evDayTotal = {
       const failed = status === 'error';
       return `<p class="fleet-figure"><strong>—</strong><span>cars/day</span></p><p class="fleet-caption">${failed ? 'Day plan unavailable (needs the model)' : 'Loading the day…'}</p>`;
     }
-    return `<p class="fleet-figure"><strong>${n(Math.round(total))}</strong><span>cars/day</span></p><p class="fleet-caption">potential full EV charges · ${escapeHtml(day)}</p>`;
+    // --len (characters in the number) lets bridge.css shrink big numbers so they never reach the car.
+    const figure = n(Math.round(total));
+    return `<p class="fleet-figure is-day" style="--len:${figure.length}"><strong>${figure}</strong><span>cars/day</span></p><p class="fleet-caption">potential full EV charges · ${escapeHtml(day)}</p>`;
   },
 };
 
