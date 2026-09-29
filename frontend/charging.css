@@ -220,6 +220,8 @@
 [data-current-page="charging"] .cg-mix-legend{flex:1 1 0;min-width:0;gap:12px}
 [data-current-page="charging"] .cg-mix-legend li{display:grid;grid-template-columns:10px minmax(0,1fr);align-items:center;gap:1px 8px}
 [data-current-page="charging"] .cg-mix-legend li b{grid-column:2;margin:0;font-size:16px}
+/* One line per label (the full meaning is in the tooltip), so the legend fits beside the donut. */
+[data-current-page="charging"] .cg-mix-legend li span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [data-current-page="charging"] .cg-donut{flex:0 0 150px;height:117px}
 
 /* Card header icon chips (in place of the accent bar). */
