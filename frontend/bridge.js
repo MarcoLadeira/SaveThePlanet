@@ -208,7 +208,7 @@ dashCharts.bridgeUsed = {
   draw: ({ used, stored = 0 }) => {
     const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
     return `<div class="bridge-used-head"><span>Forecast energy captured</span><b>${n((used + stored) * 100)}%</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<b style="left:${total}%"></b></div>`;
+    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}${total < 3 ? `<b style="left:${total}%"></b>` : ''}</div>`;
   },
 };
 
@@ -296,12 +296,25 @@ dashCharts.planBars = {
 };
 
 // Re-measure after layout so the ribbons connect cards at any desktop scale.
+// The ribbons meet the battery picture itself, not its box: object-fit: contain letterboxes the image,
+// so work out where it is drawn inside the box (content box, then object-position).
+function cabinetRect(art){
+  const img=art.querySelector('img'),box=(img||art).getBoundingClientRect();
+  if(!img||!img.naturalWidth)return box;
+  const st=getComputedStyle(img),pl=parseFloat(st.paddingLeft),pr=parseFloat(st.paddingRight),pt=parseFloat(st.paddingTop),pb=parseFloat(st.paddingBottom);
+  const w=box.width-pl-pr,h=box.height-pt-pb,scale=Math.min(w/img.naturalWidth,h/img.naturalHeight);
+  const dw=img.naturalWidth*scale,dh=img.naturalHeight*scale,[px,py]=st.objectPosition.split(' ').map((v)=>parseFloat(v)/100);
+  const left=box.left+pl+(w-dw)*(isNaN(px)?.5:px),top=box.top+pt+(h-dh)*(isNaN(py)?.5:py);
+  return {left,top,width:dw,height:dh,right:left+dw,bottom:top+dh};
+}
 function updateDashboardFlow(){
   const grid=document.querySelector('.bridge-layout'),svg=grid?.querySelector('.dashboard-flow-links');
   if(!svg)return;
   const source=grid.querySelector('.dash-hero'),art=grid.querySelector('.bridge-cabinet-art'),dest=grid.querySelector('.dash-flexible');
   if(!source||!art||!dest){svg.innerHTML='';return}
-  const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=art.getBoundingClientRect(),c=dest.getBoundingClientRect();
+  const pic=art.querySelector('img');
+  if(pic&&!pic.complete)pic.addEventListener('load',()=>requestAnimationFrame(updateDashboardFlow),{once:true});
+  const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=cabinetRect(art),c=dest.getBoundingClientRect();
   if(c.left<=b.left){svg.innerHTML='';return}
   svg.setAttribute('viewBox',`0 0 ${g.width} ${g.height}`);
   const y=b.top-g.top+b.height*.43;

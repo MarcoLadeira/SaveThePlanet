@@ -212,3 +212,6 @@
 .bridge-layout .bridge-ledger dd { color: var(--bridge-ink); font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .bridge-layout .bridge-ledger dd small { margin-left: 4px; color: var(--bridge-muted); font-size: 11px; font-weight: 700; letter-spacing: 0; }
 .bridge-layout .bridge-ledger .is-charger dd, .bridge-layout .bridge-ledger .is-storage dd, .bridge-layout .bridge-ledger .is-left dd { color: var(--bridge-ink); }
+.bridge-layout .bridge-used-track { overflow: hidden; }
+.bridge-layout .bridge-used-track i { border-radius: 0; }
+.bridge-layout .bridge-used-track b { top: 0; height: 100%; }
