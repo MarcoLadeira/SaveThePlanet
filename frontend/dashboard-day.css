@@ -1,0 +1,34 @@
+/* Dashboard left cards when they show the daily model (V2) for the dashboard's day (dashboard.js).
+   Predicted is the Dashboard's "at risk" orange, recorded is green; wind is blue and solar amber,
+   as on the Wind & Solar page. */
+.dashboard-main{--day-pred:#ff883e;--day-pred-top:#ffc08f;--day-rec:#1fae6c;--day-rec-top:#72dfa9;--day-wind:#2f7be0;--day-wind-top:#7fb0f5;--day-solar:#f2a23a;--day-solar-top:#f8cb88}
+.dashboard-main[data-theme="dark"]{--day-rec:#34bb7b;--day-wind:#78a9ff;--day-wind-top:#a9c8ff}
+
+.bridge-layout .dash-hero.is-daily .day-loading{display:grid;flex:1;place-items:center;color:#bed8d0;font-size:13px}
+.bridge-layout .dash-hero.is-daily .fx-busy{color:#bed8d0}
+
+.bridge-layout .dash-confidence.is-daily{gap:10px}
+.day-legend i.is-pred{background:linear-gradient(90deg,var(--day-pred-top),var(--day-pred))}
+.day-legend i.is-rec{background:linear-gradient(90deg,var(--day-rec-top),var(--day-rec))}
+.day-compare{flex:1 1 auto;min-height:0}
+.day-cmp{display:grid;gap:7px}
+.day-title{margin:2px 0 0;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.day-row{display:grid;grid-template-columns:70px minmax(0,1fr) 84px;align-items:center;gap:10px}
+.day-row.is-mix{grid-template-columns:70px minmax(0,1fr)}
+.day-label{font-size:12.5px;font-weight:750;color:var(--ink-2)}
+.day-track{display:flex;height:16px;border-radius:9px;background:var(--grey-soft);overflow:hidden;box-shadow:inset 0 1px 2px rgba(10,40,30,.08)}
+.day-track.is-mix{height:22px}
+.day-bar{display:block;height:100%;border-radius:9px}
+.day-bar.is-pred{background:linear-gradient(90deg,var(--day-pred-top),var(--day-pred))}
+.day-bar.is-rec{background:linear-gradient(90deg,var(--day-rec-top),var(--day-rec))}
+.day-track i.is-wind,.day-track i.is-solar{display:flex;align-items:center;min-width:0;overflow:hidden}
+.day-track i.is-wind{background:linear-gradient(180deg,var(--day-wind-top),var(--day-wind))}
+.day-track i.is-solar{background:linear-gradient(180deg,var(--day-solar-top),var(--day-solar))}
+.day-track em{padding:0 7px;font-size:11px;font-style:normal;font-weight:800;color:#0e2233;white-space:nowrap}
+.day-row>b{font-size:13px;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.day-none{font-size:12px;color:var(--ink-3)}
+.day-plan-link{display:flex;align-items:flex-start;gap:8px;margin:auto 0 0;padding:9px 12px;border-radius:12px;background:var(--surface-2);font-size:12px;line-height:1.45;color:var(--ink-2)}
+.day-plan-link svg{flex:0 0 auto;margin-top:1px;color:var(--green)}
+.day-plan-link b{color:var(--ink)}
+.day-note{margin:0;font-size:12px;line-height:1.45;color:var(--ink-3)}
+.day-note b{color:var(--ink-2)}
