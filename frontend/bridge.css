@@ -176,7 +176,7 @@
 /* In the three-column grid this card is almost square, which trips fleet.css's "tall card" layout
    (car stacked under the number, shrunk). Keep the number left and the car right instead. */
 @container fleet (orientation: portrait) {
-  /* fleet.css centres a tall card's stack; in a row that pushed the caption under the car. */
+  /* fleet.css centres this layout; start from the left so the number stays clear of the car. */
   .bridge-layout .dash-flexible .fleet-body { flex-direction: row; align-items: center; justify-content: flex-start; }
   .bridge-layout .dash-flexible .fleet-scene { position: absolute; right: -18px; bottom: -10px; width: 64cqw; height: auto; margin: 0; }
 }
