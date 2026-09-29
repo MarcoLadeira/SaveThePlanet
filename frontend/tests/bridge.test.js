@@ -81,7 +81,7 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const values = dashCharts.bridgeBattery.values();
   const html = dashCharts.bridgeBattery.draw(values);
   assert.match(html, /Stored in battery<\/span><strong>2\.25<small>MWh/);
-  assert.match(html, /<b>40% → 62\.5%<\/b>/);
+  assert.match(html, /<b>40% → 63%<\/b>/);  // whole percentages for the pitch
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);
@@ -90,14 +90,15 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   assert.match(first, /is-added" style="left:40%;width:0%/);
   assert.doesNotMatch(first, /NaN|Infinity/);
   const used = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(used, /<b>32\.06%<\/b>/);  // (65 + 2500) / 8000
+  assert.match(used, /<b>32% captured<\/b>/);  // (65 + 2500) / 8000
   assert.match(used, /class="is-storage" style="left:0\.8125%;width:31\.25/);
+  assert.match(used, /class="is-left" style="left:32\.0625%;width:67\.9375%/);  // the bar adds up to 100%
 });
 
 test('used share is drawn to scale, never rounded up to 100%', () => {
   const { dashCharts } = load(30, [alternative(30, { allocated: 52.04, eligible: 16479.7 })]);
   const html = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(html, /<b>0\.32%<\/b>/);
+  assert.match(html, /<b><1% captured<\/b>/);
   assert.match(html, /width:0\.315/);
 });
 

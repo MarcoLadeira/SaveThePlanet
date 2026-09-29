@@ -125,6 +125,9 @@ const bridgeMwh = (valueKwh) => {
   return `${Math.abs(mwh) >= 1 ? n(mwh) : String(Math.round(mwh * 1000) / 1000)} MWh`;
 };
 
+// Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
+const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
+
 // Three destinations for the forecast energy the fleet can use: EV chargers, the grid battery, left unused.
 function dashboardBattery() {
   const alt = planAlternative();
@@ -186,7 +189,7 @@ dashCharts.bridgeBattery = {
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
     return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"></div>
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Stored in battery</span><strong>${bridgeMwh(v.stored).replace(' MWh', '<small>MWh</small>')}</strong></div>
-      <div class="bridge-charge"><span>Charge</span><b>${n(v.start * 100)}% → ${n(v.end * 100)}%</b></div>
+      <div class="bridge-charge"><span>Charge</span><b>${bridgePct(v.start)} → ${bridgePct(v.end)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div></div>`;
   },
 };
@@ -197,18 +200,18 @@ function bridgeRoutingCopy({ routed, eligible }) {
       <div class="bridge-charge"><span>Usable</span><b>${bridgeMwh(eligible)}</b></div></div>`;
 }
 
+// One bar that adds up to 100% of the usable forecast energy: EV chargers, grid battery, left unused, in the
+// tile colours below it. Drawn to scale, so the EVs' share stays a sliver rather than being rounded up.
 dashCharts.bridgeUsed = {
   values() {
     const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
     return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
   },
   start: () => ({ used: 0, stored: 0 }),
-  // Drawn to scale: a small share stays a small sliver (with a marker so it is findable), never rounded up.
-  // EV chargers first, then the grid battery's share stacked after it.
   draw: ({ used, stored = 0 }) => {
     const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
-    return `<div class="bridge-used-head"><span>Forecast energy captured</span><b>${n((used + stored) * 100)}%</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}${total < 3 ? `<b style="left:${total}%"></b>` : ''}</div>`;
+    return `<div class="bridge-used-head"><span>Energy split</span><b>${bridgePct(used + stored)} captured</b></div>
+    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<i class="is-left" style="left:${total}%;width:${100 - total}%"></i></div>`;
   },
 };
 
@@ -317,10 +320,10 @@ function updateDashboardFlow(){
   const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=cabinetRect(art),c=dest.getBoundingClientRect();
   if(c.left<=b.left){svg.innerHTML='';return}
   svg.setAttribute('viewBox',`0 0 ${g.width} ${g.height}`);
-  const y=b.top-g.top+b.height*.43;
+  const y=b.top-g.top+b.height*.6;
   const paths=[
-    ['green',a.right-g.left-10,a.top-g.top+a.height*.72,b.left-g.left+b.width*.32,y],
-    ['orange',b.left-g.left+b.width*.68,y,c.left-g.left+12,c.top-g.top+c.height*.65]
+    ['green',a.right-g.left-10,a.top-g.top+a.height*.72,b.left-g.left+b.width*.1,y],
+    ['orange',b.left-g.left+b.width*.9,y,c.left-g.left+12,c.top-g.top+c.height*.65]
   ];
   const L=planAlternative()?.optimized.ledger;
   svg.innerHTML=paths.map(([tone,x1,y1,x2,y2])=>{

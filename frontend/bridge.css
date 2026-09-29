@@ -215,3 +215,18 @@
 .bridge-layout .bridge-used-track { overflow: hidden; }
 .bridge-layout .bridge-used-track i { border-radius: 0; }
 .bridge-layout .bridge-used-track b { top: 0; height: 100%; }
+
+/* Pitch polish: centred art on a floor glow, a battery-gauge charge bar, and a 100% split bar. */
+.bridge-layout .bridge-cabinet-art img, .bridge-layout .bridge-cabinet-art.is-yard img { object-position: center; padding: 0 0 8px; }
+.bridge-layout .bridge-cabinet-art::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 34%; transform: translateY(12%); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--bridge-green) 22%, transparent), transparent); z-index: -1; }
+.bridge-layout .bridge-battery-copy .bridge-soc { position: relative; height: 16px; margin-right: 8px; overflow: visible; border-radius: 5px; background: color-mix(in srgb, var(--bridge-ink) 10%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bridge-ink) 30%, transparent); }
+.bridge-layout .bridge-battery-copy .bridge-soc::after { content: ""; position: absolute; right: -7px; top: 4px; width: 5px; height: 8px; border-radius: 0 2px 2px 0; background: color-mix(in srgb, var(--bridge-ink) 30%, transparent); }
+.bridge-layout .bridge-soc i { top: 3px; bottom: 3px; }
+.bridge-layout .bridge-soc i.is-start { left: 3px; border-radius: 3px 0 0 3px; background: color-mix(in srgb, var(--bridge-ink) 45%, transparent); }
+.bridge-layout .bridge-soc i.is-added { border-radius: 0 3px 3px 0; background: var(--bridge-ink); box-shadow: 0 0 10px color-mix(in srgb, var(--bridge-ink) 40%, transparent); }
+.bridge-layout .bridge-charge b { color: var(--bridge-ink); }
+.bridge-layout .bridge-used-head b { color: var(--bridge-ink); }
+.bridge-layout .bridge-used-track { height: 14px; background: var(--bridge-track); }
+.bridge-layout .bridge-used-track i.is-storage { border-radius: 0; }
+.bridge-layout .bridge-used-track i.is-left { position: absolute; top: 0; bottom: 0; border-radius: 0; background: #e0691e; opacity: .85; }
+.bridge-layout .bridge-used-head b { white-space: nowrap; text-transform: none; }
