@@ -138,7 +138,10 @@ function evTimelineCard(plan, alt) {
   const peak = Math.max(...d.cars), peakAt = d.times[d.cars.indexOf(peak)], total = dayPlan.data.totals.potentialFullCharges ?? d.cars.reduce((a, b) => a + b, 0);
   const ref = dayPlan.data.evEquivalent?.referenceBatteryKwh || 70;
   return `<section class="dash-card cg-card ev-timeline">${head}
-    <div class="ev-day-stats"><span><b>${n(Math.round(total))}</b> cars across the day</span><span>Most at <b>${escapeHtml(modelTime(peakAt))}</b>: <b>${n(Math.round(peak))}</b> in one half-hour</span></div>
+    <div class="ev-day-stats">
+      <div class="ev-day-stat"><strong>${n(Math.round(total))}</strong><span>cars could charge<br>across the day</span></div>
+      <div class="ev-day-stat is-peak"><strong>${n(Math.round(peak))}</strong><span>cars in the best half-hour<br>at <b>${escapeHtml(modelTime(peakAt))}</b></span></div>
+    </div>
     <ul class="cg-legend ev-day-legend"><li><i class="ev-key-pred"></i>Predicted (+30 min) → cars that can charge</li>${evSelectedSlot(d.times) >= 0 ? '<li><i class="ev-key-sel"></i>Your half-hour</li>' : ''}</ul>
     <div class="ev-day-plot" data-ev-day-plot>${chartSlot('evDay', `Potential full EV charges in each half-hour of ${day}, from the +30 minute forecast. Most: ${Math.round(peak)} at ${modelTime(peakAt)}.`, 'ev-day-chart')}<div class="ev-day-tip" hidden></div></div>
     <p class="ev-day-note">1 car = one ${n(ref)} kWh battery charged from empty to full with the forecast energy at risk (after 10% charging loss). An estimate, not cars actually charged.</p></section>`;

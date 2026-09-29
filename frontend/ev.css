@@ -141,3 +141,15 @@
 [data-current-page="charging"] .ev-detail-btn{flex:0 0 auto;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--green-deep);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
 [data-current-page="charging"] .ev-detail-btn:focus-visible{outline:3px solid #7fd6ab;outline-offset:2px}
 [data-current-page="charging"] .ev-head-actions{display:flex;align-items:center;gap:8px}
+/* Day summary: two large number tiles */
+[data-current-page="charging"] .ev-day-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:inherit}
+[data-current-page="charging"] .ev-day-stat{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;background:#e6f7ee}
+[data-current-page="charging"] .ev-day-stat.is-peak{background:#fff0e4}
+[data-current-page="charging"] .ev-day-stat strong{font-size:34px;line-height:1;font-weight:800;letter-spacing:-.03em;color:#138a56;font-variant-numeric:tabular-nums}
+[data-current-page="charging"] .ev-day-stat.is-peak strong{color:#e0691e}
+[data-current-page="charging"] .ev-day-stat span{font-size:13px;line-height:1.3;font-weight:650;color:var(--ink-2)}
+[data-current-page="charging"] .ev-day-stat span b{color:var(--ink)}
+[data-current-page="charging"][data-theme="dark"] .ev-day-stat{background:#1f4a3b}
+[data-current-page="charging"][data-theme="dark"] .ev-day-stat.is-peak{background:#3a2716}
+[data-current-page="charging"][data-theme="dark"] .ev-day-stat strong{color:#6fdca6}
+[data-current-page="charging"][data-theme="dark"] .ev-day-stat.is-peak strong{color:#ffb27a}
