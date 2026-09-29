@@ -36,3 +36,10 @@ test('selection chips never claim energy when nothing reached the minimum', () =
   assert.match(selectionChip({ mode: 'unfiltered' }).text, /Unfiltered/);
   assert.equal(selectionChip(null), null);
 });
+
+test('a curtailment day says the day came from the EirGrid record and the half-hour from predictions', () => {
+  const chip = selectionChip({ mode: 'predicted', metThreshold: true, minPredictedMwh: 10, band: 'certain', day: '2026-01-11' });
+  assert.equal(chip.text, 'Recorded curtailment day · half-hour predicted ≥ 10 MWh · certain forecast');
+  assert.equal(selectionChip({ mode: 'predicted', metThreshold: false, minPredictedMwh: 10, day: '2026-01-11' }).text,
+    'Recorded curtailment day · strongest predicted half-hour');
+});

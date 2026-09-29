@@ -118,3 +118,13 @@ test('timeline pins the selected day inside its split', () => {
   assert.ok(values.pin > testStart && values.pin < 1, `pin ${values.pin} should fall in the test split`);
   assert.match(run('dashCharts.fxTimeDaily.draw(dashCharts.fxTimeDaily.values())'), /<em>1 Oct<\/em>/);
 });
+
+test('a target is a half-hour, and its +30 / +60 forecasts are made 30 / 60 min before it starts', () => {
+  const run = load();
+  assert.equal(run("fxSpan('2026-01-30T12:00:00Z')"), '12:00–12:30');
+  assert.equal(run("fxSpan('2026-01-30T23:30:00Z')"), '23:30–00:00');
+  // Midnight: both forecasts come from the evening before.
+  assert.equal(run("fxIssueLabel(fxShift('2026-01-30T00:00:00Z', -60), '2026-01-30')"), '23:00 prev. day');
+  assert.equal(run("fxIssueLabel(fxShift('2026-01-30T00:00:00Z', -30), '2026-01-30')"), '23:30 prev. day');
+  assert.equal(run("fxIssueLabel(fxShift('2026-01-30T12:00:00Z', -60), '2026-01-30')"), '11:00');
+});

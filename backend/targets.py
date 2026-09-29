@@ -18,7 +18,12 @@ Selection uses model predictions only, never observed outcomes.
   is below 10 MWh), so the mix is near-certain vs likely (~92-99%).
 - "unfiltered": one uniformly random dataset half-hour, whatever its prediction.
 
-Observed EirGrid outcomes are never used to choose (no hindsight/outcome-selection bias).
+Curtailment day first: the dashboard headline shows the daily model (V2) on a day that really
+had curtailment, so "predicted" first picks a random January 2026 day (the only month with V1
+data) on which EirGrid RECORDED at least MIN_DAY_CURTAILMENT_MWH, then a half-hour inside it by
+the rules above. That day choice uses observed outcomes on purpose, and the selection record
+says so (usesObservedOutcomes); the half-hour itself is still chosen from predictions only.
+If the daily records cannot be reached, selection falls back to the whole dataset.
 """
 import json
 from pathlib import Path
@@ -30,6 +35,7 @@ from urllib.error import HTTPError
 import explorer
 
 MIN_PREDICTED_MWH = 10.0  # a candidate must be predicted AT LEAST this (MWh) at both horizons
+MIN_DAY_CURTAILMENT_MWH = 100.0  # a headline day must have recorded at least this much curtailment
 MAX_ATTEMPTS = 10
 RETRY_PASSES = 4  # background index: passes over days that failed (timeouts, busy gate)
 RETRY_PAUSE_SECONDS = 30
@@ -64,6 +70,28 @@ def dataset_targets():
 
 def is_dataset_target(target):
     return target in set(dataset_targets())
+
+
+_curtailment_days = []
+
+
+def curtailment_days():
+    """Dataset days on which EirGrid recorded >= MIN_DAY_CURTAILMENT_MWH of curtailment, once the
+    background build has found them. Never waits on the network: until then (or after an outage) it
+    is empty and selection uses the whole dataset."""
+    with _lock:
+        return list(_curtailment_days)
+
+
+def build_curtailment_days():
+    """Look the days up (one /actuals/daily-curtailment/window call per week). Background use."""
+    v2 = explorer.daily_info()['dataset']
+    days = sorted({t[:10] for t in dataset_targets() if v2['from'] <= t[:10] <= v2['to']})
+    actual = explorer._daily_actuals(days)
+    found = [d for d in days if (actual[d]['curtailmentMwh'] or 0) >= MIN_DAY_CURTAILMENT_MWH]
+    with _lock:
+        _curtailment_days[:] = found
+    return found
 
 
 def least_predicted(forecast):
@@ -134,7 +162,10 @@ def build_index():
         _index_state['building'] = False
 
 
-def start_index_build():
+def start_index_build(then=None):
+    """Background: the curtailment days (then `then(days)`, e.g. to warm their headlines) and the index."""
+    threading.Thread(target=lambda: _safe(lambda: (then or (lambda days: None))(build_curtailment_days())),
+                     name='curtailment-days', daemon=True).start()
     threading.Thread(target=lambda: _safe(build_index), name='target-index', daemon=True).start()
 
 
@@ -159,6 +190,13 @@ def banded_candidates():
 # ---------------------------------------------------------------- selection
 
 def selection_note(record):
+    day = (f"A random January 2026 day on which EirGrid recorded curtailment ({record['day']}, one of "
+           f"{record['curtailmentDays']} days with at least {record['minDayCurtailmentMwh']:g} MWh), so the daily "
+           f"forecast is shown on a real curtailment day. Within it: ") if record.get('day') else ''
+    return day + _half_hour_note(record)
+
+
+def _half_hour_note(record):
     if record['mode'] == 'unfiltered':
         return 'Unfiltered: a uniformly random dataset half-hour, whatever its predicted energy.'
     if not record['metThreshold']:
@@ -180,12 +218,18 @@ def selection_for(target):
         'note': 'This half-hour was chosen earlier; how it was selected is not known to this server run.'}
 
 
-def _candidates(mode, rng):
-    """(ordered candidate targets, band name or None)."""
+def _candidates(mode, rng, days=None):
+    """(ordered candidate targets, band name or None). `days` limits the pool to those dates."""
     population = dataset_targets()
     if mode == 'unfiltered':
         return rng.sample(population, 1), None
     bands = banded_candidates()
+    if days:
+        population = [t for t in population if t[:10] in days]
+        bands = {name: found for name, found in ((b, [t for t in pool if t[:10] in days]) for b, pool in bands.items()) if found}
+        if not bands and _index:  # nothing indexed >= threshold that day: strongest predictions first
+            ranked = sorted(population, key=lambda t: -_index.get(t, {}).get('mwh', 0))
+            return ranked[:MAX_ATTEMPTS], None
     if bands:
         band = rng.choice(sorted(bands))  # every available confidence level is equally likely
         pool = bands[band]
@@ -198,7 +242,9 @@ def pick(capacity, fetch, mode='predicted', rng=None):
     if mode not in MODES:
         raise ValueError('Unknown selection mode')
     rng = rng or random.Random()
-    sample, band = _candidates(mode, rng)
+    days = curtailment_days() if mode == 'predicted' else []
+    day = rng.choice(days) if days else None
+    sample, band = _candidates(mode, rng, {day} if day else None)
     best, attempts, last_error = None, 0, None
     for target in sample:
         attempts += 1
@@ -222,7 +268,8 @@ def pick(capacity, fetch, mode='predicted', rng=None):
     record = dict(mode=mode, minPredictedMwh=MIN_PREDICTED_MWH, attempts=attempts, population=len(dataset_targets()),
                   metThreshold=mode == 'unfiltered' or least_predicted(best) >= MIN_PREDICTED_MWH,
                   band=band, bandLabel=labels.get(band), indexedDays=_index_state['days'],
-                  usesObservedOutcomes=False)
+                  usesObservedOutcomes=bool(day), day=day, curtailmentDays=len(days),
+                  minDayCurtailmentMwh=MIN_DAY_CURTAILMENT_MWH)
     record['note'] = selection_note(record)
     _choices[best['targetAt'].replace('+00:00', 'Z')] = record
     best['selection'] = record
