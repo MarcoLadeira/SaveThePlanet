@@ -98,3 +98,44 @@
 [data-current-page="charging"] .ev-timeline-chart .ev-window-label{font-size:12.5px}
 [data-current-page="charging"] .ev-timeline-chart .ev-window-time{font-size:11.5px}
 [data-current-page="charging"] .ev-timeline-chart .ev-tick{font-size:12px}
+/* "When the cars charge": kWh per half-hour, charge on arrival vs smart plan */
+[data-current-page="charging"] .ev-bars-chart{flex:1;min-height:0;width:100%}
+[data-current-page="charging"] .ev-bars-chart svg{width:100%;height:100%}
+[data-current-page="charging"] .ev-bars-grid{stroke:var(--line);stroke-width:1}
+[data-current-page="charging"] .ev-bars-axis{fill:var(--ink-3);font-size:12px}
+[data-current-page="charging"] .ev-bars-axis.is-window{fill:#138a56;font-weight:800}
+[data-current-page="charging"] .ev-bars-window{fill:rgba(34,181,116,.12);stroke:rgba(34,181,116,.45);stroke-width:1.2}
+[data-current-page="charging"] .ev-bars-window-label{fill:#138a56;font-size:13px;font-weight:800}
+[data-current-page="charging"] .ev-bars-window-value{fill:var(--ink);font-size:13px;font-weight:800}
+[data-current-page="charging"] .ev-bar-arrival{fill:#b9c6be}
+[data-current-page="charging"] .ev-bar-smart{fill:#5b8def}
+[data-current-page="charging"] .ev-bar-smart.is-window{fill:#22b574}
+[data-current-page="charging"] .ev-keys{margin:0}
+[data-current-page="charging"] .ev-key-arrival{background:#b9c6be}
+[data-current-page="charging"] .ev-key-smart{background:#5b8def}
+[data-current-page="charging"] .ev-how>span{line-height:1.4}
+[data-current-page="charging"] .ev-detail-btn{flex:0 0 auto;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--green-deep);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+[data-current-page="charging"] .ev-detail-btn:focus-visible{outline:3px solid #7fd6ab;outline-offset:2px}
+[data-current-page="charging"] .ev-head-actions{display:flex;align-items:center;gap:8px}
+[data-current-page="charging"] .ev-ready{display:flex;flex-direction:column;gap:6px;padding:9px 12px;border-radius:12px;background:var(--surface-2)}
+[data-current-page="charging"] .ev-ready-row{display:grid;grid-template-columns:120px minmax(0,1fr) 92px;align-items:center;gap:10px;font-size:12.5px}
+[data-current-page="charging"] .ev-ready-row>span{font-weight:750;color:var(--ink-2)}
+[data-current-page="charging"] .ev-ready-row>b{text-align:right;color:var(--ink)}
+[data-current-page="charging"] .ev-ready-cars{display:flex;flex-wrap:wrap;gap:2px}
+[data-current-page="charging"] .ev-ready-cars i{display:grid;place-items:center;width:20px;height:18px;border-radius:5px}
+[data-current-page="charging"] .ev-ready-cars i.is-ready{background:rgba(34,181,116,.15);color:#138a56}
+[data-current-page="charging"] .ev-ready-cars i.is-short{background:rgba(208,87,42,.15);color:#c04a1c}
+/* Comparison table: keep both number columns inside the card */
+[data-current-page="charging"] .ev-table{table-layout:fixed}
+[data-current-page="charging"] .ev-table th:first-child{width:42%}
+[data-current-page="charging"] .ev-table thead th{white-space:normal;line-height:1.2}
+[data-current-page="charging"] .ev-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-current-page="charging"][data-theme="dark"] .ev-ready-cars i.is-ready{color:#6fdca6}
+[data-current-page="charging"][data-theme="dark"] .ev-ready-cars i.is-short{color:#ffb98a}
+[data-current-page="charging"] p.ev-keys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink-3)}
+[data-current-page="charging"] p.ev-keys span{display:inline-flex;align-items:center;gap:5px}
+[data-current-page="charging"] p.ev-keys i{display:inline-block;width:12px;height:10px;border-radius:3px}
+[data-current-page="charging"] .ev-bars-window-tag{fill:#e6f7ee;stroke:rgba(34,181,116,.55);stroke-width:1.2}
+[data-current-page="charging"] .ev-bars-window-label{font-size:12px}
+[data-current-page="charging"] .ev-bars-window-value{font-size:12.5px}
+[data-current-page="charging"][data-theme="dark"] .ev-bars-window-tag{fill:#1f4a3b}

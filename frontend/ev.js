@@ -1,14 +1,10 @@
 // EV page: which simulated EVs charge when, and how much of it uses the forecast renewable half-hour.
-// Loaded after charging.js and bridge.js. The EV page opens on the existing Energy & Rewards screen
-// (charging.js); this file draws the "Compare charging plans" view it switches to.
+// Loaded after charging.js and bridge.js; charging.js's renderCharging draws this page. It reuses the
+// Charging page's card helpers and the SaveThePlanet Rewards card (dwCard) from charging.js.
 // Every figure comes from the energy bridge (POST /api/v1/charging/optimize, loaded by bridge.js into
 // modelState.plan for the pinned half-hour and the chosen fleet); nothing is recomputed here.
 
-let evMode = 'comparison'; // The EV page opens on Compare charging plans; Energy & Rewards (charging.js) is one click away.
 let evView = 'optimized';
-function evModeToggle() {
-  return `<div class="ev-toggle ev-mode-toggle" role="group" aria-label="EV page view"><button type="button" data-ev-mode="comparison" aria-pressed="${evMode === 'comparison'}" class="${evMode === 'comparison' ? 'is-on' : ''}">Compare charging plans</button><button type="button" data-ev-mode="current" aria-pressed="${evMode === 'current'}" class="${evMode === 'current' ? 'is-on' : ''}">Energy & Rewards</button></div>`;
-}
 // Plain names: the backend's baseline charges each car on arrival; the optimised plan shares the renewable window.
 const EV_VIEWS = [['baseline', 'Charge on arrival'], ['optimized', 'Smart plan']];
 
@@ -75,12 +71,69 @@ dashCharts.evTimeline = {
 function evViewToggle() {
   return `<div class="ev-toggle" role="group" aria-label="Plan shown">${EV_VIEWS.map(([id, label]) => `<button type="button" data-ev-view="${id}" aria-pressed="${evView === id}" class="${evView === id ? 'is-on' : ''}">${label}</button>`).join('')}</div>`;
 }
+// ---------- "When the cars charge": kWh per half-hour, both plans side by side ----------
+// A simpler reading of the same plan: for each half-hour, how much the whole fleet charges with each plan
+// (siteLoad kW x 0.5 h, summed over sites). The renewable window is the highlighted column.
+let evDetail = false;
+function evSlotKwh(run, slots) {
+  const kwh = Array(slots).fill(0);
+  run.siteLoad.forEach((l) => { if (l.slot < slots) kwh[l.slot] += l.kw * 0.5; });
+  return kwh;
+}
+dashCharts.evBars = {
+  values() {
+    const plan = modelState.plan, alt = planAlternative();
+    if (!alt) return { a: [], b: [], key: '' };
+    const slots = plan.fleet.planSlots;
+    return { a: evSlotKwh(alt.baseline, slots), b: evSlotKwh(alt.optimized, slots), key: String(plan.id) };
+  },
+  start: (t) => ({ ...t, a: t.a.map(() => 0), b: t.b.map(() => 0) }),
+  draw({ a, b }) {
+    const plan = modelState.plan, alt = planAlternative();
+    if (!alt || !a.length) return '';
+    const win = alt.window.slot;
+    let last = a.length - 1;
+    while (last > win + 1 && a[last] < 0.05 && b[last] < 0.05) last--;
+    const n2 = last + 1, w = 700, h = 250, left = 44, right = 8, top = 46, bottom = 30;
+    const max = chartNiceMax(Math.max(...a, ...b, 1)), colW = (w - left - right) / n2, bw = Math.min(22, colW * 0.34);
+    const y = (v) => top + (h - top - bottom) * (1 - v / max), x0 = (i) => left + colW * i;
+    const grid = [0, 0.5, 1].map((f) => `<line class="ev-bars-grid" x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text class="ev-bars-axis" x="${left - 6}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
+    // The green column is only one half-hour wide, so its label sits in its own box above it (sized to the
+    // text, kept inside the chart) with a small pointer down to the column.
+    const cx = x0(win) + colW / 2, labelW = 150, labelX = Math.min(Math.max(cx - labelW / 2, left), w - right - labelW);
+    const band = `<rect class="ev-bars-window" x="${x0(win) + 2}" y="${top}" width="${colW - 4}" height="${h - bottom - top}" rx="6"/>
+      <rect class="ev-bars-window-tag" x="${labelX}" y="2" width="${labelW}" height="36" rx="8"/>
+      <path class="ev-bars-window-tag" d="M${cx - 6} 37 L${cx} ${top - 2} L${cx + 6} 37 Z"/>
+      <text class="ev-bars-window-label" x="${labelX + labelW / 2}" y="17" text-anchor="middle">Renewable window</text>
+      <text class="ev-bars-window-value" x="${labelX + labelW / 2}" y="32" text-anchor="middle">${n(Math.round(a[win] * 10) / 10)} → ${n(Math.round(b[win] * 10) / 10)} kWh</text>`;
+    const bars = a.slice(0, n2).map((va, i) => {
+      const vb = b[i], cx = x0(i) + colW / 2, isWin = i === win;
+      const bar = (v, x, cls) => v > 0.05 ? `<rect class="${cls}" x="${x}" y="${y(v)}" width="${bw}" height="${h - bottom - y(v)}" rx="3"><title>${escapeHtml(`${modelTime(evSlotTime(plan, i))}: ${n(Math.round(v * 10) / 10)} kWh`)}</title></rect>` : '';
+      return bar(va, cx - bw - 1.5, 'ev-bar-arrival') + bar(vb, cx + 1.5, `ev-bar-smart${isWin ? ' is-window' : ''}`);
+    }).join('');
+    const ticks = Array.from({ length: n2 }, (_, i) => i).filter((i) => i % 2 === 0 || i === win).map((i) => `<text class="ev-bars-axis${i === win ? ' is-window' : ''}" x="${x0(i) + colW / 2}" y="${h - 10}" text-anchor="middle">${escapeHtml(modelTime(evSlotTime(plan, i)))}</text>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true">${grid}${band}${bars}${ticks}<text class="ev-bars-axis" x="0" y="${top - 18}">kWh</text></svg>`;
+  },
+};
+function evReadyRow(label, run) {
+  const cars = run.vehicles.map((v) => `<i class="${v.met ? 'is-ready' : 'is-short'}" title="${escapeHtml(`${v.id}: ${v.met ? 'ready' : `${n(Math.round(v.unmetKwh * 10) / 10)} kWh short`}`)}">${icon('car', 14)}</i>`).join('');
+  return `<div class="ev-ready-row"><span>${label}</span><div class="ev-ready-cars">${cars}</div><b>${n(run.vehiclesMet)} of ${n(run.vehicles.length)} ready</b></div>`;
+}
 function evTimelineCard(plan, alt) {
-  const run = alt[evView], inWindow = run.vehicles.filter((v) => v.schedule.some((s) => s.inWindow && s.kw > 0)).length;
-  const how = evView === 'optimized' ? 'The smart plan moves charging into the green renewable window when it can.' : 'Each car starts charging as soon as it plugs in.';
-  return `<section class="dash-card cg-card ev-timeline">${cgHead('green', 'calendar', 'Charging timeline', `When each car charges · ${n(inWindow)} of ${n(run.vehicles.length)} use the renewable window`, evViewToggle())}
-    <p class="ev-how">${how} <span class="ev-keys"><span><i class="ev-key-plug"></i>plugged in</span><span><i class="ev-key-grid"></i>charging</span><span><i class="ev-key-window"></i>charging on renewable energy</span></span></p>
-    ${chartSlot('evTimeline', `${EV_VIEWS.find(([id]) => id === evView)[1]}: when each simulated car is plugged in and charging, and whether it is ready when it leaves`, 'ev-timeline-chart')}${evMissed(plan, alt)}</section>`;
+  const toggle = `<button type="button" class="ev-detail-btn" data-ev-detail>${evDetail ? 'Back to summary' : 'See each car'}</button>`;
+  if (evDetail) {
+    const run = alt[evView], inWindow = run.vehicles.filter((v) => v.schedule.some((s) => s.inWindow && s.kw > 0)).length;
+    const how = evView === 'optimized' ? 'The smart plan moves charging into the green renewable window when it can.' : 'Each car starts charging as soon as it plugs in.';
+    return `<section class="dash-card cg-card ev-timeline">${cgHead('green', 'calendar', 'Each car', `${n(inWindow)} of ${n(run.vehicles.length)} cars charge in the renewable window`, `<div class="ev-head-actions">${evViewToggle()}${toggle}</div>`)}
+      <p class="ev-how">${how} <span class="ev-keys"><span><i class="ev-key-plug"></i>plugged in</span><span><i class="ev-key-grid"></i>charging</span><span><i class="ev-key-window"></i>charging on renewable energy</span></span></p>
+      ${chartSlot('evTimeline', `${EV_VIEWS.find(([id]) => id === evView)[1]}: when each simulated car is plugged in and charging, and whether it is ready when it leaves`, 'ev-timeline-chart')}${evMissed(plan, alt)}</section>`;
+  }
+  const b = alt.baseline, o = alt.optimized;
+  return `<section class="dash-card cg-card ev-timeline">${cgHead('green', 'calendar', 'When the cars charge', 'How much the whole fleet charges in each half-hour', toggle)}
+    <p class="ev-how"><span><b>Green column</b> = the half-hour when wind and solar would otherwise be wasted. The taller the smart-plan bar there, the more charging runs on that clean energy.</span></p>
+    <p class="ev-keys"><span><i class="ev-key-arrival"></i>Charge on arrival (normal)</span><span><i class="ev-key-smart"></i>Smart plan</span><span><i class="ev-key-window"></i>Smart plan in the renewable window</span></p>
+    ${chartSlot('evBars', `kWh charged in each half-hour: ${n(b.window.chargedKwh)} kWh with charging on arrival and ${n(o.window.chargedKwh)} kWh with the smart plan in the renewable window`, 'ev-bars-chart')}
+    <div class="ev-ready">${evReadyRow('Charge on arrival', b)}${evReadyRow('Smart plan', o)}</div></section>`;
 }
 
 // ---------- charge on arrival vs smart plan ----------
@@ -124,16 +177,11 @@ function evPage() {
   return `${picker}${evKpis(plan, alt)}<div class="ev-main">${evTimelineCard(plan, alt)}<div class="ev-side">${evCompareCard(plan, alt)}${dwCard()}</div></div>${foot}`;
 }
 function renderEvComparison() {
-  return studioShell('EV', 'Which simulated EVs charge when, and how much of it uses renewable energy at risk.', () => `${evModeToggle()}${evPage()}`);
+  return studioShell('EV', 'Which simulated EVs charge when, and how much of it uses renewable energy at risk.', evPage);
 }
 
 document.addEventListener('click', (event) => {
-  const mode = event.target.closest('[data-ev-mode]');
-  if (mode) {
-    evMode = mode.dataset.evMode === 'comparison' ? 'comparison' : 'current';
-    render();
-    return;
-  }
+  if (event.target.closest('[data-ev-detail]')) { evDetail = !evDetail; render(); return; }
   const button = event.target.closest('[data-ev-view]');
   if (!button) return;
   evView = EV_VIEWS.some(([id]) => id === button.dataset.evView) ? button.dataset.evView : 'optimized';

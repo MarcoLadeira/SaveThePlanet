@@ -429,16 +429,10 @@ function cgBestCard() {
     }
     return `<section class="dash-card cg-card cg-best-card">${cgHead('green', 'clock', 'Best half-hours to charge', sub)}${body}</section>`;
 }
-function cgModeMenu() { return typeof evModeToggle === 'function' ? evModeToggle() : ''; }
+// The EV page is one view: the charging plan comparison drawn by ev.js (which also shows the Rewards
+// card, dwCard below). The day chart, weekly bars and best half-hours are no longer shown here.
 function renderCharging() {
-    if (typeof evMode !== 'undefined' && evMode === 'comparison') return renderEvComparison();
-    const title = 'Charging EVs on renewable energy that would be wasted · historical data, not live control.';
-    // While new assumptions are being calculated, keep the current figures on screen (dimmed, with
-    // an "Updating" note) instead of replacing the whole page with a spinner; they then glide to the new values.
-    if (modelState.loading && modelState.data) {
-        return `${studioHeader('EV', title)}${cgModeMenu()}<p class="cg-updating" role="status"><span class="cg-updating-dot"></span>Updating the charging figures…</p><div class="cg-is-updating">${cgPage()}</div>`;
-    }
-    return studioShell('EV', title, () => `${cgModeMenu()}${cgPage()}`); // the page is "EV" in the navigation and in both views
+    return renderEvComparison();
 }
 function cgPage() {
     {
