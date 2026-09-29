@@ -1593,6 +1593,362 @@
    "Surplus credit is conditional: curtailment is system-wide and network deliverability for a real site is not verified.",
    "Without real settlement data these are projected revenue and simulated profit, never money earned.",
    "Public chargers stay open to everyone at the normal price: joining is optional and never a condition for charging."
-  ]
+  ],
+  "businessCase": {
+   "status": "illustrative",
+   "period": "month",
+   "daysPerMonth": 30,
+   "split": {
+    "driver": 50,
+    "operator": 25,
+    "platform": 25
+   },
+   "overhead": {
+    "provenance": "illustrative",
+    "coreEurPerMonth": 90.0,
+    "perSiteEurPerMonth": 30.0
+   },
+   "cases": [
+    {
+     "id": "today",
+     "label": "Today",
+     "note": "Replayed week, current assumptions",
+     "sites": 1,
+     "sessions": 403,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1405,
+     "eligibleWindows": 26,
+     "poolEur": 1132.43,
+     "driversEur": 568.23,
+     "operatorProfitEur": 182.1,
+     "revenueEur": 282.1,
+     "variableCostsEur": 40.3,
+     "fixedCostsEur": 120.0,
+     "costsEur": 160.3,
+     "profitEur": 121.8,
+     "marginPct": 43.2,
+     "breakEvenSessions": 200,
+     "commissionPerSessionEur": 0.7,
+     "contributionPerSessionEur": 0.6,
+     "noSavingsProfitEur": -120.0,
+     "multiple": 1.0,
+     "changes": []
+    },
+    {
+     "id": "pilot",
+     "label": "Pilot",
+     "note": "Same hardware, 3 partner sites",
+     "sites": 3,
+     "sessions": 403,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1705,
+     "eligibleWindows": 26,
+     "poolEur": 1374.23,
+     "driversEur": 689.13,
+     "operatorProfitEur": 242.55,
+     "revenueEur": 342.55,
+     "variableCostsEur": 20.15,
+     "fixedCostsEur": 60.0,
+     "costsEur": 80.15,
+     "profitEur": 262.4,
+     "marginPct": 76.6,
+     "breakEvenSessions": 75,
+     "commissionPerSessionEur": 0.85,
+     "contributionPerSessionEur": 0.8,
+     "noSavingsProfitEur": -60.0,
+     "multiple": 2.15,
+     "changes": [
+      {
+       "id": "network",
+       "case": "pilot",
+       "label": "Network charges on stored energy",
+       "from": "EUR 0.04/kWh",
+       "to": "EUR 0.02/kWh",
+       "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
+      },
+      {
+       "id": "session",
+       "case": "pilot",
+       "label": "Operator session costs",
+       "from": "EUR 0.025/kWh",
+       "to": "EUR 0.015/kWh",
+       "why": "App check-in and automatic settlement replace manual handling."
+      },
+      {
+       "id": "perSession",
+       "case": "pilot",
+       "label": "SaveThePlanet cost per session",
+       "from": "EUR 0.1/session",
+       "to": "EUR 0.05/session",
+       "why": "Batched payments and automated messages."
+      },
+      {
+       "id": "sites3",
+       "case": "pilot",
+       "label": "Partner sites sharing the platform",
+       "from": "1 site · EUR 120 overhead each",
+       "to": "3 sites · EUR 60 overhead each",
+       "why": "A three-site pilot shares the EUR 90 platform core; each site keeps its own EUR 30 of support."
+      }
+     ]
+    },
+    {
+     "id": "scale",
+     "label": "Scale",
+     "note": "Larger battery, 10 partner sites",
+     "sites": 10,
+     "sessions": 411,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1705,
+     "eligibleWindows": 26,
+     "poolEur": 1401.51,
+     "driversEur": 702.81,
+     "operatorProfitEur": 249.35,
+     "revenueEur": 349.35,
+     "variableCostsEur": 20.55,
+     "fixedCostsEur": 39.0,
+     "costsEur": 59.55,
+     "profitEur": 289.8,
+     "marginPct": 83.0,
+     "breakEvenSessions": 49,
+     "commissionPerSessionEur": 0.85,
+     "contributionPerSessionEur": 0.8,
+     "noSavingsProfitEur": -39.0,
+     "multiple": 2.38,
+     "changes": [
+      {
+       "id": "network",
+       "case": "pilot",
+       "label": "Network charges on stored energy",
+       "from": "EUR 0.04/kWh",
+       "to": "EUR 0.02/kWh",
+       "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
+      },
+      {
+       "id": "session",
+       "case": "pilot",
+       "label": "Operator session costs",
+       "from": "EUR 0.025/kWh",
+       "to": "EUR 0.015/kWh",
+       "why": "App check-in and automatic settlement replace manual handling."
+      },
+      {
+       "id": "perSession",
+       "case": "pilot",
+       "label": "SaveThePlanet cost per session",
+       "from": "EUR 0.1/session",
+       "to": "EUR 0.05/session",
+       "why": "Batched payments and automated messages."
+      },
+      {
+       "id": "sites3",
+       "case": "pilot",
+       "label": "Partner sites sharing the platform",
+       "from": "1 site · EUR 120 overhead each",
+       "to": "3 sites · EUR 60 overhead each",
+       "why": "A three-site pilot shares the EUR 90 platform core; each site keeps its own EUR 30 of support."
+      },
+      {
+       "id": "battery",
+       "case": "scale",
+       "label": "Site battery",
+       "from": "700 kWh · 180 kW",
+       "to": "1,000 kWh · 250 kW",
+       "why": "A larger hypothetical battery stores more of the surplus the forecast calls; same chargers and connection."
+      },
+      {
+       "id": "sites10",
+       "case": "scale",
+       "label": "Partner sites sharing the platform",
+       "from": "3 sites · EUR 60 overhead each",
+       "to": "10 sites · EUR 39 overhead each",
+       "why": "Ten sites share the platform core; support stays EUR 30 per site."
+      }
+     ]
+    }
+   ],
+   "steps": [
+    {
+     "id": "today",
+     "label": "Today",
+     "case": "today",
+     "profitEur": 121.8,
+     "deltaEur": 0.0
+    },
+    {
+     "id": "network",
+     "label": "Network charges on stored energy",
+     "case": "pilot",
+     "profitEur": 162.1,
+     "deltaEur": 40.3
+    },
+    {
+     "id": "session",
+     "label": "Operator session costs",
+     "case": "pilot",
+     "profitEur": 182.25,
+     "deltaEur": 20.15
+    },
+    {
+     "id": "perSession",
+     "label": "SaveThePlanet cost per session",
+     "case": "pilot",
+     "profitEur": 202.4,
+     "deltaEur": 20.15
+    },
+    {
+     "id": "sites3",
+     "label": "Partner sites sharing the platform",
+     "case": "pilot",
+     "profitEur": 262.4,
+     "deltaEur": 60.0
+    },
+    {
+     "id": "battery",
+     "label": "Site battery",
+     "case": "scale",
+     "profitEur": 268.8,
+     "deltaEur": 6.4
+    },
+    {
+     "id": "sites10",
+     "label": "Partner sites sharing the platform",
+     "case": "scale",
+     "profitEur": 289.8,
+     "deltaEur": 21.0
+    }
+   ],
+   "target": {
+    "low": 3,
+    "high": 5
+   },
+   "notes": [
+    "Same month, same comparable site and the same 50/25/25 split in every case: drivers and operators keep their shares.",
+    "Sessions and savings are re-run on the same replayed nights for every case; prices and costs are illustrative.",
+    "Customer acquisition cost is not modelled: without real sign-ups there is no evidence for it.",
+    "Operating profit is after SaveThePlanet's per-session costs and the overhead allocated to the site."
+   ]
+  },
+  "operatorCase": {
+   "sessions": 403,
+   "kwh": 8060.0,
+   "publicEurPerKwh": 0.49,
+   "basicEurPerKwh": 0.34,
+   "before": {
+    "label": "Basic smart charging",
+    "marginEur": 1209.0
+   },
+   "after": {
+    "label": "AI + Rewards",
+    "marginEur": 1391.1
+   },
+   "shareEur": 282.1,
+   "programmeCostsEur": 100.0,
+   "extraProfitEur": 182.1,
+   "breakEvenSessions": 143,
+   "utilisation": {
+    "sessionsPerOfferedWindow": 15.7,
+    "capacityPerWindow": 16,
+    "share": 0.9792,
+    "upliftMeasured": false,
+    "note": "Sessions per discount window against what the site can deliver. Whether discounts bring extra drivers is not measured: without real bookings there is no uplift to report."
+   },
+   "model": "The operator supplies chargers and approved prices; SaveThePlanet supplies the AI and Rewards drivers; both share the verified extra savings."
+  },
+  "scale": {
+   "status": "illustrative",
+   "label": "Illustrative scaling scenario",
+   "sites": [
+    {
+     "sites": 1,
+     "sessions": 403,
+     "kwh": 8060.0,
+     "driversEur": 568.23,
+     "operatorProfitEur": 182.1,
+     "platformProfitEur": 121.8,
+     "platformRevenueEur": 282.1,
+     "overheadPerSiteEur": 120.0,
+     "co2Kg": 2015.0,
+     "curtailedShare": 0.000901,
+     "peakHalfHourShare": 0.0022,
+     "surplusLimited": false
+    },
+    {
+     "sites": 10,
+     "sessions": 4030,
+     "kwh": 80600.0,
+     "driversEur": 5682.3,
+     "operatorProfitEur": 1821.0,
+     "platformProfitEur": 2028.0,
+     "platformRevenueEur": 2821.0,
+     "overheadPerSiteEur": 39.0,
+     "co2Kg": 20150.0,
+     "curtailedShare": 0.009009,
+     "peakHalfHourShare": 0.0225,
+     "surplusLimited": false
+    },
+    {
+     "sites": 100,
+     "sessions": 40300,
+     "kwh": 806000.0,
+     "driversEur": 56823.0,
+     "operatorProfitEur": 18210.0,
+     "platformProfitEur": 21090.0,
+     "platformRevenueEur": 28210.0,
+     "overheadPerSiteEur": 30.9,
+     "co2Kg": 201500.0,
+     "curtailedShare": 0.090093,
+     "peakHalfHourShare": 0.225,
+     "surplusLimited": false
+    }
+   ],
+   "caps": [
+    "Each site: its own chargers, connection and battery, the same windows and demand as the example.",
+    "All sites together: never more surplus in a half-hour than Ireland curtailed then."
+   ],
+   "verify": [
+    "Real bookings and no-shows",
+    "Grid deliverability to each site",
+    "A quoted battery per site"
+   ]
+  },
+  "environment": {
+   "status": "modelled",
+   "period": "month",
+   "scaleFromReplay": 4.2872,
+   "flows": {
+    "surplusInKwh": 11780.6,
+    "gridInKwh": 771.7,
+    "rewardsOutKwh": 8060.0,
+    "normalOutKwh": 343.0,
+    "lossKwh": 1734.9,
+    "storedKwh": 2414.4
+   },
+   "directSurplusKwh": 0.0,
+   "balanced": true,
+   "kpis": {
+    "surplusUsedKwh": 9522.7,
+    "evKwh": 8060.0,
+    "co2AvoidedKg": 2015.0
+   },
+   "replay": {
+    "curtailedKwh": 3050000.0,
+    "surplusDrawnKwh": 2747.8,
+    "curtailedShare": 0.000901
+   },
+   "intensityKgPerKwh": 0.25,
+   "baseline": "The same charges from the grid at an average 0.25 kg CO2 per kWh (basic smart charging).",
+   "method": [
+    "Rewards charging is served only from stored surplus: energy bought while curtailment was observed.",
+    "Grid energy bought on a false alarm is sold at the normal price and never counted as renewable.",
+    "Surplus during a window is not counted: normal charging would get it too (direct surplus 0 kWh).",
+    "The replay week is scaled to the month like the sessions; storage losses are shown, not hidden."
+   ],
+   "caveats": [
+    "Modelled, not verified: forecast curtailment is not recovered energy.",
+    "Network deliverability of surplus to the site is not confirmed.",
+    "A flat average intensity, not a marginal emission factor; the battery is hypothetical."
+   ]
+  }
  }
 }
