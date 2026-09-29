@@ -222,3 +222,23 @@
 .bridge-surplus span { flex: 1; }
 .bridge-surplus small { color: var(--bridge-muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .bridge-layout .bridge-surplus strong { font-size: 15px; font-weight: 800; letter-spacing: 0; line-height: inherit; color: #38bdf8; }
+
+/* EV charges by hour (issue #80): replaces "Your next move". Horizontal bars in the style of the Forecast
+   page's "How much?" comparison: a glass track with a glossy gradient fill and the value on the right. */
+.bridge-layout > .dash-ev-hours { gap: 8px; }
+.dash-ev-hours .ev-half { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.1); flex: 0 0 auto; }
+.dash-ev-hours .ev-half button { padding: 4px 11px; border: 0; border-radius: 8px; background: none; color: #cfe7de; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.dash-ev-hours .ev-half button.is-on { background: #a6f1cb; color: #0b4439; }
+.dash-ev-hours .ev-half button:focus-visible { outline: 3px solid #7fd6ab; outline-offset: 2px; }
+.dash-ev-hours .ev-hours { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 2px; min-height: 0; }
+.dash-ev-hours .ev-hour { display: grid; grid-template-columns: 44px minmax(0, 1fr) 70px; align-items: center; gap: 8px; min-height: 0; }
+.dash-ev-hours .ev-hour-label { color: #bfe3d6; font-size: 12px; font-weight: 750; text-align: right; white-space: nowrap; }
+.dash-ev-hours .ev-hour-track { position: relative; height: 12px; border-radius: 99px; background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.08)); box-shadow: inset 0 1px 2px rgba(0,0,0,.25); }
+.dash-ev-hours .ev-hour-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(180deg, #8ff0bf, #2fc781 55%, #169b62); box-shadow: 0 4px 10px -4px rgba(47,199,129,.7); }
+.dash-ev-hours .ev-hour-track i::after { content: ""; position: absolute; top: 2px; left: 6px; right: 6px; height: 3px; border-radius: 99px; background: linear-gradient(rgba(255,255,255,.75), rgba(255,255,255,0)); }
+.dash-ev-hours .ev-hour b { color: #fff; font-size: 13px; font-weight: 800; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dash-ev-hours .ev-hour b small { color: #9fc7b9; font-size: 10.5px; font-weight: 700; }
+.dash-ev-hours .ev-hour.is-selected .ev-hour-label, .dash-ev-hours .ev-hour.is-selected b { color: #ffcd9e; }
+.dash-ev-hours .ev-hour.is-selected .ev-hour-track i { background: linear-gradient(180deg, #ffc79c, #ff9a52 55%, #e3701f); box-shadow: 0 4px 10px -4px rgba(255,136,62,.7); }
+.dash-ev-hours .ev-hours-note { margin: 0; color: #bfe3d6; font-size: 10.5px; line-height: 1.35; }
+.dash-ev-hours .ev-hours-note b { color: #fff; }
