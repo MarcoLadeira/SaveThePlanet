@@ -8,7 +8,6 @@
 [data-current-page="charging"] .ev-side{display:flex;flex-direction:column;gap:12px;min-height:0}
 [data-current-page="charging"] .ev-side>.cg-card{flex:0 0 auto;padding:14px 18px;gap:8px}
 [data-current-page="charging"] .ev-side>.dw-card{flex:1 1 0;min-height:0}
-[data-current-page="charging"] .ev-kpi .cg-kpi-copy{grid-column:2/4}
 [data-current-page="charging"] .ev-wait{flex:1;display:grid;place-items:center}
 
 [data-current-page="charging"] .ev-timeline .dash-card-head{position:relative}
