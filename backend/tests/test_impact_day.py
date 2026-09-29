@@ -193,6 +193,9 @@ class ImpactDayHttpTests(unittest.TestCase):
         self.assertFalse(body['additive'], 'each half-hour is a separate what-if')
         for key in ('capturedKwh', 'capturedShare', 'evGridKwh', 'storageGridKwh', 'co2AvoidedKg'):
             self.assertIn(key, body['intervals'][0])
+        # Each half-hour carries its two causes, which add up to the energy at risk.
+        first = body['intervals'][0]
+        self.assertAlmostEqual(first['curtailmentMwh'] + first['constraintMwh'], first['atRiskMwh'])
         with patch('server.model_request', FakeModel([1] * 48)):
             self.assertEqual(self.get('/api/v1/impact/day?date=2026-01-10')[1]['fleet']['preset'], server.DAY_PLAN_PRESET)
 

@@ -1,8 +1,8 @@
 /* Dashboard left cards (dashboard.js): the daily model (V2) headline and "Waste through the day".
    Risk colours follow the Dashboard: high orange, medium amber, low green-grey; the planned
    half-hour is outlined, the best charging window is a green band, the charger limit a dashed line. */
-.dashboard-main{--dw-high:#ff883e;--dw-high-top:#ffc08f;--dw-medium:#f2a23a;--dw-medium-top:#f8cb88;--dw-low:#a9b8af;--dw-low-top:#d3ddd6;--dw-window:rgba(31,153,96,.12);--dw-window-edge:#1f9960;--dw-cap:#c67a1a;--dw-tip:#10281f}
-.dashboard-main[data-theme="dark"]{--dw-low:#56665d;--dw-low-top:#76897e;--dw-window:rgba(127,224,174,.1);--dw-window-edge:#7fe0ae;--dw-cap:#ffb070;--dw-tip:#08140f}
+.dashboard-main{--dw-curtail:#e0691e;--dw-curtail-top:#ff9d5c;--dw-constraint:rgba(255,136,62,.32);--dw-high:#ff883e;--dw-high-top:#ffc08f;--dw-medium:#f2a23a;--dw-medium-top:#f8cb88;--dw-low:#a9b8af;--dw-low-top:#d3ddd6;--dw-window:rgba(31,153,96,.12);--dw-window-edge:#1f9960;--dw-cap:#c67a1a;--dw-tip:#10281f}
+.dashboard-main[data-theme="dark"]{--dw-curtail:#ff883e;--dw-curtail-top:#ffc08f;--dw-constraint:rgba(255,160,100,.3);--dw-low:#56665d;--dw-low-top:#76897e;--dw-window:rgba(127,224,174,.1);--dw-window-edge:#7fe0ae;--dw-cap:#ffb070;--dw-tip:#08140f}
 
 .bridge-layout .dash-hero.is-daily .day-loading,.bridge-layout .dash-confidence .day-loading{display:grid;flex:1;place-content:center;justify-items:center;gap:4px;color:#bed8d0;font-size:13px}
 .bridge-layout .dash-confidence .day-loading{color:var(--ink-2)}
@@ -13,16 +13,23 @@
 .bridge-layout .dash-confidence.is-waste{gap:8px}
 .dw-slot{position:relative;flex:1 1 auto;min-height:110px}
 .dw-chart{position:absolute;inset:0;display:flex;flex-direction:column}
-.dw-top{position:absolute;top:0;left:0;font-size:11px;font-weight:700;color:var(--ink-3)}
-.dw-cols{position:relative;display:grid;grid-template-columns:repeat(48,minmax(0,1fr));align-items:end;column-gap:1.5px;flex:1;margin-top:16px;border-bottom:1.5px solid var(--line)}
+.dw-head{display:flex;align-items:center;justify-content:space-between;gap:8px;height:16px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.dw-key{display:flex;align-items:center;gap:5px;font-weight:650;color:var(--ink-2)}
+.dw-key i,.dw-tip i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.dw-key i+i,.dw-key i:not(:first-child){margin-left:8px}
+i.is-curtail{background:var(--dw-curtail)}
+i.is-constraint{background:var(--dw-constraint);box-shadow:inset 0 0 0 1px var(--dw-curtail)}
+.dw-cols{position:relative;display:grid;grid-template-columns:repeat(48,minmax(0,1fr));align-items:end;column-gap:1.5px;flex:1;margin-top:4px;border-bottom:1.5px solid var(--line)}
 .dw-col{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;outline:none}
-.dw-bar{display:block;width:100%;min-height:1px;border-radius:3px 3px 0 0}
+.dw-bar{display:block;flex:0 0 auto;width:100%}
+.dw-bar.is-curtail{background:linear-gradient(180deg,var(--dw-curtail-top),var(--dw-curtail))}
+.dw-bar.is-constraint{border-radius:3px 3px 0 0;background:var(--dw-constraint)}
 .dw-bar.is-high{background:linear-gradient(180deg,var(--dw-high-top),var(--dw-high))}
 .dw-bar.is-medium{background:linear-gradient(180deg,var(--dw-medium-top),var(--dw-medium))}
 .dw-bar.is-low{background:linear-gradient(180deg,var(--dw-low-top),var(--dw-low))}
-.dw-col.is-plan .dw-bar{box-shadow:0 0 0 2px var(--ink);border-radius:3px}
+.dw-col.is-plan{box-shadow:0 0 0 2px var(--ink);border-radius:3px}
 .dw-plan{position:absolute;bottom:100%;left:50%;margin-bottom:2px;padding:1px 6px;border-radius:6px;background:var(--ink);color:var(--surface);font-size:10.5px;font-style:normal;font-weight:800;white-space:nowrap;transform:translateX(-50%)}
-.dw-window{position:absolute;top:-14px;bottom:0;z-index:0;border-radius:6px;background:var(--dw-window);box-shadow:inset 0 0 0 1.5px var(--dw-window-edge)}
+.dw-window{position:absolute;top:0;bottom:0;z-index:0;border-radius:6px;background:var(--dw-window);box-shadow:inset 0 0 0 1.5px var(--dw-window-edge)}
 .dw-cap{position:absolute;left:0;right:0;z-index:2;height:0;border-top:2px dashed var(--dw-cap);pointer-events:none}
 .dw-cap b{position:absolute;left:0;bottom:2px;padding:0 5px;border-radius:5px;background:var(--surface);font-size:10.5px;font-weight:700;color:var(--dw-cap);white-space:nowrap}
 .dw-axis{position:relative;height:18px}
@@ -37,10 +44,18 @@
 .dw-col:hover .dw-tip{display:flex}
 .dw-col.is-missing{background:repeating-linear-gradient(135deg,transparent 0 3px,var(--line) 3px 4px);opacity:.6}
 .dw-col:hover .dw-bar{filter:brightness(1.08)}
-.dw-facts{margin:0;font-size:13px;line-height:1.45;color:var(--ink-2)}
-.dw-facts b{color:var(--ink)}
+i.is-window{background:var(--dw-window);box-shadow:inset 0 0 0 1.5px var(--dw-window-edge)}
+.dw-compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:6px;border-radius:12px;background:var(--surface-2)}
+.dw-compare>p{grid-column:1/-1;margin:0 2px;font-size:11.5px;font-weight:800;letter-spacing:.02em;color:var(--ink-2)}
+.dw-stat{display:grid;gap:0;min-width:0;padding:3px 8px;border-radius:9px;background:var(--surface)}
+.dw-stat span{font-size:11px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dw-stat b{font-size:16px;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dw-stat b small{margin-left:2px;font-size:11px;color:var(--ink-3)}
+.dw-stat.is-now b{color:var(--dw-curtail)}
+.dw-stat.is-rec b{color:var(--green-deep)}
+.dashboard-main[data-theme="dark"] .dw-stat.is-rec b{color:var(--green)}
 
-.day-plan-link{display:flex;align-items:flex-start;gap:8px;margin:0;padding:9px 12px;border-radius:12px;background:var(--surface-2);font-size:13.5px;line-height:1.45;color:var(--ink-2)}
+.day-plan-link{display:flex;align-items:flex-start;gap:8px;margin:0;padding:7px 12px;border-radius:12px;background:var(--surface-2);font-size:13.5px;line-height:1.45;color:var(--ink-2)}
 .day-plan-link svg{flex:0 0 auto;margin-top:1px;color:var(--green)}
 .day-plan-link b{color:var(--ink)}
 

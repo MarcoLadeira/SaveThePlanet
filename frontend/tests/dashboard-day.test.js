@@ -18,8 +18,8 @@ function dayPlan({ skip = [] } = {}) {
   const first = Date.parse('2026-01-11T00:30:00Z'), intervals = [];
   for (let k = 0; k < 48; k++) {
     if (skip.includes(k)) continue;
-    const mwh = k >= 20 && k < 30 ? 80 : k === 27 ? 90 : 5; // a daytime peak
-    intervals.push({ targetAt: new Date(first + k * 18e5).toISOString().replace('.000Z', '+00:00'), atRiskMwh: k === 27 ? 90 : mwh, probability: 0.9, risk: mwh > 50 ? 'high' : 'low' });
+    const mwh = k === 27 ? 90 : k >= 20 && k < 30 ? 80 : 5; // a daytime peak; a quarter of it curtailment
+    intervals.push({ targetAt: new Date(first + k * 18e5).toISOString().replace('.000Z', '+00:00'), atRiskMwh: mwh, curtailmentMwh: mwh / 4, constraintMwh: mwh * 3 / 4, probability: 0.9, risk: mwh > 50 ? 'high' : 'low' });
   }
   return { date: '2026-01-11', intervals };
 }
@@ -68,9 +68,9 @@ test('waste through the day: 48 half-hours, the planned one, the best window and
   run(`Object.assign(dashDay, { key: '2026-01-11', status: 'ready', data: DAY })`);
   const html = text(run('dashboardConfidence(selectedPrediction())'));
   assert.match(html, /Waste through the day/);
-  assert.match(html, /Peak 14:00–14:30 ?: 90 MWh/);
-  assert.match(html, /Best window 10:30–14:30 ?: up to 400 MWh for chargers/);
-  assert.match(html, /Battery &amp; EV plan: 14:00–14:30 \(outlined\) · 44\.2 MWh at risk/);
+  // Curtailment compared like for like: day-ahead (model 2), the half-hourly curtailment added up (model 1), recorded.
+  assert.match(html, /Curtailment over the day, forecast three ways Day-ahead 8,963 ?MWh Half-hourly 250 ?MWh Recorded 7,011 ?MWh/);
+  assert.match(html, /Battery &amp; EV plan: 14:00–14:30 \(outlined\) · 44 MWh/);
   const values = run('dashCharts.dayWaste.values()');
   assert.equal(values.v.length, 48);
   assert.equal(values.sel, 27, '14:00 is the 28th +30 min slot after 00:30');
@@ -80,6 +80,9 @@ test('waste through the day: 48 half-hours, the planned one, the best window and
   assert.equal(chart.match(/class="dw-col[ "]/g).length, 48);
   assert.equal(chart.match(/dw-col is-plan/g).length, 1);
   assert.match(chart, /charger limit 50 MWh/);
+  assert.equal(chart.match(/dw-bar is-curtail/g).length, 48, 'every bar shows its curtailment part');
+  assert.match(chart, /Curtailment <strong>22\.5 MWh<\/strong>/);
+  assert.match(chart, /Grid constraint <strong>67\.5 MWh<\/strong>/);
   assert.doesNotMatch(chart, /NaN|undefined/);
 });
 
@@ -98,7 +101,7 @@ test('a day with a gap in the dataset keeps every bar in its own time slot', () 
   const chart = run('dashCharts.dayWaste.draw(dashCharts.dayWaste.values())');
   assert.equal(chart.match(/dw-col is-missing/g).length, 2);
   assert.match(chart, /15:30–16:00/);
-  assert.match(text(run('dashboardConfidence(selectedPrediction())')), /\(2 missing\)/);
+  assert.match(text(run('dashboardConfidence(selectedPrediction())')), /2 missing from the dataset/);
 });
 
 test('while the day plan loads it says so; on error, or for demo data, the half-hour card is shown', () => {

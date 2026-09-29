@@ -68,45 +68,55 @@ function wasteWindow(values, capMwh, slots = WASTE_WINDOW_SLOTS) {
 
 // A replay day's 48 slots are the +30 min targets from 00:30 to 00:00 the next day. A day with a gap in the
 // dataset has fewer intervals, so each one is placed in its own slot (missing slots stay empty).
+// Each bar is split into its two causes: curtailment (the same quantity the daily model in the card
+// above predicts) and grid constraints (only model 1 predicts these). Comparing the day's curtailment
+// like for like is what keeps the two cards consistent: the top card never meets the chart's total.
 const WASTE_SLOTS = 48;
 function wasteSeries() {
   const plan = dayPlan.data, p = selectedPrediction();
   const first = Date.parse(`${plan.date}T00:30:00Z`), slotOf = (t) => Math.round((Date.parse(t) - first) / 18e5);
-  const values = Array(WASTE_SLOTS).fill(null), rows = Array(WASTE_SLOTS).fill(null);
+  const values = Array(WASTE_SLOTS).fill(null), curt = Array(WASTE_SLOTS).fill(0), rows = Array(WASTE_SLOTS).fill(null);
   for (const i of plan.intervals) {
     const k = slotOf(i.targetAt);
-    if (k >= 0 && k < WASTE_SLOTS) { values[k] = i.atRiskMwh || 0; rows[k] = i; }
+    if (k < 0 || k >= WASTE_SLOTS) continue;
+    values[k] = i.atRiskMwh || 0;
+    curt[k] = Math.min(values[k], Math.max(0, i.curtailmentMwh ?? 0));
+    rows[k] = i;
   }
   const cap = modelState.capacity * 0.5, sel = slotOf(p.targetAt);
   const at = (k) => new Date(first + k * 18e5).toISOString();
-  return { plan, values, rows, cap, at, sel: sel >= 0 && sel < WASTE_SLOTS && rows[sel] ? sel : -1, window: wasteWindow(values, cap) };
+  const known = values.filter((v) => v !== null);
+  return { plan, values, curt, rows, cap, at, known,
+    curtailmentMwh: curt.reduce((a, v) => a + v, 0), totalMwh: known.reduce((a, v) => a + v, 0),
+    sel: sel >= 0 && sel < WASTE_SLOTS && rows[sel] ? sel : -1, window: wasteWindow(values, cap) };
 }
 
 dashCharts.dayWaste = {
   values() {
-    if (!dayPlanReady()) return { v: [], max: 1, sel: -1, win: '', cap: 0, rise: 0, meta: '' };
+    if (!dayPlanReady()) return { v: [], c: [], max: 1, sel: -1, win: '', cap: 0, rise: 0, meta: '' };
     const s = wasteSeries();
-    return { v: s.values.map((x) => x ?? 0), max: chartNiceMax(Math.max(...s.values.map((x) => x ?? 0), 1)), sel: s.sel, cap: s.cap, rise: 1,
+    return { v: s.values.map((x) => x ?? 0), c: s.curt, max: chartNiceMax(Math.max(...s.values.map((x) => x ?? 0), 1)), sel: s.sel, cap: s.cap, rise: 1,
       win: s.window ? `${s.window.start}|${s.window.len}` : '',
-      meta: s.rows.map((r, k) => `${modelTime(s.at(k))}~${r ? Math.round(r.probability * 100) : ''}~${r ? r.risk : 'none'}`).join('|') };
+      meta: s.rows.map((r, k) => `${modelTime(s.at(k))}~${r ? Math.round(r.probability * 100) : ''}~${r ? 'ok' : 'none'}~${modelTime(s.at(k + 1))}`).join('|') };
   },
-  start: (t) => ({ ...t, v: t.v.map(() => 0), rise: 0 }),
-  draw({ v, max, sel, win, cap, rise, meta }) {
+  start: (t) => ({ ...t, v: t.v.map(() => 0), c: t.c.map(() => 0), rise: 0 }),
+  draw({ v, c, max, sel, win, cap, rise, meta }) {
     if (!v.length) return '';
     const rows = meta.split('|').map((m) => m.split('~'));
     const h = (x) => `${(Math.min(1, Math.max(0, x / max)) * 100 * rise).toFixed(2)}%`;
+    const mwh = (x) => n(Math.round(x * 10) / 10);
     const cols = v.map((x, i) => {
-      const [time, chance, risk] = rows[i] || ['', '', 'none'];
-      const next = rows[i + 1]?.[0] || modelTime(new Date(Date.parse(`2000-01-01T${time}:00Z`) + 18e5).toISOString());
-      if (risk === 'none') return `<span class="dw-col is-missing"><span class="dw-tip"><b>${time}–${next}</b><small>No forecast in the dataset for this half-hour</small></span></span>`;
-      return `<span class="dw-col${i === sel ? ' is-plan' : ''}"><i class="dw-bar is-${risk}" style="height:${h(x)}"></i>${i === sel ? '<em class="dw-plan">Plan</em>' : ''}
-        <span class="dw-tip"><b>${time}–${next}</b><span>At risk <strong>${n(Math.round(x * 10) / 10)} MWh</strong></span><span>Chance <strong>${chance}%</strong></span>${i === sel ? '<small>The battery and EV cards plan this half-hour</small>' : ''}</span></span>`;
+      const [time, chance, state, next] = rows[i] || ['', '', 'none', ''];
+      if (state === 'none') return `<span class="dw-col is-missing"><span class="dw-tip"><b>${time}–${next}</b><small>No forecast in the dataset for this half-hour</small></span></span>`;
+      const curtail = Math.min(c[i] || 0, x), constraint = Math.max(0, x - curtail);
+      return `<span class="dw-col${i === sel ? ' is-plan' : ''}"><i class="dw-bar is-constraint" style="height:${h(constraint)}"></i><i class="dw-bar is-curtail" style="height:${h(curtail)}"></i>${i === sel ? '<em class="dw-plan">Plan</em>' : ''}
+        <span class="dw-tip"><b>${time}–${next}</b><span><i class="is-curtail"></i>Curtailment <strong>${mwh(curtail)} MWh</strong></span><span><i class="is-constraint"></i>Grid constraint <strong>${mwh(constraint)} MWh</strong></span><span>Chance of any <strong>${chance}%</strong></span>${i === sel ? '<small>The battery and EV cards plan this half-hour</small>' : ''}</span></span>`;
     }).join('');
     const [ws, wl] = win ? win.split('|').map(Number) : [0, 0];
-    const band = win ? `<span class="dw-window" style="left:${(ws / v.length) * 100}%;width:${(wl / v.length) * 100}%"></span>` : '';
+    const band = win ? `<span class="dw-window" style="left:${(ws / v.length) * 100}%;width:${(wl / v.length) * 100}%" title="Best charging window: ${rows[ws]?.[0]}–${rows[ws + wl - 1]?.[3]}"></span>` : '';
     const limit = cap <= max ? `<span class="dw-cap" style="bottom:${(cap / max) * 100}%"><b>charger limit ${n(Math.round(cap))} MWh</b></span>` : '';
     const ticks = rows.map((r, i) => (i % 8 === 0 ? `<span style="left:${(i / v.length) * 100}%">${r[0]}</span>` : '')).join('');
-    return `<div class="dw-chart"><span class="dw-top">${n(max)} MWh</span><div class="dw-cols">${band}${cols}${limit}</div><div class="dw-axis">${ticks}</div></div>`;
+    return `<div class="dw-chart"><div class="dw-head"><span>${n(max)} MWh</span><span class="dw-key"><i class="is-curtail"></i>Curtailment<i class="is-constraint"></i>Grid constraint${win ? '<i class="is-window"></i>Best window' : ''}</span></div><div class="dw-cols">${band}${cols}${limit}</div><div class="dw-axis">${ticks}</div></div>`;
   },
 };
 
@@ -145,19 +155,17 @@ function dashboardConfidence(p) {
 }
 
 function dashboardWaste(p) {
-  const s = wasteSeries(), known = s.values.filter((v) => v !== null), w = s.window;
-  const peak = s.values.indexOf(Math.max(...known)), busy = known.filter((v) => v > 0).length;
-  const span = (i, len = 1) => `${modelTime(s.at(i))}–${modelTime(s.at(i + len))}`;
-  const day = dashDayReady() ? dashDayLabel(dashDay.data.date) : modelTime(p.targetAt, true).slice(0, 11);
-  const facts = [
-    s.values[peak] > 0 ? `Peak <b>${span(peak)}</b>: ${n(Math.round(s.values[peak]))} MWh` : 'Nothing expected at risk',
-    busy < WASTE_SLOTS ? `<b>${busy}</b> of ${WASTE_SLOTS} half-hours at risk${known.length < WASTE_SLOTS ? ` (${WASTE_SLOTS - known.length} missing)` : ''}` : '',
-    w ? `Best window <b>${span(w.start, w.len)}</b>: up to <b>${n(Math.round(w.takenMwh))} MWh</b> for chargers` : '',
-  ].filter(Boolean);
-  return `<section class="dash-card dash-confidence is-daily is-waste">${cardHead('orange', 'Waste through the day', `Model 1’s +30 min forecast of power switched off, each half-hour of ${escapeHtml(day)}`)}
-    ${chartSlot('dayWaste', `At-risk energy for each half-hour of the day; the planned half-hour is ${s.sel >= 0 ? span(s.sel) : 'not on this day'}`, 'dw-slot')}
-    <p class="dw-facts">${facts.join(' · ')}.</p>
-    <p class="day-plan-link" title="The battery and EV cards plan one half-hour with the short-term model (model 1), which includes grid constraints as well as curtailment.">${icon('charge', 15)}<span>Battery &amp; EV plan: <b>${escapeHtml(targetWindow(p))}</b> (outlined) · <b>${n(p.atRiskMwh)} MWh</b> at risk</span></p>
+  const s = wasteSeries(), day = dashDayReady() ? dashDayLabel(dashDay.data.date) : modelTime(p.targetAt, true).slice(0, 11);
+  const missing = WASTE_SLOTS - s.known.length;
+  const rec = dashDayReady() ? dashDay.data.recorded.curtailmentMwh : null, ahead = dashDayReady() ? dashDay.data.predictedMwh : null;
+  const cell = (label, value, cls, title) => `<div class="dw-stat ${cls}" title="${title}"><span>${label}</span><b>${Number.isFinite(value) ? `${n(Math.round(value))}<small>MWh</small>` : dashDay.status === 'loading' ? '…' : '—'}</b></div>`;
+  return `<section class="dash-card dash-confidence is-daily is-waste">${cardHead('orange', 'Waste through the day', `Model 1, 30 min ahead, per half-hour${missing ? ` · ${missing} missing from the dataset` : ''}`)}
+    ${chartSlot('dayWaste', `Curtailment and grid constraints forecast for each half-hour of ${day}; the planned half-hour is outlined`, 'dw-slot')}
+    <div class="dw-compare" title="The same quantity, curtailment, forecast three ways. Half-hour forecasts are made 30 minutes ahead with live grid readings, so they are usually much closer to what happens than the forecast made at midnight from the weather.">
+      <p>Curtailment over the day, forecast three ways</p>
+      ${cell('Day-ahead', ahead, 'is-ahead', 'Model 2: one forecast for the whole day, made at midnight from the weather forecast')}${cell('Half-hourly', s.curtailmentMwh, 'is-now', 'Model 1: the curtailment part of the 48 half-hour forecasts above, each made 30 minutes ahead, added up')}${cell('Recorded', rec, 'is-rec', 'What EirGrid recorded')}
+    </div>
+    <p class="day-plan-link" title="Both curtailment and grid constraints are renewable power that would be wasted, so the battery and EV plan uses their total (curtailment + grid constraint).">${icon('charge', 15)}<span>Battery &amp; EV plan: <b>${escapeHtml(targetWindow(p))}</b> (outlined) · <b>${n(Math.round(p.atRiskMwh))} MWh</b></span></p>
   </section>`;
 }
 
