@@ -93,15 +93,10 @@
 .bridge-ledger div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 2px; border-bottom: 1px solid var(--bridge-line); }
 .bridge-ledger dt { color: var(--bridge-muted); font-weight: 600; }
 .bridge-ledger dd { margin: 0; font-weight: 800; white-space: nowrap; }
-.bridge-ledger .is-sub { padding-left: 14px; border-bottom-style: dashed; }
-.bridge-ledger .is-sub dt::before { content: "↳ "; }
 .bridge-ledger .is-charger dd { color: var(--bridge-green); }
 .bridge-ledger .is-left dd { color: #e0691e; }
 .bridge-note { margin: 0; color: var(--bridge-muted); font-size: 10.5px; line-height: 1.35; }
 .bridge-note b { color: var(--bridge-ink); }
-.bridge-check { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 10.5px; font-weight: 700; }
-.bridge-check.is-ok { color: var(--bridge-green); }
-.bridge-check.is-bad { color: #c9431a; }
 .bridge-foot { margin: auto 0 0; color: var(--bridge-muted); font-size: 10px; }
 .bridge-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--bridge-muted); font-size: 12px; text-align: center; }
 .bridge-empty strong { color: var(--bridge-ink); }
