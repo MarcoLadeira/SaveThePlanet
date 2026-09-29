@@ -69,60 +69,72 @@ test('bars grow from nothing on the first frame', () => {
   for (const h of start.match(/height:([\d.]+)%/g)) assert.ok(parseFloat(h.slice(7)) <= 0.6, h);
 });
 
-test('KPI figures come straight from the backend business case', () => {
-  const run = load(), r = ready(run), k = r.discountWindows.kpis;
-  assert.equal(run('dashCharts.bzExtra.values().v'), k.aiExtraSavingsEur);
-  assert.equal(run('dashCharts.bzDrivers.values().v'), k.driversSavedEur);
-  assert.equal(run('dashCharts.bzOperator.values().v'), k.operatorProfitEur);
-  assert.equal(run('dashCharts.bzPlatform.values().v'), k.platformProfitEur);
-  assert.match(draw(run, 'bzExtra'), /€1,132<small>\/month/);
-  assert.match(draw(run, 'bzPlatform'), /€122<small>\/month/);
-  const kpis = run('bzKpiRow(bz.result)');
-  for (const text of ['Extra savings from our AI', 'vs basic smart charging', 'Drivers saved', 'Charging operator profit', 'SaveThePlanet operating profit', 'from €282.10 gross commission']) {
-    assert.ok(kpis.includes(text), text);
+test('section figures come straight from the backend business case', () => {
+  const run = load(), r = ready(run), d = r.discountWindows, bc = d.businessCase, top = bc.cases.at(-1);
+  assert.equal(run('dashCharts.bzHero.values().v'), top.company.profitYearEur, 'the hero is the company at the largest stage');
+  assert.equal(run('dashCharts.bzEnvCo2.values().v'), d.environment.kpis.co2AvoidedKg);
+  assert.match(draw(run, 'bzHero'), new RegExp(`<strong>${run(`bzBig(${top.company.profitYearEur})`).replace(/[.$]/g, '\\$&')}</strong>`));
+  const s1 = run('bzSection1(bz.result)');
+  for (const text of ['Who saves, who earns', 'SaveThePlanet operating profit', `a year at ${top.sites} hubs`, `${top.marginPct}%`, 'Profit as we add hubs',
+    'Where each € goes', 'SaveThePlanet Rewards', 'What if…', 'Why drivers come back', 'Conversion: not tracked']) {
+    assert.ok(s1.includes(text), text);
   }
+  assert.ok(s1.includes(run(`bzEur(${bc.cases[0].profitEur})`)), "today's per-hub profit is shown beside the company figure");
+  const growth = draw(run, 'bzGrowth');
+  assert.equal(growth.match(/class="bz-gr-col/g).length, bc.cases.length);
+  for (const c of bc.cases) assert.ok(growth.includes(`<b>${c.label}</b>`), c.label);
+  assert.match(growth, /bz-gr-col is-top/, 'the largest stage stands out');
+  assert.doesNotMatch(growth, /NaN|Infinity|undefined/);
 });
 
 test('a loss is never coloured as profit, and zero is neutral', () => {
-  const run = load(), r = copy();
-  Object.assign(r.discountWindows.kpis, { platformProfitEur: -120, operatorProfitEur: 0 });
+  const run = load(), r = copy(), bc = r.discountWindows.businessCase;
+  bc.cases[0].company.profitYearEur = -1440;
+  bc.steps[1].deltaEur = -25.4;
   ready(run, r);
-  assert.match(draw(run, 'bzPlatform'), /−€120/);
-  const kpis = run('bzKpiRow(bz.result)');
-  assert.match(kpis, /bz-kpi is-loss"[\s\S]*SaveThePlanet operating profit/);
-  assert.match(kpis, /bz-kpi is-zero"[\s\S]*Charging operator profit/);
+  assert.match(draw(run, 'bzGrowth'), /bz-gr-col is-loss"[\s\S]*−€1,440/);
+  assert.match(run('bzSection1(bz.result)'), /is-loss">−€25</);
   assert.equal(run('bzTone(41.2)'), 'profit');
   assert.equal(run('bzTone(-0.01)'), 'loss');
   assert.equal(run('bzTone(0.001)'), 'zero');
 });
 
-test('where the € goes: one 50/25/25 bar and two profit bridges, all from the ledger', () => {
+test('where each € goes: one 50/25/25 donut and two profit bridges, all from the ledger', () => {
   const run = load(), r = ready(run), m = r.discountWindows.month;
   const v = JSON.parse(run('JSON.stringify(dashCharts.bzSplit.values())'));
-  assert.deepEqual(v.amounts, [568.23, 282.1, 282.1]);
+  assert.deepEqual(v.amounts, [m.driversEur, m.operator.retainedEur, m.platform.grossEur]);
   assert.equal(v.pool, m.poolEur);
-  assert.ok(Math.abs(v.w.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'the parts fill the bar');
-  const bar = draw(run, 'bzSplit');
-  assert.match(bar, /<b>€1,132\.43<\/b><span>extra AI savings a month<\/span>/);
-  assert.match(bar, /<span>Drivers<\/span> €568<\/b>[\s\S]*<span>Operator<\/span> €282<\/b>[\s\S]*<span>SaveThePlanet<\/span> €282<\/b>/, 'the bar names its parts: no legend to read');
-  const card = run('bzSplitCard(bz.result)');
-  assert.match(card, /Where the € goes[\s\S]*split 50 \/ 25 \/ 25/);
+  assert.ok(Math.abs(v.w.reduce((a, b) => a + b, 0) - 1) < 1e-9, 'the parts fill the donut');
+  const donut = draw(run, 'bzSplit');
+  assert.ok(donut.includes(`<b>${run(`bzEur(${m.poolEur})`)}</b><span>extra savings<br>a month</span>`));
+  assert.equal(donut.match(/class="bz-donut-arc /g).length, 3);
+  assert.ok(donut.includes(`Drivers<em>discount · 50%</em></span><b>${run(`bzEur(${m.driversEur})`)}</b>`));
+  assert.ok(donut.includes(`Operator<em>extra margin · 25%</em></span><b>${run(`bzEur(${m.operator.retainedEur})`)}</b>`));
+  assert.ok(donut.includes(`SaveThePlanet<em>commission · 25%</em></span><b>${run(`bzEur(${m.platform.grossEur})`)}</b>`));
+  const drawer = run('bzDrawer(bz.result)');
+  assert.match(drawer, /What if…[\s\S]*split 50 \/ 25 \/ 25/);
+  const c = (x) => run(`bzCents(${x})`);
   // Our bridge: commission, costs, profit. The parts add up on screen.
-  assert.match(card, /Commission<\/span><b>€282\.10[\s\S]*Per-session costs<\/span><b>−€40\.30[\s\S]*Overhead<\/span><b>−€120\.00[\s\S]*is-profit"><span>Operating profit<\/span><b>€121\.80/);
-  assert.match(card, /25% share<\/span><b>€282\.10[\s\S]*Programme costs<\/span><b>−€100\.00[\s\S]*Extra profit<\/span><b>€182\.10/);
+  assert.ok(drawer.includes(`Commission</span><b>${c(m.platform.grossEur)}`));
+  assert.ok(drawer.includes(`Per-session costs</span><b>${c(-m.platform.variableEur)}`));
+  assert.ok(drawer.includes(`Overhead</span><b>${c(-m.platform.fixedEur)}`));
+  assert.ok(drawer.includes(`is-profit"><span>Operating profit</span><b>${c(m.platform.profitEur)}`));
+  assert.ok(drawer.includes(`is-profit"><span>Extra profit</span><b>${c(m.operator.profitEur)}`));
   assert.equal(Math.round((m.platform.grossEur - m.platform.variableEur - m.platform.fixedEur) * 100), Math.round(m.platform.profitEur * 100), 'the bridge adds up to the cent');
-  assert.match(card, /Breaks even at 200 sessions · <span class="is-profit">€1,462<\/span> a year[\s\S]*Breaks even at 143 sessions · <span class="is-profit">€2,185<\/span> a year/);
+  assert.match(drawer, new RegExp(`Breaks even at ${m.platform.breakEvenSessions} sessions[\\s\\S]*Breaks even at ${m.operator.breakEvenSessions} sessions`));
 });
 
-test('where the € goes with no eligible savings: empty bar, no commission, both losses', () => {
+test('where each € goes with no eligible savings: empty donut, no commission, both losses', () => {
   const run = load(), r = copy();
   r.discountWindows.month = r.discountWindows.scenarios.noSurplus.month;
   ready(run, r);
-  assert.match(draw(run, 'bzSplit'), /No eligible extra savings: nothing to share, no commission/);
-  const card = run('bzSplitCard(bz.result)');
-  assert.match(card, /is-loss"><span>Operating profit<\/span><b>−€120\.00/);
-  assert.match(card, /is-loss"><span>Extra profit<\/span><b>−€100\.00/);
-  assert.match(card, /Never breaks even/);
+  const donut = draw(run, 'bzSplit');
+  assert.match(donut, /No eligible savings:<br>no commission/);
+  assert.doesNotMatch(donut, /bz-donut-arc/);
+  const drawer = run('bzDrawer(bz.result)');
+  assert.match(drawer, /is-loss"><span>Operating profit<\/span><b>−€120\.00/);
+  assert.match(drawer, /is-loss"><span>Extra profit<\/span><b>−€100\.00/);
+  assert.match(drawer, /Never breaks even/);
 });
 
 test('comparison: every strategy on one metric, basic against normal and our AI against basic', () => {
@@ -237,7 +249,7 @@ test('server field errors are shown on the what-if', async () => {
   await run('bzEstimate()');
   assert.match(run('bz.calc.errors.sessions'), /between 0 and 100,000/);
   assert.match(run('bzWhatIf()'), /Fix the highlighted field to update the split/);
-  assert.match(run('bzSplitCard(bz.result)'), /bz-split-card is-stale/, 'the last good split dims until the inputs are fixed');
+  assert.match(run('bzDrawer(bz.result)'), /bz-drawer bz-split-card is-stale/, 'the last good split dims until the inputs are fixed');
   assert.match(run('bzField("sessions")'), /Check value<\/em>/, 'long server messages are shortened in the field');
 });
 
@@ -265,34 +277,41 @@ test('the what-if drives the split and both bridges, with the cap and the no-spa
   assert.match(run('bzWhatIf()'), /No spare energy: no discount and no commission, while both businesses still carry their fixed costs/);
 });
 
-test('energy proof stays apart from the money and labels what is hypothetical or conditional', () => {
-  const run = load(), r = ready(run), e = r.discountWindows.energy;
-  const html = run('bzEnergyCard(bz.result)');
-  assert.match(html, /Energy proof/);
-  assert.match(html, new RegExp(`${new Intl.NumberFormat('en-IE').format(Math.round(e.qualifyingKwh))} kWh</b><span>qualifying`));
-  for (const text of ['Stored surplus', 'Direct surplus', 'Conventional grid', 'Hypothetical battery', 'Conditional · not verified', 'never offered', '% round trip', 'offers on 6/7 evenings, 0/7 mornings']) {
+test('the planet section draws the energy ledger, labels what is modelled, and carries no money', () => {
+  const run = load(), r = ready(run), env = r.discountWindows.environment;
+  const html = run('bzSection3(bz.result)');
+  for (const text of ['What the planet gets', 'Where the energy goes', 'Hub battery (hypothetical)', 'Ledger balances', 'CO₂ avoided',
+    'modelled, not verified', 'How we count', 'Direct surplus in the windows: 0 kWh', 'Per hub · a month · modelled']) {
     assert.ok(html.includes(text), text);
   }
-  assert.doesNotMatch(html, /€/, 'no money in the energy card');
+  assert.doesNotMatch(html, /€/, 'no money in the environment section');
+  const flow = draw(run, 'bzFlow');
+  const kwh = (v) => `${new Intl.NumberFormat('en-IE').format(Math.round(v))} kWh`;
+  for (const [key, label] of [['surplusInKwh', 'Curtailed renewables'], ['gridInKwh', 'Grid energy (false alarms)'], ['rewardsOutKwh', 'Rewards EV charging'],
+    ['normalOutKwh', 'Sold at the normal price'], ['lossKwh', 'Storage losses'], ['storedKwh', 'Still in the battery']]) {
+    assert.ok(flow.includes(label), label);
+    assert.ok(flow.includes(kwh(env.flows[key])), `${label} ${kwh(env.flows[key])}`);
+  }
+  assert.match(flow, /bz-rib is-green[\s\S]*bz-rib is-grey/, 'surplus and ordinary grid energy are kept apart');
+  assert.equal(env.flows.rewardsOutKwh, r.discountWindows.month.kwh, 'the EV energy is the month of Rewards charging');
 });
 
 test('preparing, failed, empty and ready states render the right content', async () => {
   const run = load({ fetch: () => response(202, { status: 'preparing', progress: { done: 3, total: 10, stage: 'Replaying historical forecasts' } }) });
   run('bz.status = "loading"');
-  assert.match(run('renderBusiness()'), /Loading<\/span>[\s\S]*bz-layout is-loading is-earn is-waiting/, 'placeholders wait a moment before showing');
+  assert.match(run('renderBusiness()'), /Loading<\/span>[\s\S]*bz-story is-loading is-waiting/, 'placeholders wait a moment before showing');
   await run('bzLoad()');
   assert.equal(run('bz.status'), 'preparing');
   let html = run('renderBusiness()');
   assert.match(html, /Preparing · 4 of 10/);
-  assert.match(html, /bz-layout is-loading is-earn" aria-busy="true"/, 'a known wait shows the placeholders at once');
-  assert.match(html, /data-bz-view="depot"/, 'the views can be switched while loading');
+  assert.match(html, /bz-story is-loading" aria-busy="true"/, 'a known wait shows the placeholders at once');
   assert.match(html, /<li class="is-active" data-state="active">[\s\S]*Replay a week of GridToEv forecasts<\/b><small>day 4 of 8</);
   assert.equal(html.match(/data-state="pending"/g).length, 2);
   assert.match(html, /aria-valuenow="35"/);
   assert.match(html, /bz-progress-meta" aria-hidden="true">35%</);
   run('bz.view = "depot"');
   assert.match(run('renderBusiness()'), /bz-layout is-loading is-depot"[\s\S]*bz-card bz-money bz-progress/, 'the depot view loads in its own shape');
-  run('bz.view = "earn"');
+  run('bz.view = "story"');
   run('clearTimeout(bz.timer); bz.timer = null');
 
   run('bz.status = "failed"; bz.error = "The impact calculation failed. Try again."; bz.result = null');
@@ -306,22 +325,21 @@ test('preparing, failed, empty and ready states render the right content', async
 
   ready(run);
   html = run('renderBusiness()');
-  assert.match(html, /bz-layout is-ready is-earn is-intro/, 'the results rise in when they first appear');
+  assert.match(html, /is-ready is-story[\s\S]*bz-story is-intro/, 'the results rise in when they first appear');
   assert.doesNotMatch(html, /aria-busy/);
-  // Who earns: the business case, and nothing of the depot's yearly story.
-  for (const text of ['<h1>Impact</h1>', 'Who saves and who earns from our AI.', '>Who earns<', '>Depot savings<', 'Extra savings from our AI', 'Drivers saved',
-    'Charging operator profit', 'SaveThePlanet operating profit', 'Where the € goes', 'Energy proof', '>Replay<', '>400 sessions<', '>No spare energy<']) {
+  // Three numbered sections in order, a navigator, and the depot one click away.
+  for (const text of ['<h1>Business &amp; Environmental Impact</h1>', 'data-bz-goto="s1"', 'data-bz-goto="s3"', 'Who saves, who earns', 'Why operators partner',
+    'What the planet gets', 'Where each € goes', 'Same charges, more margin', 'From pilot to 100 hubs', 'Depot evidence']) {
     assert.ok(html.includes(text), text);
   }
-  assert.doesNotMatch(html, /Where does the money come from|Is our AI making a difference|What if…\?/);
-  assert.doesNotMatch(html, /Money earned/);
-  assert.match(html, /SaveThePlanet Rewards · /, 'the programme is named as in issue #56');
+  assert.ok(html.indexOf('>01<') < html.indexOf('>02<') && html.indexOf('>02<') < html.indexOf('>03<'), 'sections in order');
+  assert.doesNotMatch(html, /Where does the money come from|Is our AI making a difference|Money earned/);
   run('bz.view = "depot"');
   html = run('renderBusiness()');
-  for (const text of ['Where does the money come from?', 'Is our AI making a difference?', 'Investment case', '>Money<', '>CO₂<', '>Renewable energy<']) {
+  for (const text of ['Back to Impact', 'Where does the money come from?', 'Is our AI making a difference?', 'Investment case', '>Money<', '>CO₂<', '>Renewable energy<']) {
     assert.ok(html.includes(text), text);
   }
-  assert.doesNotMatch(html, /Where the € goes|Energy proof|bz-kpis/, 'one story per view');
+  assert.doesNotMatch(html, /Who saves, who earns|What the planet gets/, 'one story per view');
 });
 
 test('loading steps follow the build: each day replayed, the observed year, then the scoring', () => {
@@ -381,26 +399,29 @@ test('polls while preparing update the loading card in place instead of re-rende
 
 test('the entrance plays once per view, and a re-render while it plays continues it', () => {
   const run = load(); ready(run);
-  assert.match(run('renderBusiness()'), /bz-scenario is-intro"\s[\s\S]*bz-layout is-ready is-earn is-intro"\s>[\s\S]*bz-provenance is-intro"/);
-  run('document.querySelector = (selector) => (selector.includes(".bz-layout.is-ready.is-earn") ? {} : null)');
+  assert.match(run('renderBusiness()'), /bz-scenario is-intro"\s[\s\S]*bz-story is-intro"\s>/);
+  run('document.querySelector = (selector) => (selector.includes(".is-ready.is-story") ? {} : null)');
   run('bz.introAt = Date.now() - 300');
-  assert.match(run('renderBusiness()'), /bz-layout is-ready is-earn is-intro" style="--bz-t:-3\d\dms">/, 'resumed 300 ms in');
+  assert.match(run('renderBusiness()'), /bz-story is-intro" style="--bz-t:-3\d\dms">/, 'resumed 300 ms in');
   run('bz.introAt = Date.now() - 2000');
   assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'after the entrance the cards stay still');
   run('bz.view = "depot"');
   assert.match(run('renderBusiness()'), /bz-layout is-ready is-depot is-intro/, 'switching view brings the new cards in');
-  run('bz.view = "earn"; bz.introAt = Date.now() - 2000');
+  run('bz.view = "story"; bz.introAt = Date.now() - 2000');
   run('document.querySelector = () => null; var liveRender = true');
   assert.doesNotMatch(run('renderBusiness()'), /is-intro/, 'a live model update never starts it');
 });
 
 test('the what-if shows a spinner and dims while a new answer is on its way', () => {
   const run = load(); ready(run);
-  const idle = run('bzSplitCard(bz.result)');
+  const idle = run('bzDrawer(bz.result)');
   assert.match(idle, /<span class="bz-updating" aria-hidden="true"><i class="bz-out-spin motion-loop"><\/i>Updating<\/span>/);
   assert.doesNotMatch(idle, /bz-split-card is-pending/);
   run('bz.calc.pending = true');
-  assert.match(run('bzSplitCard(bz.result)'), /bz-split-card is-pending/);
+  assert.match(run('bzDrawer(bz.result)'), /bz-split-card is-pending/);
+  assert.doesNotMatch(run('renderBusiness()'), /bz-drawer/, 'the drawer only opens on request');
+  run('bz.calc.open = true');
+  assert.match(run('renderBusiness()'), /bz-scrim[\s\S]*bz-drawer/);
 });
 
 test('loading motion keeps running through live model refreshes', () => {
@@ -418,19 +439,21 @@ test('simulated data and projections are labelled everywhere they could be mista
   assert.match(html, /Simulated data · retry model/);
   assert.match(html, /Example week/);
   assert.doesNotMatch(run('bzScenario()'), /24–31 Jan/, 'no real-looking dates for fixed example weather');
-  // The KPI row's label sits right above it (issue #56: "Illustrative replay"; here, simulated data).
-  assert.match(html, /bz-views-label">[\s\S]*SaveThePlanet Rewards · illustrative example · projected revenue, simulated profit · ex VAT/);
-  assert.match(html, /Simulated example \(GridToEv unavailable\): fixed weather · hypothetical battery · illustrative prices, costs and demand · network access not verified/);
+  assert.match(html, /bz-sec-tag">Simulated example · illustrative</);
+  assert.match(html, /Illustrative scaling scenario/);
+  assert.match(html, /Per hub · a month · modelled/);
+  assert.match(html, /Simulated example \(GridToEv unavailable\): fixed weather · hypothetical hub battery · illustrative prices, costs and demand · network access not verified/);
   run('bz.view = "depot"');
-  assert.match(run('renderBusiness()'), /Simulated example · 20 simulated vans · illustrative tariff/);
-  run('bz.view = "earn"');
+  assert.match(run('renderBusiness()'), /Depot savings · simulated example · 20 simulated vans · illustrative tariff/);
+  run('bz.view = "story"');
   const real = copy();
   Object.assign(real, { dataMode: 'historical-replay', fallback: { active: false, reason: null } });
   ready(run, real);
   html = run('renderBusiness()');
   assert.match(run('bzScenario()'), /7 nights · GridToEv [\w.-]+ replay/);
   assert.match(run('bzScenario()'), /24–31 Jan 2026/);
-  assert.match(html, /SaveThePlanet Rewards · illustrative replay · projected revenue, simulated profit · ex VAT/);
+  assert.match(html, /bz-sec-tag">Projected · illustrative</);
+  assert.match(html, /SaveThePlanet Rewards · the extra savings of one hub/);
   assert.doesNotMatch(html, /Money earned/);
 });
 

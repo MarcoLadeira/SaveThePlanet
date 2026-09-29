@@ -92,10 +92,11 @@ class CapacityTests(unittest.TestCase):
     def test_site_cap_comes_from_the_energy_bridge_and_is_physical(self):
         cap = offers.site_session_cap(20.0)
         self.assertGreater(cap, 0)
-        self.assertLessEqual(cap * 20.0, offers.HUB['sitePowerKw'] * 2 + 1e-6, 'the 180 kW connection limits the window')
+        self.assertLessEqual(cap * 20.0, offers.HUB['sitePowerKw'] * 2 + 1e-6, 'the connection limits the window')
         self.assertLessEqual(cap, offers.HUB['chargers'])
         self.assertEqual(offers.site_session_cap(10.0), offers.HUB['chargers'], 'small sessions are limited by chargers')
-        self.assertEqual(offers.site_session_cap(23.0), 0, 'an 11 kW charger gives at most 22 kWh in two hours')
+        self.assertEqual(offers.site_session_cap(45.0), 0, 'a 22 kW charger gives at most 44 kWh in two hours')
+        self.assertLess(offers.site_session_cap(40.0), offers.HUB['chargers'], 'long sessions are limited by the connection')
 
     def test_calculator_caps_hypothetical_sessions(self):
         values, errors = offers.parse_calculator({'sessions': '5000', 'kwhPerSession': '20', 'savingEurPerKwh': '0.1'})
@@ -104,17 +105,17 @@ class CapacityTests(unittest.TestCase):
         self.assertTrue(out['capacity']['capped'])
         self.assertEqual(out['month']['sessions'], out['capacity']['maxPerMonth'])
         self.assertIn('at most', out['capacity']['limit'])
-        too_big = offers.calculate(**{**values, 'sessions': 100, 'kwhPerSession': 40})
+        too_big = offers.calculate(**{**values, 'sessions': 100, 'kwhPerSession': 50})
         self.assertEqual((too_big['month']['sessions'], too_big['noSpareEnergy']), (0, True))
-        self.assertIn('22 kWh', too_big['capacity']['limit'])
+        self.assertIn('44 kWh', too_big['capacity']['limit'])
 
     def test_calculator_counts_only_windows_the_replay_found_worth_offering(self):
-        values, _ = offers.parse_calculator({'sessions': '900', 'kwhPerSession': '20', 'savingEurPerKwh': '0.1'})
+        values, _ = offers.parse_calculator({'sessions': '1500', 'kwhPerSession': '20', 'savingEurPerKwh': '0.1'})
         out = offers.calculate(**values, eligible_windows=26)
-        self.assertEqual((out['capacity']['counted'], out['capacity']['maxPerMonth'], out['capacity']['siteMaxPerMonth']), (416, 416, 960))
+        self.assertEqual((out['capacity']['counted'], out['capacity']['maxPerMonth'], out['capacity']['siteMaxPerMonth']), (1040, 1040, 2400))
         self.assertIn('about 26 windows a month worth offering', out['capacity']['limit'])
         self.assertEqual(out['capacity']['limitedBy'], 'windows')
-        self.assertEqual(offers.calculate(**values)['capacity']['counted'], 900, 'without a replay only the site caps sessions')
+        self.assertEqual(offers.calculate(**values)['capacity']['counted'], 1500, 'without a replay only the site caps sessions')
         none = offers.calculate(**values, eligible_windows=0)
         self.assertEqual((none['month']['sessions'], none['noSpareEnergy']), (0, True))
         # The replay's own scenarios stay inside the cap it reports.
@@ -211,6 +212,16 @@ class ReplayTests(unittest.TestCase):
         self.assertLessEqual(energy['storedSurplusKwh'] + energy['storedConventionalKwh'], b['capacityKwh'] + 1e-6)
         self.assertAlmostEqual(energy['chargeLossKwh'], energy['gridChargedKwh'] * (1 - b['chargeEfficiency']), places=6)
 
+    def test_stored_surplus_is_not_sold_below_the_saving_it_was_stored_for(self):
+        # Dearer network charges cut the evening saving to a few cents: still positive, but a thin offer
+        # would use up energy stored for the peak, so the window is not offered.
+        windows, _, _ = offers.replay(week(3), prices={**offers.PRICES, 'networkEurPerKwh': 0.15})
+        priced = [w for w in evenings(windows) if w['aiCostEurPerKwh'] is not None]
+        self.assertTrue(priced)
+        for w in priced:
+            self.assertTrue(0 < w['baselineEurPerKwh'] - w['aiCostEurPerKwh'] < offers.MIN_SAVING_EUR_PER_KWH)
+            self.assertEqual((w['status'], w['reason']), ('none', 'too-small'))
+
     def test_no_offer_when_stored_energy_costs_too_much(self):
         with patch.dict(offers.PRICES, networkEurPerKwh=0.2):
             windows, _, _ = offers.replay(week())
@@ -256,6 +267,109 @@ class SectionTests(unittest.TestCase):
         self.assertEqual(half['kpis']['sessions'], round(base['scenarios']['evaluationWeek']['inputs']['sessions'] * 0.5))
 
 
+class ImpactStoryTests(unittest.TestCase):
+    """Issue #67: the business case, the operator's before/after, the scaling scenario and the energy flow."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d = business.simulated_result('TEST')['discountWindows']
+
+    def test_today_is_exactly_the_page_kpis_with_its_scope_and_margin(self):
+        today = self.d['businessCase']['cases'][0]
+        month, kpis = self.d['month'], self.d['kpis']
+        self.assertEqual((today['id'], today['sites']), ('today', 1))
+        self.assertEqual(today['profitEur'], kpis['platformProfitEur'])
+        self.assertEqual(today['revenueEur'], kpis['platformGrossEur'])
+        self.assertEqual(today['sessions'], kpis['sessions'])
+        self.assertEqual(today['fixedCostsEur'], offers.COSTS['platformFixedEurPerMonth'])
+        self.assertAlmostEqual(today['costsEur'], month['platform']['variableEur'] + month['platform']['fixedEur'])
+        self.assertAlmostEqual(today['revenueEur'] - today['costsEur'], today['profitEur'])
+        self.assertAlmostEqual(today['marginPct'], round(today['profitEur'] / today['revenueEur'] * 100, 1))
+        self.assertEqual(today['noSavingsProfitEur'], -today['fixedCostsEur'], 'no eligible savings is a loss of the overhead')
+        self.assertEqual(today['changes'], [])
+
+    def test_improved_cases_keep_the_split_and_itemise_every_change(self):
+        bc = self.d['businessCase']
+        self.assertEqual([c['id'] for c in bc['cases']], ['today', 'pilot', 'growth', 'scale'])
+        self.assertEqual([c['sites'] for c in bc['cases']], [1, 3, 10, 100])
+        self.assertEqual(bc['split'], {'driver': 50, 'operator': 25, 'platform': 25})
+        for case in bc['cases']:
+            pool = case['poolEur']
+            self.assertAlmostEqual(case['driversEur'] / pool, 0.5, delta=0.01, msg=case['id'])
+            self.assertAlmostEqual(case['revenueEur'] / pool, 0.25, delta=0.01, msg=case['id'])
+        pilot, scale = bc['cases'][1], bc['cases'][3]
+        self.assertEqual([c['id'] for c in pilot['changes']], ['network', 'session', 'perSession', 'sites3'])
+        self.assertEqual([c['id'] for c in scale['changes']], ['network', 'session', 'perSession', 'sites3', 'sites10', 'sites100'])
+        for change in scale['changes']:
+            self.assertTrue(change['from'] and change['to'] and change['why'])
+            self.assertNotEqual(change['from'], change['to'])
+        # Each step's profit is the previous one plus its effect, ending at each case's profit.
+        steps = bc['steps']
+        for before, after in zip(steps, steps[1:]):
+            self.assertAlmostEqual(after['profitEur'], before['profitEur'] + after['deltaEur'], places=2)
+        self.assertEqual(steps[4]['profitEur'], pilot['profitEur'])
+        self.assertEqual(steps[-1]['profitEur'], scale['profitEur'])
+        self.assertAlmostEqual(scale['multiple'], round(scale['profitEur'] / bc['cases'][0]['profitEur'], 2))
+        for case in bc['cases']:
+            self.assertEqual(case['company']['hubs'], case['sites'])
+            self.assertAlmostEqual(case['company']['profitYearEur'], case['profitEur'] * case['sites'] * 12, places=2)
+            self.assertAlmostEqual(case['company']['revenueYearEur'], case['revenueEur'] * case['sites'] * 12, places=2)
+
+    def test_improvements_do_not_take_from_drivers_or_operators(self):
+        today, *better_cases = self.d['businessCase']['cases']
+        for better in better_cases:
+            self.assertGreaterEqual(better['driversEur'], today['driversEur'])
+            self.assertGreaterEqual(better['operatorProfitEur'], today['operatorProfitEur'])
+            self.assertGreater(better['profitEur'], today['profitEur'])
+
+    def test_shared_overhead_reproduces_one_site_and_falls_with_more_sites(self):
+        self.assertEqual(offers.overhead_per_site(1), offers.COSTS['platformFixedEurPerMonth'])
+        self.assertEqual(offers.overhead_per_site(3), 60.0)
+        self.assertEqual(offers.overhead_per_site(10), 39.0)
+
+    def test_operator_before_after_differs_by_its_extra_profit(self):
+        op, month = self.d['operatorCase'], self.d['month']
+        self.assertAlmostEqual(op['after']['marginEur'] - op['before']['marginEur'], op['extraProfitEur'], places=2)
+        self.assertEqual(op['extraProfitEur'], month['operator']['profitEur'])
+        self.assertEqual(op['shareEur'], month['operator']['retainedEur'])
+        self.assertFalse(op['utilisation']['upliftMeasured'], 'no uplift is claimed without real bookings')
+        self.assertLessEqual(op['utilisation']['sessionsPerOfferedWindow'], op['utilisation']['capacityPerWindow'])
+
+    def test_scaling_multiplies_one_site_shares_overhead_and_checks_the_surplus(self):
+        rows = self.d['scale']['sites']
+        one, month = rows[0], self.d['month']
+        self.assertEqual([r['sites'] for r in rows], [1, 10, 100])
+        self.assertEqual(one['platformProfitEur'], month['platform']['profitEur'])
+        for r in rows:
+            n = r['sites']
+            self.assertAlmostEqual(r['driversEur'], month['driversEur'] * n, places=2)
+            self.assertAlmostEqual(r['platformProfitEur'], n * (month['platform']['grossEur'] - month['platform']['variableEur'])
+                                   - n * offers.overhead_per_site(n), places=2)
+            self.assertAlmostEqual(r['curtailedShare'], one['curtailedShare'] * n, delta=1e-4)
+            self.assertEqual(r['surplusLimited'], r['peakHalfHourShare'] > 1)
+        self.assertEqual(self.d['scale']['label'], 'Illustrative scaling scenario')
+
+    def test_energy_flow_balances_and_matches_the_months_charging(self):
+        env, month = self.d['environment'], self.d['month']
+        f = env['flows']
+        self.assertTrue(env['balanced'])
+        self.assertAlmostEqual(f['surplusInKwh'] + f['gridInKwh'], f['rewardsOutKwh'] + f['normalOutKwh'] + f['lossKwh'] + f['storedKwh'], delta=1)
+        self.assertAlmostEqual(f['rewardsOutKwh'], month['kwh'], delta=0.2, msg='EV energy is the month of sessions')
+        self.assertEqual(env['kpis']['evKwh'], month['kwh'])
+        self.assertAlmostEqual(env['kpis']['co2AvoidedKg'], month['kwh'] * 0.25)
+        self.assertGreater(env['kpis']['surplusUsedKwh'], env['kpis']['evKwh'], 'storage losses come out of the surplus drawn')
+        self.assertEqual(env['directSurplusKwh'], 0.0)
+        self.assertEqual(env['status'], 'modelled')
+
+    def test_no_surplus_week_has_no_business_and_no_claims(self):
+        d = offers.build(week(7, surplus=[]), NO_SEASON)
+        today = d['businessCase']['cases'][0]
+        self.assertEqual((today['sessions'], today['revenueEur']), (0, 0))
+        self.assertEqual(today['profitEur'], -offers.COSTS['platformFixedEurPerMonth'])
+        self.assertIsNone(today['multiple'])
+        self.assertEqual(d['environment']['kpis'], {'surplusUsedKwh': 0.0, 'evKwh': 0.0, 'co2AvoidedKg': 0.0})
+
+
 class MemberTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -296,8 +410,8 @@ class MemberTests(unittest.TestCase):
             offers.act(self.section, member, 'book', 'old-scenario:2026-01-25:evening', 20)
         with self.assertRaisesRegex(ValueError, 'stored'):
             offers.act(self.section, member, 'book', self.none['id'], 20)
-        with self.assertRaisesRegex(ValueError, '22 kWh'):
-            offers.act(self.section, member, 'book', self.offer['id'], 30)
+        with self.assertRaisesRegex(ValueError, '44 kWh'):
+            offers.act(self.section, member, 'book', self.offer['id'], 50)
         with self.assertRaises(ValueError):
             offers.act(self.section, 'BAD ID', 'join')
 
@@ -374,8 +488,8 @@ class RouteTests(unittest.TestCase):
         # With a finished replay, only the windows it found worth offering count.
         known = {'discountWindows': {'calculator': {'capacity': {'eligibleWindowsPerMonth': 10}}}}
         with patch('business.ready', return_value=known):
-            status, body = self.call('/api/v1/business/offers/estimate?sessions=400&kwhPerSession=20&savingEurPerKwh=0.1')
-        self.assertEqual((status, body['capacity']['counted'], body['capacity']['eligibleWindowsPerMonth']), (200, 160, 10))
+            status, body = self.call('/api/v1/business/offers/estimate?sessions=500&kwhPerSession=20&savingEurPerKwh=0.1')
+        self.assertEqual((status, body['capacity']['counted'], body['capacity']['eligibleWindowsPerMonth']), (200, 400, 10))
         status, body = self.call('/api/v1/business/offers/estimate?sessions=-1&kwhPerSession=20&savingEurPerKwh=0.1')
         self.assertEqual((status, body['error']['code']), (400, 'INVALID_REQUEST'))
         self.assertIn('sessions', body['error']['fields'])

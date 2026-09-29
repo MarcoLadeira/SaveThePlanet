@@ -1,15 +1,23 @@
 # Business and environmental impact (Impact page)
 
-The Impact page (`#business`, labelled **Impact** in the navigation after EV) answers one question for a
-charging business: *who saves and who earns when our AI finds cheaper energy?* It has two views, one
-story each, so the two scenarios' figures never sit side by side:
+The Impact page (`#business`, labelled **Impact** in the navigation after EV) is titled **Business &
+Environmental Impact** (issue #67). It is one scrolling story in three numbered sections, each with one
+main visual, so a judge or investor gets the point in seconds. A sticky navigator (01 / 02 / 03) jumps
+between them, and each section's cards and charts animate in the first time it scrolls into view.
 
-- **Who earns** (per month, the default): the SaveThePlanet Rewards business case
-  ([below](#savetheplanet-rewards-who-saves-who-earns-issue-56)). The KPI row, labelled "SaveThePlanet Rewards · illustrative replay ·
-  projected revenue, simulated profit · ex VAT", then "where the € goes" as a what-if (presets and three
-  inputs drive the 50/25/25 bar and both profit bridges) beside the energy proof.
-- **Depot savings** (per year): the depot's waterfall, the normal / basic smart / AI comparison and its
-  investment case, following the method described first.
+| Section | Question | Main visual | Also |
+|---|---|---|---|
+| **01 Who saves, who earns** | Can SaveThePlanet become a real business, and why do drivers join? | SaveThePlanet's yearly operating profit as hubs are added (hero figure + bars) | Where each € goes: one 50/25/25 donut for a hub's month; *What if…* drawer; why drivers come back |
+| **02 Why operators partner** | What improves for a charging operator, and could it scale? | The operator's margin on the same charges: basic smart charging vs AI + Rewards | Illustrative 1 / 10 / 100-hub scaling; what a pilot must verify; link to the depot evidence |
+| **03 What the planet gets** | What happens to renewable energy and emissions? | The hub battery's energy flow for a month (sources, battery, where it went) | Modelled CO₂ against a stated baseline; *How we count* |
+
+Every figure appears once: the donut carries the shares, the flow carries the kWh, and no tile repeats a
+chart. Section tags say what the figures are (*Projected · illustrative*, *Per hub · a month · modelled*,
+*Illustrative scaling scenario*, or *Simulated example* when GridToEv is unavailable).
+
+- **Depot savings** (per year, supporting evidence behind *Depot evidence →* in section 02): the depot's
+  waterfall, the normal / basic smart / AI comparison and its investment case, following the method
+  described first. *Back to Impact* returns to the story.
 
 Code: [`backend/business.py`](../backend/business.py) (simulation, money, CO2, annual projection),
 [`backend/offers.py`](../backend/offers.py) (discount windows, settlement, profit, calculator, demo bookings),
@@ -233,11 +241,67 @@ Costs already inside the pool (energy, losses, wear, network, session) are never
 | Break-even | operator **200**, SaveThePlanet **300** sessions a month |
 | No eligible spare energy | no commission; operator −EUR 100, SaveThePlanet −EUR 120 a month |
 
-The page's KPIs come from the replay, not from this example: in the simulated week the hub sells 94
-sessions (6 of 7 evenings, no mornings), which projects to 403 sessions a month, EUR 1,132 of extra savings,
-EUR 568 for drivers, EUR 182.10 operator profit and EUR 121.80 operating profit for SaveThePlanet from EUR 282.10 gross
-commission. The month is the replayed sessions per day × 30, scaled like the depot by how often
-curtailment happens over a full year when that is known.
+The page's figures come from the replay, not from this example. On the hosted GridToEv replay
+(24–31 Jan 2026) the large hub sells discounts on 4 of 7 evenings (no mornings), which projects to
+1,115 sessions a month, EUR 3,133 of extra savings, EUR 1,572 for drivers, EUR 680.50 operator profit and
+EUR 549 operating profit for SaveThePlanet from EUR 780.50 gross commission. The month is the replayed
+sessions per day × 30, scaled like the depot by how often curtailment happens over a full year when that
+is known (×2.12 here).
+
+### The business case: from one hub to a company (issue #67)
+
+The €18 (later €86) operating profit the page used to show was **one site for one month**: the old
+20 × 11 kW site sold 344 sessions a month at a EUR 0.70 commission each (EUR 240.80), minus EUR 0.10 a
+session (EUR 34.40) and EUR 120 of overhead allocated to that one site. The figure moved between runs
+because the whole month is scaled from 38 settled sessions in one replayed week (×2.12 seasonally). It
+was a unit-economics figure, not the company's profit, and the site was small. Two things change:
+
+1. **The example is a large public hub**: 40 × 22 kW chargers, a 600 kW connection, a hypothetical
+   2 MWh / 500 kW battery and 60 drivers wanting each evening window (20 each morning). Same prices,
+   same 50/25/25 split, same replay. SaveThePlanet's operating profit per hub is EUR 549 a month (70%
+   margin), because the fixed overhead is spread over 1,115 sessions instead of 344.
+2. **The company is shown at portfolio stages**, each re-running the same replayed nights with only the
+   itemised assumptions changed (`offers.business_case`):
+
+| Stage | Hubs | What changes (cumulative) | Per hub / month | Margin | Break-even | Company / year |
+|---|---:|---|---:|---:|---:|---:|
+| Today | 1 | — | EUR 549 | 70% | 200 sessions | EUR 6.6k |
+| Pilot | 3 | network charges on stored energy 0.04 → 0.02 /kWh (battery charges off-peak inside existing capacity); operator session costs 0.025 → 0.015 /kWh (app check-in, automatic settlement); SaveThePlanet cost per session 0.10 → 0.05 (batched payments); 3 hubs share the platform core | EUR 832 | 88% | 75 | EUR 30k |
+| Growth | 10 | platform core shared by 10 hubs | EUR 853 | 90% | 49 | EUR 102k |
+| Scale | 100 | platform core shared by 100 hubs | EUR 861 | 91% | 39 | **EUR 1.03M** |
+
+SaveThePlanet's overhead is modelled as a **platform core of EUR 90 a month shared by all hubs plus EUR 30
+of support per hub** (`OVERHEAD`); one hub carries all of it, which is exactly the old EUR 120. Drivers
+(EUR 1,572 → 1,906 a hub) and operators (EUR 680 → 848) gain in every stage: nothing is taken from their
+shares. Customer acquisition, salaries beyond this overhead, sales and marketing are **not modelled**,
+and the page and `businessCase.notes` say so. Each stage's per-lever effect is in `businessCase.steps`
+(the page's *What changes* list).
+
+**Offer gate fix.** Testing the levers exposed a greedy gate: once costs fell, thin morning windows
+passed the old check (a positive commission) and used up stored surplus the evening peak pays far more
+for, so profit *fell*. Stored surplus is now never sold for less than the EUR 0.05/kWh saving it was stored
+for (`MIN_SAVING_EUR_PER_KWH`, already the storing rule). Today's figures do not change.
+
+**No eligible savings** (the *No spare energy* what-if): no commission and a loss of the overhead
+(EUR 120 a month today, EUR 60 a hub in the pilot).
+
+### Operators, scale and the environment (issue #67)
+
+- **Operator** (`operatorCase`): its margin on the same month's charges, sold at the public EUR 0.49/kWh,
+  with basic smart charging (EUR 3,345) and with AI + Rewards (EUR 4,026): the difference is its 25% share
+  minus its EUR 100 programme costs (+EUR 681). Discount windows are 77% full (30.8 of 40 chargers);
+  whether discounts bring extra drivers is **not measured**.
+- **Scale** (`scale`): the same per-hub replay × 1, 10 and 100 hubs, a year, labelled *Illustrative scaling
+  scenario*. Platform overhead is shared as above. All hubs together are checked against the curtailment
+  observed in each half-hour: at 100 hubs they would draw at most 29% of it in any half-hour, so surplus
+  does not cap the scenario.
+- **Environment** (`environment`): the battery's energy ledger for the projected month (the replay week
+  scaled like the sessions, so the EV energy is exactly the month's Rewards charging): curtailed surplus
+  and ordinary grid energy bought on false alarms go in; Rewards charging, normal-price sales, storage
+  losses and what is still stored come out, and the ledger balances. Direct surplus in a window is 0 kWh
+  by design (normal charging would get it too). CO₂ avoided = Rewards kWh × 0.25 kg against the same
+  charges from the grid: **modelled, not verified** (deliverability unconfirmed, a flat average factor,
+  a hypothetical battery). One hub uses 0.16% of the curtailment Ireland recorded that week.
 
 ### The offer gate (every window, 30 minutes before it starts)
 
@@ -257,14 +321,14 @@ Only the +30 minute forecast is used; a +60 estimate of the same half-hour is ne
 
 ### Physical limits
 
-The hub has the depot's hardware: 20 × 11 kW chargers and a 180 kW connection. An 11 kW charger delivers
-at most **22 kWh** in a two-hour window, so a 40 kWh charge cannot fit. The energy bridge
-(`optimizer.run_policy` + `check_plan`) plans each window: it fits **16** sessions of 20 kWh (so at most
-960 a month across both windows). Only windows worth offering can sell a discount, so the what-if also
-counts no more than **16 × the windows a month the replay found worth offering** (about 26 in the
-simulated example; evenings only), and says which limit applied.
+The hub is a large public charging hub: 40 × 22 kW chargers and a 600 kW connection (the depot keeps its
+own 20 × 11 kW chargers). A 22 kW charger delivers at most **44 kWh** in a two-hour window. The energy
+bridge (`optimizer.run_policy` + `check_plan`) plans each window: it fits **40** sessions of 20 kWh (so
+at most 2,400 a month across both windows). Only windows worth offering can sell a discount, so the
+what-if also counts no more than **40 × the windows a month the replay found worth offering** (36 on the
+hosted replay; evenings only), and says which limit applied.
 
-The **battery is hypothetical** (not built, never shown as working storage): 700 kWh, 180 kW,
+The **battery is hypothetical** (not built, never shown as working storage): 2 MWh, 500 kW,
 92% charge and 92% discharge efficiency (85% round trip), EUR 0.04/kWh wear (an LFP pack's cost spread over its rated cycles). It fills only while the
 forecast calls surplus and the price could clear a EUR 0.05/kWh saving at the peak (night surplus does, day surplus does not); its charge carries
 from one night to the next. `optimizer.py` still models real storage as 0.
@@ -278,7 +342,8 @@ from one night to the next. `optimizer.py` still models real storage as 0.
 | Network charges on stored energy, session costs | EUR 0.04 and 0.025/kWh | illustrative |
 | Operator programme costs | EUR 100/month | illustrative |
 | SaveThePlanet costs | EUR 0.10/session, EUR 120/month | illustrative |
-| Demand | 20 drivers want each evening, 10 each morning | assumed |
+| Demand | 60 drivers want each evening, 20 each morning | assumed |
+| SaveThePlanet overhead | EUR 90/month platform core shared by all hubs + EUR 30/month support per hub | illustrative |
 | Forecasts, curtailment | GridToEv +30 min replay, observed EirGrid | historical (or simulated when the model is down) |
 | Surplus credit deliverability | curtailment is system-wide; not confirmed with the system operator | conditional |
 
@@ -376,7 +441,14 @@ member, or `409 OFFER_UNAVAILABLE` with a message for the driver.
 
 The discount-window section of `GET /api/v1/business/impact` is `discountWindows`: `kpis`, `month`, `scenarios`
 (`expected`, `evaluationWeek`, `noSurplus`, `example`), `calculator`, `offers`, `ledger` (settled sessions and
-euros, `balanced`), `energy` (sources, battery, calls, network) and the labelled assumptions.
+euros, `balanced`), `energy` (sources, battery, calls, network) and the labelled assumptions, plus (issue #67):
+
+| Field | Contents |
+|---|---|
+| `businessCase` | `cases[]` (`today`, `pilot`, `growth`, `scale`): hubs, sessions, `revenueEur`, `variableCostsEur`, `fixedCostsEur`, `profitEur`, `marginPct`, `breakEvenSessions`, `commissionPerSessionEur`, `contributionPerSessionEur`, `noSavingsProfitEur`, per-hub `multiple`, `company` (`hubs`, `profitEur`, `profitYearEur`, `revenueYearEur`) and the cumulative `changes` (`from`, `to`, `why`); `steps[]` (profit per hub after each change); `overhead`; `notes` |
+| `operatorCase` | `before` / `after` margins on the same charges, `shareEur`, `programmeCostsEur`, `extraProfitEur`, `breakEvenSessions`, `utilisation` (`upliftMeasured: false`) |
+| `scale` | `sites[]` for 1, 10 and 100 hubs: drivers, operators, SaveThePlanet profit and revenue, kWh, CO₂, `curtailedShare`, `peakHalfHourShare`, `surplusLimited`; `caps`; `verify` |
+| `environment` | `flows` (kWh a month: surplus and grid in; Rewards, normal-price, losses, stored out), `balanced`, `directSurplusKwh`, `kpis` (`surplusUsedKwh`, `evKwh`, `co2AvoidedKg`), `replay` (curtailment observed that week and the hub's share), `baseline`, `method`, `caveats` |
 
 ### `GET /api/v1/business/estimate?evs=&shiftablePct=&priceDiffEurPerKwh=&operatingDays=[&implementationEur=&annualEur=]`
 

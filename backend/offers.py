@@ -56,12 +56,12 @@ QUOTE_KWH = (10.0, 15.0, 20.0, 22.0)  # charge sizes the EV page offers, each pr
 MIN_SAVING_EUR_PER_KWH = 0.05  # the AI only stores energy that could clear at least this at the peak
 EPS = 1e-9
 
+# A large public charging hub (the depot is a separate scenario with its own 20 x 11 kW chargers).
 HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', 'region': 'IE', 'public': True,
-       'chargers': business.FLEET['chargers'], 'chargerKw': business.FLEET['chargerKw'],
-       'sitePowerKw': business.FLEET['sitePowerKw'], 'hypotheticalConstraintZone': False}
+       'chargers': 40, 'chargerKw': 22.0, 'sitePowerKw': 600.0, 'hypotheticalConstraintZone': False}
 BATTERY = {
     'name': 'Hypothetical site battery', 'provenance': 'hypothetical',
-    'capacityKwh': 700.0, 'powerKw': 180.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
+    'capacityKwh': 2000.0, 'powerKw': 500.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
     'wearEurPerKwh': 0.04,
     'note': 'Not built and not claimed as real storage: an illustrative extension to show what stored surplus would cost.',
 }
@@ -72,9 +72,13 @@ PRICES = {
     'sessionEurPerKwh': 0.025,  # the operator's extra site and session costs for a programme session
 }
 # Drivers assumed to want each window at the example hub: demand is an assumption, not a measurement.
-DEMAND = {'morning': 10, 'evening': 20}
+DEMAND = {'morning': 20, 'evening': 60}
 COSTS = {'provenance': 'illustrative', 'operatorFixedEurPerMonth': 100.0,
          'platformVariableEurPerSession': 0.10, 'platformFixedEurPerMonth': 120.0}
+# SaveThePlanet's overhead: a platform core shared by every partner site, plus support for each site.
+# One site carries all of it: EUR 90 + EUR 30 is the EUR 120 a month in COSTS.
+OVERHEAD = {'provenance': 'illustrative', 'coreEurPerMonth': 90.0, 'perSiteEurPerMonth': 30.0}
+KG_CO2_PER_KWH = business.GRID_KG_PER_KWH
 REASONS = {
     'no-stored-surplus': 'No surplus renewable energy is stored for this window.',
     'not-cheaper': 'Stored surplus is not cheaper than normal charging in this window.',
@@ -254,7 +258,7 @@ def _window_at(minute):
     return None, None
 
 
-def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, prices=PRICES, demand=DEMAND, scenario=''):
+def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, prices=PRICES, demand=DEMAND, scenario='', costs=COSTS):
     """Offers, bookings, settlement and the energy ledger over the replayed nights, in time order.
 
     Each night runs 12:00 to 12:00, so it holds that day's 17:00-19:00 window and the next morning's
@@ -266,7 +270,8 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
     site_cap = site_session_cap(kwh)
     power_cap = int(battery['powerKw'] * WINDOW_MINUTES / 60 // kwh + 1e-9)
     energy = {'gridChargedKwh': 0.0, 'surplusChargedKwh': 0.0, 'conventionalChargedKwh': 0.0, 'chargeLossKwh': 0.0,
-              'offeredKwh': 0.0, 'dischargeLossKwh': 0.0, 'conventionalReleasedKwh': 0.0, 'chargeCostEur': 0.0}
+              'offeredKwh': 0.0, 'dischargeLossKwh': 0.0, 'conventionalReleasedKwh': 0.0, 'chargeCostEur': 0.0,
+              'creditedBySlot': {}}  # surplus kWh the battery drew in each half-hour, to check scaling against curtailment
     calls = {'charged': 0, 'right': 0, 'falseAlarms': 0, 'unknown': 0}
     windows = []
     for night in nights:
@@ -276,7 +281,7 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
         for i, slot in enumerate(slots):
             w, phase = _window_at(slot['minute'])
             if phase == 'lock' and i + WINDOW_SLOTS < len(slots):
-                windows.append(_lock(night, i, w, view, store, kwh, tariff, battery, prices, demand, site_cap, power_cap, scenario))
+                windows.append(_lock(night, i, w, view, store, kwh, tariff, battery, prices, demand, site_cap, power_cap, scenario, costs))
                 continue
             if phase == 'window':
                 if slot['minute'] % 1440 == w['startMinute'] and windows and windows[-1]['_start'] == slot['start']:
@@ -291,6 +296,7 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
             credited = 0.0 if seen is None else min(draw, max(0.0, seen))
             calls['charged'] += 1
             calls['unknown' if seen is None else 'right' if credited >= draw - 1e-6 else 'falseAlarms'] += 1
+            energy['creditedBySlot'][slot['start']] = credited
             store.surplus += credited * eff_in
             store.surplus_eur += credited * (band - discount)
             store.conventional += (draw - credited) * eff_in
@@ -307,7 +313,7 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
     return windows, energy, calls
 
 
-def _lock(night, i, w, view, store, kwh, tariff, battery, prices, demand, site_cap, power_cap, scenario):
+def _lock(night, i, w, view, store, kwh, tariff, battery, prices, demand, site_cap, power_cap, scenario, costs=COSTS):
     """Decide one window 30 minutes before it starts, from what is known then."""
     slots = night['slots'][i + 1:i + 1 + WINDOW_SLOTS]
     day = slots[0]['start'][:10]
@@ -329,7 +335,10 @@ def _lock(night, i, w, view, store, kwh, tariff, battery, prices, demand, site_c
         reason = 'no-stored-surplus'
     elif saving is None or saving <= 0:
         reason = 'not-cheaper'
-    elif one['platformCents'] < cents(COSTS['platformVariableEurPerSession']) or one['operatorCents'] < 0:
+    # Stored surplus is only sold for at least the saving it was stored for: a thin window (a morning,
+    # say) would otherwise use up energy the evening peak pays far more for.
+    elif saving < MIN_SAVING_EUR_PER_KWH - EPS or one['platformCents'] < cents(costs['platformVariableEurPerSession']) \
+            or one['operatorCents'] < 0:
         reason = 'too-small'
     elif sessions <= 0:
         reason = 'site-full'
@@ -428,6 +437,237 @@ def ledger_totals(windows):
             'balanced': total['poolEur'] == total['driverEur'] + total['operatorEur'] + total['platformEur']}
 
 
+def project(windows, nights, factor, kwh=SESSION_KWH):
+    """A month of qualifying sessions from a replay: sessions per replayed day x 30, scaled by how often
+    curtailment happens over a full year when that is known, and capped by the site and by the windows
+    worth offering (a window without stored surplus has no discount to sell)."""
+    totals = ledger_totals(windows)
+    saving = round(totals['poolEur'] / totals['kwh'], 4) if totals['kwh'] else 0.0
+    per_day = totals['sessions'] / nights
+    site_cap = site_session_cap(kwh)
+    site_month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
+    offered = sum(1 for w in windows if w['status'] == 'offer')
+    week_windows = min(len(WINDOWS) * DAYS_PER_MONTH, round(offered / nights * DAYS_PER_MONTH))
+    eligible = week_windows if factor is None else min(len(WINDOWS) * DAYS_PER_MONTH, round(offered / nights * DAYS_PER_MONTH * factor))
+    month_cap = min(site_month_cap, site_cap * eligible)
+    week_sessions = min(site_month_cap, site_cap * week_windows, round(per_day * DAYS_PER_MONTH))
+    sessions = week_sessions if factor is None else min(month_cap, round(per_day * DAYS_PER_MONTH * factor))
+    return {'sessions': sessions, 'weekSessions': week_sessions, 'savingEurPerKwh': saving, 'siteCap': site_cap,
+            'siteMonthCap': site_month_cap, 'eligibleWindows': eligible, 'monthCap': month_cap, 'offeredWindows': offered,
+            'basis': 'evaluation-week' if factor is None else 'seasonal'}
+
+
+# ---------------------------------------------------------------- business case, operators, scale, environment (issue #67)
+
+def overhead_per_site(sites):
+    """SaveThePlanet's monthly overhead carried by one site when `sites` partner sites share the platform core."""
+    return round(OVERHEAD['coreEurPerMonth'] / sites + OVERHEAD['perSiteEurPerMonth'], 2)
+
+
+# The same site, month and 50/25/25 split, with named assumptions changed in order. Every case re-runs the
+# replay on the same nights, so sessions and savings come from the same forecasts and observations.
+IMPROVEMENTS = (
+    # id, case it belongs to, label, (group, key, value), why
+    ('network', 'pilot', 'Network charges on stored energy', ('prices', 'networkEurPerKwh', 0.02),
+     'The battery charges off-peak inside the site\'s existing capacity, so it adds no demand charges.'),
+    ('session', 'pilot', 'Operator session costs', ('prices', 'sessionEurPerKwh', 0.015),
+     'App check-in and automatic settlement replace manual handling.'),
+    ('perSession', 'pilot', 'SaveThePlanet cost per session', ('costs', 'platformVariableEurPerSession', 0.05),
+     'Batched payments and automated messages.'),
+    ('sites3', 'pilot', 'Partner hubs sharing the platform', ('sites', None, 3),
+     'A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support.'),
+    ('sites10', 'growth', 'Partner hubs sharing the platform', ('sites', None, 10),
+     'Ten hubs share the platform core; support stays EUR 30 per hub.'),
+    ('sites100', 'scale', 'Partner hubs sharing the platform', ('sites', None, 100),
+     'A hundred hubs share the platform core; support stays EUR 30 per hub.'),
+)
+CASES = (('today', 'Today', '1 hub, current costs'), ('pilot', 'Pilot', '3 hubs, leaner costs'),
+         ('growth', 'Growth', '10 hubs'), ('scale', 'Scale', '100 hubs'))
+
+
+def _params():
+    return {'kwh': SESSION_KWH, 'battery': dict(BATTERY), 'prices': dict(PRICES), 'costs': dict(COSTS), 'sites': 1}
+
+
+def _apply(params, change):
+    group, key, value = change
+    if group == 'sites':
+        params['sites'] = value
+    elif group == 'battery':
+        params['battery'].update(value)
+    else:
+        params[group][key] = value
+
+
+def _shown(params, change):
+    """The assumption's value as the page shows it."""
+    group, key, _ = change
+    if group == 'sites':
+        n = params['sites']
+        return f'{n} hub{"s" if n > 1 else ""} · €{overhead_per_site(n):g} overhead each'
+    if group == 'battery':
+        return f'{params["battery"]["capacityKwh"]:,.0f} kWh · {params["battery"]["powerKw"]:g} kW'
+    unit = '/session' if key == 'platformVariableEurPerSession' else '/kWh'
+    return f'€{params[group][key]:g}{unit}'
+
+
+def _run_case(nights, factor, tariff, params):
+    windows, _, _ = replay(nights, kwh=params['kwh'], tariff=tariff, battery=params['battery'], prices=params['prices'],
+                           costs=params['costs'], scenario='case')
+    proj = project(windows, len(nights), factor, params['kwh'])
+    month = monthly(proj['sessions'], params['kwh'], proj['savingEurPerKwh'], params['costs']['operatorFixedEurPerMonth'],
+                    params['costs']['platformVariableEurPerSession'], overhead_per_site(params['sites']))
+    return month, proj
+
+
+def _case(case_id, label, note, params, month, proj, changes, base_profit):
+    p = month['platform']
+    revenue, profit = p['grossEur'], p['profitEur']
+    return {
+        'id': case_id, 'label': label, 'note': note, 'sites': params['sites'], 'sessions': month['sessions'],
+        'kwhPerSession': params['kwh'], 'savingEurPerKwh': proj['savingEurPerKwh'], 'eligibleWindows': proj['eligibleWindows'],
+        'poolEur': month['poolEur'], 'driversEur': month['driversEur'], 'operatorProfitEur': month['operator']['profitEur'],
+        'revenueEur': revenue, 'variableCostsEur': p['variableEur'], 'fixedCostsEur': p['fixedEur'],
+        'costsEur': eur(cents(p['variableEur']) + cents(p['fixedEur'])), 'profitEur': profit,
+        'marginPct': round(profit / revenue * 100, 1) if revenue > 0 else None,
+        'breakEvenSessions': p['breakEvenSessions'],
+        'commissionPerSessionEur': month['perSession']['platformEur'], 'contributionPerSessionEur': p['unitContributionEur'],
+        'noSavingsProfitEur': -p['fixedEur'],
+        'multiple': round(profit / base_profit, 2) if base_profit > 0 else None,
+        # The company: every partner hub runs the same month; the shared overhead is already in each hub's costs.
+        'company': {'hubs': params['sites'], 'profitEur': eur(cents(profit) * params['sites']),
+                    'profitYearEur': eur(cents(profit) * params['sites'] * 12),
+                    'revenueYearEur': eur(cents(revenue) * params['sites'] * 12)},
+        'changes': changes,
+    }
+
+
+def business_case(nights, seasonal, tariff=business.TARIFF):
+    """SaveThePlanet's economics per hub and month, today and as the company grows: leaner costs in a three-hub
+    pilot, then 10 and 100 hubs sharing the platform core. Only the itemised assumptions change; the 50/25/25
+    split, the month and the hub stay the same. `steps` is the per-hub profit after each change, in order, so
+    each lever's effect is visible; `company` multiplies a hub's month by the number of hubs."""
+    factor = seasonal.get('factor') if seasonal.get('available') else None
+    params = _params()
+    month, proj = _run_case(nights, factor, tariff, params)
+    base = month['platform']['profitEur']
+    cases = [_case('today', CASES[0][1], CASES[0][2], params, month, proj, [], base)]
+    steps, changes = [{'id': 'today', 'label': 'Today', 'case': 'today', 'profitEur': base, 'deltaEur': 0.0}], []
+    for case_id, label, note in CASES[1:]:
+        for lever_id, lever_case, lever_label, change, why in IMPROVEMENTS:
+            if lever_case != case_id:
+                continue
+            before = _shown(params, change)
+            _apply(params, change)
+            month, proj = _run_case(nights, factor, tariff, params)
+            changes.append({'id': lever_id, 'case': case_id, 'label': lever_label, 'from': before, 'to': _shown(params, change), 'why': why})
+            steps.append({'id': lever_id, 'label': lever_label, 'case': case_id, 'profitEur': month['platform']['profitEur'],
+                          'deltaEur': round(month['platform']['profitEur'] - steps[-1]['profitEur'], 2)})
+        cases.append(_case(case_id, label, note, params, month, proj, list(changes), base))
+    return {
+        'status': 'illustrative', 'period': 'month', 'daysPerMonth': DAYS_PER_MONTH, 'split': SPLIT,
+        'overhead': OVERHEAD, 'cases': cases, 'steps': steps, 'target': {'low': 3, 'high': 5},
+        'notes': ['Same month, same hub and the same 50/25/25 split in every case: drivers and operators keep their shares.',
+                  'Sessions and savings are re-run on the same replayed nights for every case; prices and costs are illustrative.',
+                  'Operating profit is after SaveThePlanet\'s per-session costs and platform overhead (EUR 90 core shared by '
+                  'all hubs + EUR 30 support per hub). Salaries beyond that, sales and customer acquisition are not modelled.',
+                  'Company figures multiply one hub\'s replayed month by the number of hubs; each hub needs its own grid check.'],
+    }
+
+
+def operator_case(month, windows, prices=PRICES):
+    """The charging operator at the example site, basic smart charging against AI + Rewards, for the same month's
+    sessions. Its extra profit is its 25% share minus its programme costs; nothing else changes for it."""
+    settled = [w['settled'] for w in windows if w.get('settled')]
+    kwh = sum(s['kwh'] for s in settled)
+    basic = sum(s['baselineEurPerKwh'] * s['kwh'] for s in settled) / kwh if kwh else None
+    offered = [w for w in windows if w['status'] == 'offer']
+    per_window = sum(w['sessions'] for w in offered) / len(offered) if offered else 0.0
+    cap = site_session_cap(SESSION_KWH)
+    before = eur(cents((prices['publicEurPerKwh'] - basic) * month['kwh'])) if basic is not None else 0.0
+    op = month['operator']
+    return {
+        'sessions': month['sessions'], 'kwh': month['kwh'], 'publicEurPerKwh': prices['publicEurPerKwh'],
+        'basicEurPerKwh': None if basic is None else round(basic, 4),
+        'before': {'label': 'Basic smart charging', 'marginEur': before},
+        'after': {'label': 'AI + Rewards', 'marginEur': eur(cents(before) + cents(op['retainedEur']) - cents(op['fixedEur']))},
+        'shareEur': op['retainedEur'], 'programmeCostsEur': op['fixedEur'], 'extraProfitEur': op['profitEur'],
+        'breakEvenSessions': op['breakEvenSessions'],
+        'utilisation': {'sessionsPerOfferedWindow': round(per_window, 1), 'capacityPerWindow': cap,
+                        'share': round(per_window / cap, 4) if cap else None, 'upliftMeasured': False,
+                        'note': 'Sessions per discount window against what the site can deliver. Whether discounts bring extra '
+                                'drivers is not measured: without real bookings there is no uplift to report.'},
+        'model': 'The operator supplies chargers and approved prices; SaveThePlanet supplies the AI and Rewards drivers; '
+                 'both share the verified extra savings.',
+    }
+
+
+SCALE_SITES = (1, 10, 100)
+
+
+def curtailed_kwh(nights):
+    """Observed curtailment over the replayed nights (system-wide, kWh); missing observations are left out."""
+    return sum(max(0.0, v) for night in nights for v in night['observed'].values() if v is not None)
+
+
+def scale(month, energy, nights):
+    """Illustrative scaling: the same per-site month at 1, 10 and 100 comparable sites. Platform overhead is shared
+    (core once, support per site); every other figure multiplies. The surplus check compares all sites' draw in
+    each half-hour with the curtailment observed then."""
+    per_slot = energy.get('creditedBySlot', {})
+    observed = {s: v for night in nights for s, v in night['observed'].items() if v is not None}
+    surplus_week = sum(per_slot.values())
+    week_curtailed = curtailed_kwh(nights)
+    p, rows = month['platform'], []
+    for n in SCALE_SITES:
+        peak = max((n * kwh / observed[s] for s, kwh in per_slot.items() if kwh > 0 and observed.get(s)), default=0.0)
+        profit = eur(n * (cents(p['grossEur']) - cents(p['variableEur'])) - cents(overhead_per_site(n)) * n)
+        rows.append({'sites': n, 'sessions': n * month['sessions'], 'kwh': round(n * month['kwh'], 1),
+                     'driversEur': eur(cents(month['driversEur']) * n), 'operatorProfitEur': eur(cents(month['operator']['profitEur']) * n),
+                     'platformProfitEur': profit, 'platformRevenueEur': eur(cents(p['grossEur']) * n),
+                     'overheadPerSiteEur': overhead_per_site(n), 'co2Kg': round(n * month['kwh'] * KG_CO2_PER_KWH, 1),
+                     'curtailedShare': round(n * surplus_week / week_curtailed, 6) if week_curtailed else None,
+                     'peakHalfHourShare': round(peak, 4), 'surplusLimited': peak > 1})
+    return {'status': 'illustrative', 'label': 'Illustrative scaling scenario', 'sites': rows,
+            'caps': ['Each site: its own chargers, connection and battery, the same windows and demand as the example.',
+                     'All sites together: never more surplus in a half-hour than Ireland curtailed then.'],
+            'verify': ['Real bookings and no-shows', 'Grid deliverability to each site', 'A quoted battery per site']}
+
+
+def environment(month, energy, nights, battery=BATTERY):
+    """Where the site's energy came from and went, for the projected month, from the replay's energy ledger.
+
+    The replay week's flows are scaled to the month by the same factor as the sessions, so the EV energy is
+    exactly the month's qualifying kWh. Emissions are modelled: the same charges from the grid at the average
+    intensity, against curtailed surplus that would otherwise have been switched off."""
+    week_kwh = energy['offeredKwh']
+    k = month['kwh'] / week_kwh if week_kwh > 0 else 0.0
+    losses = energy['chargeLossKwh'] + energy['dischargeLossKwh']
+    left = energy['storedSurplusKwh'] + energy['storedConventionalKwh']
+    flows = {'surplusInKwh': energy['surplusChargedKwh'], 'gridInKwh': energy['conventionalChargedKwh'],
+             'rewardsOutKwh': week_kwh, 'normalOutKwh': energy['conventionalReleasedKwh'], 'lossKwh': losses, 'storedKwh': left}
+    balance = flows['surplusInKwh'] + flows['gridInKwh'] - (week_kwh + flows['normalOutKwh'] + losses + left)
+    used = week_kwh / battery['dischargeEfficiency'] / battery['chargeEfficiency']  # surplus drawn for the EV charging
+    week_curtailed = curtailed_kwh(nights)
+    return {
+        'status': 'modelled', 'period': 'month', 'scaleFromReplay': round(k, 4),
+        'flows': {key: round(v * k, 1) for key, v in flows.items()},
+        'directSurplusKwh': 0.0, 'balanced': abs(balance) < 0.5,
+        'kpis': {'surplusUsedKwh': round(used * k, 1), 'evKwh': month['kwh'], 'co2AvoidedKg': round(month['kwh'] * KG_CO2_PER_KWH, 1)},
+        'replay': {'curtailedKwh': round(week_curtailed, 1), 'surplusDrawnKwh': round(energy['surplusChargedKwh'], 1),
+                   'curtailedShare': round(energy['surplusChargedKwh'] / week_curtailed, 6) if week_curtailed else None},
+        'intensityKgPerKwh': KG_CO2_PER_KWH,
+        'baseline': 'The same charges from the grid at an average 0.25 kg CO2 per kWh (basic smart charging).',
+        'method': ['Rewards charging is served only from stored surplus: energy bought while curtailment was observed.',
+                   'Grid energy bought on a false alarm is sold at the normal price and never counted as renewable.',
+                   'Surplus during a window is not counted: normal charging would get it too (direct surplus 0 kWh).',
+                   'The replay week is scaled to the month like the sessions; storage losses are shown, not hidden.'],
+        'caveats': ['Modelled, not verified: forecast curtailment is not recovered energy.',
+                    'Network deliverability of surplus to the site is not confirmed.',
+                    'A flat average intensity, not a marginal emission factor; the battery is hypothetical.'],
+    }
+
+
 def build(nights, seasonal, scenario='', tariff=business.TARIFF):
     """The Impact page's discount-window section from the replayed nights (optional: None without nights)."""
     if not nights:
@@ -437,20 +677,11 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
     totals = ledger_totals(windows)
     count = len(nights)
     kwh = SESSION_KWH
-    saving = round(totals['poolEur'] / totals['kwh'], 4) if totals['kwh'] else 0.0
-    per_day = totals['sessions'] / count
     factor = seasonal.get('factor') if seasonal.get('available') else None
-    site_cap = site_session_cap(kwh)
-    site_month_cap = site_cap * len(WINDOWS) * DAYS_PER_MONTH
-    # Windows worth offering a month: a window without stored surplus has no discount to sell. Stored
-    # surplus depends on how often curtailment happens, so the month is scaled like the depot's surplus.
-    offered_count = sum(1 for w in windows if w['status'] == 'offer')
-    week_windows = min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH))
-    eligible_windows = week_windows if factor is None else min(len(WINDOWS) * DAYS_PER_MONTH, round(offered_count / count * DAYS_PER_MONTH * factor))
-    month_cap = min(site_month_cap, site_cap * eligible_windows)
-    week_sessions = min(site_month_cap, site_cap * week_windows, round(per_day * DAYS_PER_MONTH))
-    expected_sessions = week_sessions if factor is None else min(month_cap, round(per_day * DAYS_PER_MONTH * factor))
-    basis = 'evaluation-week' if factor is None else 'seasonal'
+    proj = project(windows, count, factor, kwh)
+    saving, site_cap, site_month_cap = proj['savingEurPerKwh'], proj['siteCap'], proj['siteMonthCap']
+    eligible_windows, month_cap = proj['eligibleWindows'], proj['monthCap']
+    week_sessions, expected_sessions, basis = proj['weekSessions'], proj['sessions'], proj['basis']
     scenarios = {
         'expected': {'basis': basis, 'inputs': {'sessions': expected_sessions, 'kwhPerSession': kwh, 'savingEurPerKwh': saving}},
         'evaluationWeek': {'basis': 'evaluation-week', 'inputs': {'sessions': week_sessions, 'kwhPerSession': kwh, 'savingEurPerKwh': saving}},
@@ -505,6 +736,10 @@ def build(nights, seasonal, scenario='', tariff=business.TARIFF):
         },
         'methodology': METHODOLOGY,
         'limitations': LIMITATIONS,
+        'businessCase': business_case(nights, seasonal, tariff),
+        'operatorCase': operator_case(expected, windows),
+        'scale': scale(expected, energy, nights),
+        'environment': environment(expected, energy, nights),
     }
 
 
@@ -579,7 +814,7 @@ def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platfo
     counted = min(int(sessions), cap)
     month = monthly(counted, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur)
     if kwhPerSession > max_session_kwh():
-        limited_by, limit = 'session-kwh', f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+        limited_by, limit = 'session-kwh', f'A {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
     elif counted < sessions and cap < site_cap:
         limited_by, limit = 'windows', (f'the replay found about {windows} windows a month worth offering, '
                                         f'at most {per_window} sessions of {kwhPerSession:g} kWh each.')
@@ -662,7 +897,7 @@ def act(section, member_id, action, offer_id=None, kwh=None):
                     raise ValueError(offer.get('reasonText') or 'No discount in this window.')
                 if isinstance(kwh, bool) or not isinstance(kwh, (int, float)) or not math.isfinite(kwh) \
                         or not 1 <= kwh <= max_session_kwh():
-                    raise ValueError(f'Choose 1 to {max_session_kwh():g} kWh: the most an {HUB["chargerKw"]:g} kW charger delivers in two hours.')
+                    raise ValueError(f'Choose 1 to {max_session_kwh():g} kWh: the most a {HUB["chargerKw"]:g} kW charger delivers in two hours.')
                 # One booking per window: booking again changes the kWh, it never adds a second fee.
                 member['bookings'][key] = {'offerId': key, 'date': offer['date'], 'window': offer['window'], 'label': offer['label'],
                                            'status': 'reserved', **quote(offer, round(float(kwh), 1))}

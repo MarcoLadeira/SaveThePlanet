@@ -358,6 +358,257 @@
 .bz-message p{max-width:560px;font-size:13px;line-height:1.5;color:var(--ink-2)}
 .bz-message .studio-button{width:auto;margin:4px 0 0}
 
+/* ---------- The story (issue #67): three numbered sections on one scrolling page ----------
+   The page scrolls inside <main> (app.js keeps the desktop canvas for it and keeps the scroll position
+   across re-renders). A section's cards rise in, and its charts animate, the first time it scrolls into
+   view (business.js adds .is-seen, and .is-revealing while the entrance plays). */
+.main.dashboard-main[data-current-page="business"]{overflow-x:hidden;overflow-y:auto;scroll-padding-top:62px}
+[data-current-page="business"]>.is-story{flex:0 0 auto;min-width:0}
+.bz-story{display:flex;flex-direction:column;gap:26px;flex:0 0 auto;min-width:0;padding-bottom:12px}
+.bz-story .bz-provenance{margin-top:-8px}
+
+/* Sticky section navigator */
+.bz-nav{position:sticky;top:-10px;z-index:30;display:flex;align-self:flex-start;gap:4px;margin:-10px 0 -12px;padding:5px;border-radius:16px;
+  background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 2px 0 var(--edge),0 12px 28px rgba(18,74,68,.1)}
+.bz-nav button{display:flex;align-items:center;gap:9px;height:38px;padding:0 16px 0 6px;border:0;border-radius:12px;background:none;color:var(--ink-2);font:inherit;font-size:13px;font-weight:780;cursor:pointer;transition:background-color .25s ease,color .25s ease}
+.bz-nav button b{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--surface-2);color:var(--ink-3);font-size:11.5px;font-weight:850;transition:inherit}
+.bz-nav button:hover:not(.is-active){color:var(--ink)}
+.bz-nav button.is-active{background:var(--forest);color:#fff;box-shadow:0 6px 16px -6px rgba(10,53,43,.55)}
+.bz-nav button.is-active b{background:rgba(255,255,255,.16);color:#fff}
+
+/* Section heads */
+.bz-sec{display:flex;flex-direction:column;gap:14px;min-width:0;scroll-margin-top:62px}
+.bz-sec-head{display:flex;align-items:center;gap:16px;min-width:0;padding:4px 2px 0}
+.bz-sec-num{flex:0 0 auto;font-size:46px;line-height:.9;font-weight:850;letter-spacing:-.07em;background:linear-gradient(140deg,var(--bz-green-top),var(--bz-green) 45%,var(--forest));-webkit-background-clip:text;background-clip:text;color:transparent}
+.bz-sec-copy{min-width:0}
+.bz-sec-copy h2{font-size:23px;line-height:1.15;font-weight:820;letter-spacing:-.03em;color:var(--ink)}
+.bz-sec-copy p{margin-top:4px!important;font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.bz-sec-tag{flex:0 0 auto;margin-left:auto;padding:6px 12px;border-radius:99px;background:var(--amber-soft);color:var(--amber-ink);font-size:11.5px;font-weight:780;white-space:nowrap}
+.bz-link.is-evidence{margin-left:auto;padding:7px 12px;border-radius:99px;background:var(--surface);box-shadow:0 2px 0 var(--edge);font-size:12px}
+.bz-link.is-evidence+.bz-sec-tag{margin-left:0}
+.bz-link.is-evidence:hover{text-decoration:none;box-shadow:0 2px 0 var(--edge),0 0 0 2px var(--green-soft)}
+
+/* Cards and stat tiles */
+.bz-story .bz-card{position:relative;display:flex;flex-direction:column;gap:12px;min-width:0;padding:18px 20px;border-radius:24px;background:var(--surface);box-shadow:0 4px 0 var(--edge),0 16px 34px -22px rgba(18,74,68,.25)}
+.bz-card-head{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.bz-card-head>div{flex:1;min-width:0}
+.bz-card-head h3{margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.bz-card-head p{margin-top:2px!important;font-size:12.5px;font-weight:600;color:var(--ink-3)}
+.bz-story .bz-card{transition:transform .25s ease}
+.bz-story .bz-card:hover{transform:translateY(-2px)}
+.bz-hero-figure small,.bz-co2-figure small{margin-left:4px;font-size:12.5px;font-weight:700;letter-spacing:0;color:var(--ink-3)}
+
+/* 01 Who saves, who earns */
+.bz-s1{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.85fr);gap:14px}
+.bz-hero{grid-column:1;grid-row:1}
+.bz-growth{grid-column:2;grid-row:1}
+.bz-share{grid-column:1/-1;grid-row:2}
+
+/* The hero: the company's profit, the number an investor looks for first */
+.bz-hero{position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:318px;padding:26px 26px 22px;border-radius:26px;color:#fff;
+  background:radial-gradient(120% 85% at 0% 0%,#34d98f 0%,rgba(52,217,143,0) 58%),radial-gradient(90% 80% at 100% 100%,#0d8f5a 0%,rgba(13,143,90,0) 60%),linear-gradient(150deg,#0f6b47 0%,#0b3f2d 58%,#062519 100%);
+  box-shadow:0 22px 44px -20px rgba(8,80,50,.75),0 4px 0 #04190f}
+.bz-hero::before{content:"";position:absolute;inset:-60%;z-index:-1;background:conic-gradient(from 0deg,transparent 0 62%,rgba(137,241,190,.22) 74%,transparent 86%);animation:bz-aurora 10s linear infinite}
+.bz-hero::after{content:"";position:absolute;right:-60px;top:-60px;z-index:-1;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 70%)}
+@keyframes bz-aurora{to{transform:rotate(1turn)}}
+.bz-hero-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:780;letter-spacing:.01em;color:#c4f1da}
+.bz-hero-figure strong{display:block;margin-top:6px;font-size:68px;line-height:1;font-weight:850;letter-spacing:-.055em;color:#fff;text-shadow:0 10px 34px rgba(52,217,143,.55);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-hero-unit{font-size:15px;font-weight:720;color:#d8f7e8}
+.bz-hero-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:18px}
+.bz-hero-facts span{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 11px;border-radius:14px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-size:11px;font-weight:650;line-height:1.25;color:#c2e6d4}
+.bz-hero-facts b{font-size:18px;line-height:1.1;font-weight:850;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums}
+
+/* Profit as we add hubs */
+.bz-growth-chart{flex:1;display:flex;min-height:218px}
+.bz-gr{flex:1;display:flex;flex-direction:column;min-width:0}
+.bz-gr-plot{position:relative;flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;padding-top:36px;border-bottom:1.5px solid var(--edge);
+  background:repeating-linear-gradient(to top,transparent 0 calc(25% - 1px),var(--bz-grid) calc(25% - 1px) 25%)}
+.bz-gr-col{position:relative;min-width:0;outline:none}
+.bz-gr-bar{position:absolute;bottom:0;left:16%;right:16%;border-radius:12px 12px 4px 4px;background:linear-gradient(180deg,var(--bz-green-top),var(--bz-green));box-shadow:0 12px 26px -12px rgba(22,155,98,.6),inset 0 1px 0 rgba(255,255,255,.5)}
+.bz-gr-col.is-top .bz-gr-bar{left:10%;right:10%;overflow:hidden;background:linear-gradient(180deg,#61f2ab,#12aa63 55%,#0b6b42);box-shadow:0 22px 44px -14px rgba(22,155,98,.8),inset 0 1px 0 rgba(255,255,255,.55)}
+.bz-gr-col.is-top .bz-gr-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(255,255,255,.4),transparent);transform:translateY(100%);animation:bz-rise-sheen 3.2s ease-in-out 1.4s infinite}
+@keyframes bz-rise-sheen{0%{transform:translateY(100%)}45%,100%{transform:translateY(-100%)}}
+.bz-gr-val{position:absolute;left:-6px;right:-6px;transform:translateY(-8px);text-align:center;font-size:16px;font-weight:850;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-gr-col.is-top .bz-gr-val{font-size:25px;color:var(--green-deep)}
+.bz-gr-col.is-loss .bz-gr-val{color:var(--bz-bad)}
+.bz-gr-col:focus-visible .bz-gr-bar{outline:3px solid var(--green);outline-offset:3px}
+.bz-gr-axis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;padding-top:10px}
+.bz-gr-x{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;text-align:center}
+.bz-gr-x b{font-size:13px;font-weight:820;color:var(--ink)}
+.bz-gr-x span{font-size:11.5px;font-weight:700;color:var(--ink-2)}
+.bz-gr-x em{max-width:100%;font-size:11px;font-style:normal;font-weight:600;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-levers,.bz-how{min-width:0}
+.bz-levers summary,.bz-how summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:780;color:var(--green-deep);list-style:none}
+.bz-levers summary::-webkit-details-marker,.bz-how summary::-webkit-details-marker{display:none}
+.bz-levers summary::before,.bz-how summary::before{content:"";width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .2s ease}
+.bz-levers[open] summary::before,.bz-how[open] summary::before{transform:rotate(45deg)}
+.bz-levers ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;margin:10px 0 0;padding:0;list-style:none}
+.bz-levers li{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:7px 10px;border-radius:12px;background:var(--surface-2);animation:bz-rise .35s ease backwards}
+.bz-levers li span{min-width:0;font-size:12px;font-weight:750;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-levers li small{grid-column:1;min-width:0;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-levers li b{grid-column:2;grid-row:1/3;align-self:center;font-size:14px;font-weight:850;font-variant-numeric:tabular-nums}
+.bz-levers li b.is-profit{color:var(--green-deep)}
+.bz-levers li b.is-loss{color:var(--bz-bad)}
+
+/* Where each € goes: the donut */
+.bz-cta{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;height:34px;padding:0 14px;border:0;border-radius:11px;background:var(--forest);color:#fff;font:inherit;font-size:12.5px;font-weight:780;cursor:pointer;box-shadow:0 8px 18px -8px rgba(10,53,43,.6);transition:transform .2s ease,box-shadow .2s ease}
+.bz-cta:hover{transform:translateY(-1px);box-shadow:0 12px 22px -8px rgba(10,53,43,.7)}
+.bz-donut-chart{display:flex;align-items:center;gap:28px;min-height:0}
+.bz-donut{position:relative;flex:0 0 184px;width:184px;height:184px}
+.bz-donut svg{display:block;width:100%;height:100%;overflow:visible}
+.bz-donut-track{fill:none;stroke:var(--surface-2);stroke-width:28}
+.bz-donut-arc{fill:none;stroke-width:28}
+.bz-donut-arc.is-driver{stroke:var(--bz-green);filter:drop-shadow(0 4px 8px rgba(22,155,98,.35))}
+.bz-donut-arc.is-operator{stroke:var(--bz-teal)}
+.bz-donut-arc.is-platform{stroke:var(--bz-blue)}
+.bz-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;margin:0!important;text-align:center}
+.bz-donut-center b{font-size:27px;font-weight:850;letter-spacing:-.035em;color:var(--ink);font-variant-numeric:tabular-nums}
+.bz-donut-center span{font-size:11.5px;font-weight:700;line-height:1.25;color:var(--ink-3)}
+.bz-donut-center.is-empty b{color:var(--ink-3)}
+.bz-donut-legend{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;min-width:0;margin:0;padding:0;list-style:none}
+.bz-donut-legend li{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:12px;row-gap:6px;align-items:center;padding:18px 18px 16px;border-radius:18px;background:var(--surface-2)}
+.bz-donut-legend i{grid-row:1/3;width:8px;height:52px;border-radius:5px}
+.bz-donut-legend li.is-driver i{background:var(--bz-green)}
+.bz-donut-legend li.is-operator i{background:var(--bz-teal)}
+.bz-donut-legend li.is-platform i{background:var(--bz-blue)}
+.bz-donut-legend span{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:1px;min-width:0;font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap}
+.bz-donut-legend em{font-size:11.5px;font-style:normal;font-weight:700;color:var(--ink-3)}
+.bz-donut-legend b{grid-column:2;grid-row:2;font-size:30px;line-height:1;font-weight:850;letter-spacing:-.035em;color:var(--ink);font-variant-numeric:tabular-nums}
+.bz-donut-legend li.is-driver b{color:var(--green-deep)}
+.bz-donut-legend li.is-operator b{color:var(--bz-teal)}
+.bz-donut-legend li.is-platform b{color:var(--bz-blue)}
+
+/* Why drivers come back */
+.bz-engage{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;margin:2px 0 0!important;padding:10px 14px;border-radius:16px;background:var(--green-soft);font-size:12.5px}
+.bz-engage b{margin-right:4px;font-weight:820;color:var(--green-deep)}
+.bz-engage span{padding:5px 11px;border-radius:99px;background:var(--surface);box-shadow:0 1px 0 var(--edge);font-weight:720;color:var(--ink-2);white-space:nowrap}
+.bz-engage span.is-muted{background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-3);cursor:help}
+
+/* 02 Why operators partner */
+.bz-s2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:14px}
+.bz-opcard{grid-column:1;grid-row:1}
+.bz-scalecard{grid-column:2;grid-row:1}
+.bz-op-chart{flex:1;display:flex;flex-direction:column;justify-content:center}
+.bz-op{display:flex;flex-direction:column;gap:18px;padding:4px 0}
+.bz-op-row{display:grid;grid-template-columns:118px minmax(0,1fr) 86px;align-items:center;gap:14px}
+.bz-op-name{font-size:13px;font-weight:780;color:var(--ink-2)}
+.bz-op-track{position:relative;height:40px;border-radius:13px;background:var(--surface-2);overflow:hidden}
+.bz-op-track i{position:absolute;top:0;bottom:0;left:0;border-radius:13px;background:linear-gradient(180deg,var(--bz-grey-top),var(--bz-grey))}
+.bz-op-row.is-after .bz-op-track i{border-radius:13px 0 0 13px;background:linear-gradient(180deg,#7fd8c9,var(--bz-teal))}
+.bz-op-track i.is-up{overflow:hidden;border-radius:0 13px 13px 0!important;background:linear-gradient(180deg,#8df0bf,var(--bz-green))!important;box-shadow:0 0 22px rgba(31,174,108,.65)}
+.bz-op-track i.is-up::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(-100%);animation:bz-sweep 2.4s ease-in-out 1.2s infinite}
+.bz-op-row b{font-size:21px;font-weight:850;letter-spacing:-.02em;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.bz-op-row.is-after b{color:var(--bz-teal)}
+.bz-op-badge{align-self:flex-end;margin:0!important;padding:7px 15px;border-radius:99px;background:var(--green-soft);color:var(--green-deep);font-size:12.5px;font-weight:750;transition:opacity .35s ease}
+.bz-op-badge b{font-size:17px;font-weight:850}
+.bz-op-note{display:flex;flex-wrap:wrap;gap:6px;margin:0!important;font-size:11.5px;font-weight:700;color:var(--ink-3)}
+.bz-op-note span{padding:4px 10px;border-radius:99px;background:var(--surface-2);white-space:nowrap}
+.bz-op-note span[title]{cursor:help}
+.bz-sc-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bz-sc-stat{display:flex;flex-direction:column;gap:5px;min-width:0;padding:15px 17px;border-radius:17px;background:var(--surface-2)}
+.bz-sc-stat span{font-size:12px;font-weight:760;color:var(--ink-3)}
+.bz-sc-stat strong{font-size:31px;line-height:1.05;font-weight:850;letter-spacing:-.045em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-sc-stat strong small{margin-left:4px;font-size:13px;font-weight:720;letter-spacing:0;color:var(--ink-3)}
+.bz-sc-stat.is-teal strong{color:var(--bz-teal)}
+.bz-sc-stat.is-green strong,.bz-sc-stat.is-leaf strong{color:var(--green-deep)}
+.bz-sc-stat.is-blue strong{color:var(--bz-blue)}
+.bz-sc-meter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-top:12px;font-size:12px;font-weight:720;color:var(--ink-3)}
+.bz-sc-meter i{display:block;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bz-sc-meter i b{display:block;height:100%;min-width:2px;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green))}
+.bz-sc-meter em{font-style:normal;font-weight:820;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.bz-scale-chart{flex:1}
+.bz-verify{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0!important;font-size:12px}
+.bz-verify b{margin-right:2px;font-weight:800;color:var(--ink-2)}
+.bz-verify span{padding:4px 10px;border-radius:99px;background:var(--amber-soft);color:var(--amber-ink);font-weight:720}
+
+/* 03 What the planet gets: the energy flow */
+.bz-s3{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);gap:14px}
+.bz-flowcard{grid-column:1;grid-row:1}
+.bz-co2{grid-column:2;grid-row:1;position:relative;isolation:isolate;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:24px;border-radius:24px;color:#fff;
+  background:radial-gradient(110% 80% at 100% 0%,#5fe3a3 0%,rgba(95,227,163,0) 60%),linear-gradient(160deg,#16915d,#0c5a3b 70%,#083c28);box-shadow:0 20px 40px -20px rgba(8,80,50,.7),0 4px 0 #062a1c}
+.bz-co2::before{content:"";position:absolute;right:-50px;bottom:-50px;z-index:-1;width:200px;height:200px;border-radius:50%;border:26px solid rgba(255,255,255,.07)}
+.bz-co2-label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:780;color:#c9f3dd}
+.bz-co2-figure strong{display:block;margin-top:4px;font-size:58px;line-height:1;font-weight:850;letter-spacing:-.05em;color:#fff;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-co2-figure small{color:#c9f3dd!important;font-size:18px!important}
+.bz-co2-unit{font-size:14px;font-weight:700;color:#d8f7e8}
+.bz-co2-scale{margin:14px 0 0!important;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-size:12.5px;font-weight:650;color:#d8f7e8}
+.bz-co2-scale b{font-size:18px;font-weight:850;color:#fff}
+.bz-co2-note{margin:8px 0 0!important;font-size:12.5px;line-height:1.4;color:#d8f7e8}
+.bz-co2-note b{color:#fff}
+.bz-co2 small{margin-top:8px;font-size:11px;color:#a9dcc2}
+.bz-chip.is-ok{height:26px;background:var(--green-soft);color:var(--green-deep);font-size:11.5px}
+.bz-flow-chart{flex:1;display:flex;align-items:center;min-height:0}
+.bz-flow{display:block;width:100%;height:auto;overflow:visible}
+.bz-rib{transition:opacity .2s ease}
+.bz-rib.is-green{fill:url(#bz-flow-green);opacity:.9}
+.bz-rib.is-grey{fill:var(--bz-grey);opacity:.38}
+.bz-rib.is-amber{fill:var(--amber);opacity:.45}
+.bz-rib.is-pale{fill:var(--bz-grey-top);opacity:.55}
+.bz-flow:hover .bz-rib{opacity:.25}
+.bz-flow:hover .bz-rib:hover{opacity:.95}
+.bz-stop-a{stop-color:var(--bz-green-top)}
+.bz-stop-b{stop-color:var(--bz-green)}
+.bz-node.is-green{fill:var(--bz-green)}
+.bz-node.is-grey{fill:var(--bz-grey)}
+.bz-node.is-amber{fill:var(--amber)}
+.bz-node.is-pale{fill:var(--bz-grey-top)}
+.bz-node.is-battery{fill:var(--forest);filter:drop-shadow(0 10px 16px rgba(15,70,45,.35))}
+.bz-flow-dots{fill:none;stroke:#fff;stroke-width:3.2;stroke-linecap:round;stroke-dasharray:.5 17;opacity:.9;animation:bz-flow 1.4s linear infinite;pointer-events:none}
+@keyframes bz-flow{to{stroke-dashoffset:-17.5}}
+.bz-flow text{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+.bz-flow-label{font-size:12.5px;font-weight:780;fill:var(--ink)}
+.bz-flow-kwh{font-size:12px;font-weight:820;fill:var(--ink-3);font-variant-numeric:tabular-nums}
+/* On the green ribbons: white with a green halo, readable in both themes. */
+.bz-flow text.is-green{fill:#fff;stroke:rgba(6,78,46,.6)}
+.bz-flow-battery{font-size:12px;font-weight:820;fill:var(--ink-2)}
+.bz-how{margin-top:-4px}
+.bz-how p{margin:10px 0 6px!important;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.bz-how ul{margin:0;padding-left:16px;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
+
+/* The what-if drawer: slides in from the right; the donut on the page follows its inputs. */
+.bz-scrim{position:fixed;inset:0;z-index:70;background:rgba(6,24,17,.14);animation:bz-fade-in .25s ease}
+.bz-drawer{position:fixed;top:98px;right:18px;bottom:18px;z-index:71;display:flex;flex-direction:column;gap:14px;width:540px;padding:20px 22px;border-radius:26px;background:var(--surface);box-shadow:-24px 0 60px rgba(6,30,20,.22),0 4px 0 var(--edge);overflow-y:auto;animation:bz-drawer-in .38s cubic-bezier(.2,.8,.2,1)}
+@keyframes bz-drawer-in{from{opacity:0;transform:translateX(48px)}}
+.bz-drawer-head{display:flex;align-items:flex-start;gap:12px}
+.bz-drawer-head>div{flex:1;min-width:0}
+.bz-drawer-head h2{font-size:20px;font-weight:820;letter-spacing:-.025em;color:var(--ink)}
+.bz-drawer-head p{margin-top:2px!important;font-size:12.5px;color:var(--ink-3)}
+.bz-close{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:11px;background:var(--surface-2);color:var(--ink-2);cursor:pointer}
+.bz-close:hover{color:var(--ink)}
+.bz-drawer .bz-seg{align-self:flex-start}
+.bz-drawer .bz-bridges{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.bz-drawer :is(.bz-whatif,.bz-bridges,.bz-bridge){flex:none;min-height:0;height:auto}
+.bz-back{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;height:36px;padding:0 14px 0 10px;border:0;border-radius:12px;background:var(--surface);box-shadow:0 2px 0 var(--edge);color:var(--ink);font:inherit;font-size:13px;font-weight:780;cursor:pointer}
+.bz-back svg{transform:rotate(90deg)}
+
+/* The entrance: a section's cards rise in the first time it scrolls into view. */
+.bz-sec:not(.is-seen) :is(.bz-sec-head,.bz-hero,.bz-card,.bz-co2){opacity:0;transform:translateY(22px)}
+.app-shell .bz-sec.is-revealing :is(.bz-sec-head,.bz-hero,.bz-card,.bz-co2){animation:bz-card-in .7s cubic-bezier(.16,.84,.38,1) var(--d,0s) backwards!important}
+.app-shell .bz-sec.is-revealing .bz-sec-num{animation:bz-num-in .8s cubic-bezier(.3,1.4,.5,1) backwards!important}
+@keyframes bz-num-in{from{opacity:0;transform:translateX(-14px) scale(.8)}}
+.bz-sec.is-revealing :is(.bz-hero,.bz-opcard,.bz-flowcard){--d:.08s}
+.bz-sec.is-revealing :is(.bz-growth,.bz-scalecard,.bz-co2){--d:.18s}
+.bz-sec.is-revealing .bz-share{--d:.28s}
+.bz-story .bz-progress{min-height:340px;border-radius:24px}
+@keyframes bz-fade-in{from{opacity:0}}
+
+/* Phones: the sections stack (desktop is the target; this keeps the page usable). */
+.app-shell.is-phone :is(.bz-s1,.bz-s2,.bz-s3){display:flex;flex-direction:column}
+.app-shell.is-phone .bz-donut-legend{grid-template-columns:minmax(0,1fr)}
+.app-shell.is-phone .bz-sec-head{flex-wrap:wrap}
+.app-shell.is-phone .bz-drawer{inset:8px;width:auto}
+.app-shell.is-phone .bz-donut-chart{flex-direction:column;align-items:stretch}
+.app-shell.is-phone .bz-hero-figure strong{font-size:48px}
+
+@media (prefers-reduced-motion:reduce){
+  .bz-hero::before,.bz-gr-col.is-top .bz-gr-bar::after,.bz-op-track i.is-up::after,.bz-flow-dots,.bz-drawer,.bz-scrim,.bz-levers li{animation:none}
+  .app-shell .bz-sec.is-revealing *{animation:none!important}
+  .bz-sec:not(.is-seen) *{opacity:1;transform:none}
+  .bz-story .bz-card,.bz-nav button,.bz-cta{transition:none}
+  .bz-story .bz-card:hover{transform:none}
+}
+
 /* ---------- Phones: a native single-column layout (app.js turns off desktop scaling for this page) ----------
    The sidebar becomes a bottom tab bar; cards stack at their natural height and the page scrolls. */
 .app-shell.is-phone .sidebar.dash-sidebar{position:fixed;inset:auto 0 0 0;z-index:60;display:flex;flex-direction:row;align-items:stretch;width:100%;height:64px;padding:0 4px;box-shadow:0 -6px 18px rgba(0,22,17,.18)}
