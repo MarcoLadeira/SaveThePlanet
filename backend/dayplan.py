@@ -31,6 +31,11 @@ PLAN_LEAD_MINUTES = 60  # the Dashboard plans from the +60 min issue time (its e
 KG_PER_KWH = GRID_INTENSITY_T_PER_MWH  # 0.25 t/MWh is 0.25 kg/kWh
 # Swanson's rule: the mean of a forecast approximated from its P10, P50 and P90 at weights 0.3/0.4/0.3.
 SWANSON = (('lowerMwh', .3), ('medianMwh', .4), ('upperMwh', .3))
+# Potential full EV charges (issue #80, reusing #49's reference): energy at risk delivered into an
+# illustrative 70 kWh battery from 0 to 100%, after the fleet's charging efficiency. 70 kWh is a round
+# figure close to the average pack of battery-electric cars sold in the EU in 2025 (IEA Global EV Outlook
+# 2026), not an Irish fleet figure. It is an energy equivalent, not a count of cars actually charged.
+REFERENCE_BATTERY_KWH = 70
 EXPECTED_FIELDS = ('capturedKwh', 'evGridKwh', 'evBatteryKwh', 'storageGridKwh', 'storedKwh', 'co2AvoidedKg', 'evRangeKm')
 r3 = optimizer.r3
 
@@ -97,6 +102,11 @@ def expected(fleet, prediction, day_share, battery, point=None):
                 capturedShare=None if at_risk <= 0 or p < .5 else round(min(1.0, totals['capturedKwh'] / at_risk), 6))
 
 
+def full_charges(at_risk_kwh, efficiency):
+    """Full 70 kWh EV charges the energy at risk could give, after charging losses (applied once)."""
+    return r3(max(0.0, at_risk_kwh) * efficiency / REFERENCE_BATTERY_KWH)
+
+
 def interval(fleet, prediction, mode='expected', battery=storage.DEFAULT, day_share=0.0):
     """The Dashboard's plan for one half-hour, trimmed to what the day charts need (kWh, grid-side)."""
     alt, ledger = plan(fleet, prediction, mode, battery)
@@ -106,6 +116,7 @@ def interval(fleet, prediction, mode='expected', battery=storage.DEFAULT, day_sh
         atRiskMwh=prediction['atRiskMwh'], atRiskKwh=at_risk_kwh, eligibleKwh=ledger['eligibleOpportunityKwh'],
         lowerMwh=prediction['lowerMwh'], medianMwh=prediction['medianMwh'], upperMwh=prediction['upperMwh'],
         carsCharged=len(alt['optimized']['opportunityAllocations'] or []),
+        potentialFullCharges=full_charges(at_risk_kwh, fleet['chargingEfficiency']),
         storageStartFraction=s['startFraction'], storageEndFraction=s['endFraction'], storageLimitedBy=s['limitedBy'],
         **planned, notCapturedKwh=r3(max(0.0, at_risk_kwh - planned['capturedKwh'])),
         capturedShare=None if at_risk_kwh <= 0 else round(planned['capturedKwh'] / at_risk_kwh, 6),
@@ -126,9 +137,16 @@ def build(replay, fleet, preset_id, mode='expected', battery=storage.DEFAULT):
         gridBattery=dict(battery),
         intervals=intervals,
         # Only the forecast energy is summed; recovery per half-hour is a what-if (see module docstring).
-        totals=dict(atRiskMwh=sum(i['atRiskMwh'] for i in intervals)),
+        # Energy at risk is additive across the day's distinct half-hours, so its full-charge equivalent is too.
+        totals=dict(atRiskMwh=sum(i['atRiskMwh'] for i in intervals),
+                    potentialFullCharges=r3(sum(i['potentialFullCharges'] for i in intervals))),
+        evEquivalent=dict(referenceBatteryKwh=REFERENCE_BATTERY_KWH, chargingEfficiency=fleet['chargingEfficiency'],
+                          basis='energy at risk (forecast), grid-side, times charging efficiency'),
         methodology=[
             'Each half-hour is a separate +30 minute historical forecast replayed from the GridToEv dataset; intervals do not overlap.',
+            (f'Potential full EV charges = energy at risk (kWh) x {fleet["chargingEfficiency"]:.0%} charging efficiency / '
+             f'{REFERENCE_BATTERY_KWH} kWh reference battery (0-100%). Energy at risk is additive across the day, so the '
+             'day total is the sum of its half-hours. An energy equivalent if all of it reached EVs, not cars actually charged.'),
             'For each half-hour: the Dashboard plan if charging were planned for that half-hour, with the same simulated fleet '
             'and grid battery (same optimizer and energy ledger as the Dashboard).',
             'The fleet and battery are the same in every half-hour, so recovered energy is a what-if per half-hour and is never added up across the day.',
