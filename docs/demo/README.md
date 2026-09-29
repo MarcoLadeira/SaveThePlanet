@@ -3,7 +3,7 @@
 | File | What it is |
 | --- | --- |
 | `SaveThePlanet-pitch.pptx` | The deck: 14 plain slides, one idea each. Speaker notes on every slide: timing, what's on screen, the words, a caption. |
-| `script.md` | The same script as one document (795 words, 0:00–7:00), with captions for muted viewing. |
+| `script.md` | The same script as one document (722 words, 0:00–6:35 with the recordings, a 25-second buffer under 7:00), with captions for muted viewing. |
 | `evidence-ledger.md` | Every number on a slide: value, status (recorded / predicted / deterministic / illustrative / hypothetical / estimate) and source. |
 | `qa.md` | Short answers to the questions judges are likely to ask. |
 | `hydrogen.md` | The hydrogen and scalability story (slides 4 and 12) for a live app demo, and what it assumes (issue #76). |
@@ -36,7 +36,7 @@ Playback › Trim Video. Keep the MP4s (H.264/AAC) next to the deck, not linked 
 
 ## Rehearse and export
 
-- Read the notes aloud against a timer; aim to finish by 6:55. Each slide's time range is in its notes.
+- Read the notes aloud against a timer; aim to finish by 6:35 (hard limit 7:00). Each slide's time range is in its notes.
 - Slideshow › Record to narrate over the slides with the clips playing, then File › Export › Create a Video
   (1080p) for the standalone MP4. Check it's under 7:00 and plays offline on a second machine.
 - One hostile run-through with `qa.md`: someone attacks the baseline, the hypothetical battery, the 50/25/25
