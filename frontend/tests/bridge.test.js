@@ -83,7 +83,7 @@ test('grid battery: level, room left and the charge bar from its starting level'
   assert.match(html, /Battery level<\/span><strong>63%<small>full<\/small><\/strong><em>6\.25 of 10 MWh<\/em>/);
   assert.match(html, /Room left<\/span><b>3\.75<small>MWh<\/small><\/b>/);
   assert.match(html, /\+2\.25 MWh stored this half-hour · 40% → 63%/);  // whole percentages for the pitch
-  assert.match(html, /class="bridge-level" style="--level:62\.5%"/);
+  assert.match(html, /class="bridge-level-box" style="--level:62\.5%"><div class="bridge-level"><\/div><b class="bridge-level-tag">63%<\/b>/);
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);

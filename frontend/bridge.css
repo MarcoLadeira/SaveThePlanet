@@ -195,12 +195,17 @@
 .bridge-layout .bridge-soc i.is-added { border-radius: 0 3px 3px 0; background: var(--bridge-ink); box-shadow: 0 0 10px color-mix(in srgb, var(--bridge-ink) 40%, transparent); }
 .bridge-layout .bridge-charge b { color: var(--bridge-ink); }
 
-/* Battery level on the picture: a green fill masked to the cabinets, rising to --level, with a bright waterline. */
-.bridge-level { position: absolute; inset: 0 0 8px; pointer-events: none; -webkit-mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat; mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat;
-  /* The front cabinets span roughly the bottom 4%-62% of the picture, so the waterline maps the level onto them. */
-  --wl: calc(4% + var(--level) * .58);
-  background: linear-gradient(to top, rgba(79, 217, 155, .34) 0, rgba(79, 217, 155, .2) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) var(--wl), transparent var(--wl));
-  mix-blend-mode: screen; transition: background .6s ease; }
+/* Battery level on the picture. The box is sized to exactly where the contained image is drawn (1159 x 518,
+   centred), so the level is measured against the cabinet cluster, not the letterboxed box around it. The
+   cluster spans about 3.5%-98% of the image height from the bottom. */
+.bridge-layout .bridge-cabinet-art { container-type: size; }
+.bridge-layout .bridge-cabinet-art img, .bridge-layout .bridge-cabinet-art.is-yard img { padding: 0; }
+.bridge-level-box { --wl: calc(3.5% + var(--level) * .945); position: absolute; left: 50%; top: 50%; width: min(100cqw, 100cqh * 1159 / 518); height: min(100cqh, 100cqw * 518 / 1159); transform: translate(-50%, -50%); pointer-events: none; }
+.bridge-level { position: absolute; inset: 0; -webkit-mask: url("./assets/dashboard-grid-battery.webp") center / 100% 100% no-repeat; mask: url("./assets/dashboard-grid-battery.webp") center / 100% 100% no-repeat;
+  background: linear-gradient(to top, rgba(79, 217, 155, .42) 0, rgba(79, 217, 155, .26) calc(var(--wl) - 1%), rgba(190, 255, 220, .95) calc(var(--wl) - 1%), rgba(190, 255, 220, .95) var(--wl), transparent var(--wl));
+  mix-blend-mode: screen; }
+.bridge-level-box::after { content: ""; position: absolute; left: 2%; right: 2%; bottom: var(--wl); border-top: 1.5px dashed color-mix(in srgb, #4fd99b 70%, transparent); }
+.bridge-level-tag { position: absolute; right: -2px; bottom: var(--wl); z-index: 1; transform: translateY(50%); padding: 3px 8px; border-radius: 99px; background: #4fd99b; color: #073324; font-size: 12px; font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
 .bridge-stat em { color: var(--bridge-muted); font-size: 12px; font-style: normal; font-weight: 700; }
 .bridge-added { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; margin: 0; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }
 .bridge-added i { width: 10px; height: 10px; border-radius: 3px; background: var(--bridge-ink); }
