@@ -50,7 +50,7 @@
   {
     "time": "2:25–3:05",
     "title": "What the site can take",
-    "screen": "Slide 7 with recording 3 (Battery page, then EV page, 35 s), same day as recording 2.",
+    "screen": "Slide 7 with recording 3 (Battery page, then EV page: \"Cars that can charge through the day\", 35 s), same day as recording 2.",
     "say": "Next, the physics. The EV page plans a simulated fleet: eighteen cars across a depot and a car park, ten chargers, and a power limit at each site. Every car has its own arrival time, deadline and charge it needs. A forecast only matters if the plan fits inside all of that. This one shows which half-hours to charge in, and it never goes over a limit.",
     "caption": "18 simulated cars, 10 chargers, a power limit at each site: the plan stays inside all of them.",
     "evidence": "E7, E8"
@@ -99,8 +99,8 @@
     "time": "6:10–6:40",
     "title": "Proof",
     "screen": "Slide 13.",
-    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and fifty-seven automated tests run on every change. The splits and profits you've just seen come straight from that code, and replaying the same day always gives the same answer.",
-    "caption": "EirGrid data, GridToEv forecast, site check, settlement ledger, app. 457 tests on every change.",
+    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and seventy-five automated tests run on every change. The splits and profits you've just seen come straight from that code, and replaying the same day always gives the same answer.",
+    "caption": "EirGrid data, GridToEv forecast, site check, settlement ledger, app. 475 tests on every change.",
     "evidence": "E17"
   },
   {

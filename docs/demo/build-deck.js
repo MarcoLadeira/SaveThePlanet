@@ -335,7 +335,7 @@ async function build() {
   // 13 · Proof ---------------------------------------------------------------------------------------------
   {
     const s = slide();
-    headline(s, 'Built on real data. Checked by 457 tests.');
+    headline(s, 'Built on real data. Checked by 475 tests.');
     const steps = ['EirGrid data', 'GridToEv forecast', 'Site check', 'Settlement ledger', 'App'];
     const sw = CW / steps.length;
     steps.forEach((t, i) => {
@@ -344,7 +344,7 @@ async function build() {
       T(s, String(i + 1), { x, y: 2.72, w: 0.5, h: 0.3, fontSize: 13, color: C.muted });
       T(s, t, { x, y: 3.05, w: sw - 0.3, h: 0.8, fontSize: 20, bold: true });
     });
-    [['457', 'automated tests (380 backend, 77 frontend) run on every change'], ['To the cent', 'the splits and profits in this talk come straight from that code'], ['Same answer', 'every time a historical day is replayed']].forEach(([big, small], i) => {
+    [['475', 'automated tests (392 backend, 83 frontend) run on every change'], ['To the cent', 'the splits and profits in this talk come straight from that code'], ['Same answer', 'every time a historical day is replayed']].forEach(([big, small], i) => {
       const y = 4.35 + i * 0.72;
       T(s, big, { x: LM, y, w: 2.6, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.green : C.ink });
       T(s, small, { x: LM + 2.8, y: y + 0.07, w: CW - 2.8, h: 0.45, fontSize: 16, color: C.ink2 });

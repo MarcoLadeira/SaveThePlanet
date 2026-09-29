@@ -71,4 +71,4 @@ lost in conversion. Its CO₂ benefit is not verified, and it is not priced: any
 50/25/25 split. (E19)
 
 **How do we know the maths is right?**
-457 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)
+475 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)
