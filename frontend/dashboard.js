@@ -96,11 +96,9 @@ function dashboardConfidence(p) {
 }
 
 function dashboardDayCompare(d, p) {
-  const legend = '<div class="confidence-legend day-legend"><span><i class="is-pred"></i>Predicted</span><span><i class="is-rec"></i>Recorded</span></div>';
-  const t = d.model.test, gain = t.zeroBaselineMaeMwh ? Math.round((1 - t.dailyMaeMwh / t.zeroBaselineMaeMwh) * 100) : null;
-  return `<section class="dash-card dash-confidence is-daily">${cardHead('orange', 'Forecast vs what happened', `Model 2’s prediction for ${escapeHtml(dashDayLabel(d.date))} next to what EirGrid recorded`, legend)}
+  const t = d.model.test, miss = t.dailyMaeMwh ? ` · typically off by ${n(Math.round(t.dailyMaeMwh))} MWh a day` : '';
+  return `<section class="dash-card dash-confidence is-daily">${cardHead('orange', 'Forecast vs what happened', `Model 2 for ${escapeHtml(dashDayLabel(d.date))} against EirGrid’s record${miss}`)}
     ${chartSlot('dayCompare', `Predicted ${n(Math.round(d.predictedMwh))} MWh, recorded ${Number.isFinite(d.recorded.curtailmentMwh) ? `${n(Math.round(d.recorded.curtailmentMwh))} MWh` : 'pending'}`, 'day-compare')}
-    ${gain !== null ? `<p class="day-note">Model 2 is typically off by <b>${n(Math.round(t.dailyMaeMwh))} MWh</b> a day, ${gain}% better than always guessing zero (${n(t.rows)} test days).</p>` : ''}
     <p class="day-plan-link" title="The battery and EV cards plan one half-hour with the short-term model (model 1), which includes grid constraints as well as curtailment.">${icon('charge', 15)}<span>Battery and EV plan: <b>${escapeHtml(targetWindow(p))}</b> this day · model 1, +${p.horizonMinutes} min · <b>${n(p.atRiskMwh)} MWh</b> at risk</span></p>
   </section>`;
 }

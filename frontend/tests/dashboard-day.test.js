@@ -52,7 +52,7 @@ test('the second card compares predicted with recorded and links the half-hour p
   run(`Object.assign(dashDay, { key: '2026-01-11', status: 'ready', data: DAY })`);
   const html = text(run('dashboardConfidence(selectedPrediction())'));
   assert.match(html, /Forecast vs what happened/);
-  assert.match(html, /typically off by 1,723 MWh a day, 25% better than always guessing zero/);
+  assert.match(html, /Model 2 for Sun 11 Jan 2026 against EirGrid’s record · typically off by 1,723 MWh a day/);
   assert.match(html, /Battery and EV plan: 14:00–14:30 this day · model 1, \+30 min · 44\.2 MWh at risk/);
   const chart = run('dashCharts.dayCompare.draw(dashCharts.dayCompare.values())');
   assert.match(chart, /8,963 MWh/);
