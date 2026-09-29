@@ -3,7 +3,7 @@
 | File | What it is |
 | --- | --- |
 | `SaveThePlanet-pitch.pptx` | The deck: 14 plain slides, one idea each. Speaker notes on every slide: timing, what's on screen, the words, a caption. |
-| `script.md` | The same script as one document (722 words, 0:00–6:35 with the recordings, a 25-second buffer under 7:00), with captions for muted viewing. |
+| `script.md` | The same script as one document (718 words, 0:00–6:35 with the recordings, a 25-second buffer under 7:00), with captions for muted viewing. |
 | `evidence-ledger.md` | Every number on a slide: value, status (recorded / predicted / deterministic / illustrative / hypothetical / estimate) and source. |
 | `qa.md` | Short answers to the questions judges are likely to ask. |
 | `hydrogen.md` | The hydrogen and scalability story (slides 4 and 12) for a live app demo, and what it assumes (issue #76). |
@@ -20,14 +20,14 @@ access, so nothing there is faked.
 **Before recording:**
 1. Run the app from `main` with the key, at 1920×1080, browser in full screen (F11), notifications off.
 2. On the Dashboard, press **New target** until the target falls in 24–31 Jan 2026, the week the Impact page
-   and the Rewards card replay. Write the date and half-hour in `evidence-ledger.md` and use it on every page.
+   and the Rewards card replay. Write the date in `evidence-ledger.md` and use it on every page.
 3. Let every page finish loading once before recording, so the clips have no spinners.
 
 | Recording | Slide | Length | Show |
 | --- | --- | --- | --- |
-| 1 | 4 | 20 s | Dashboard: the historical target, the forecast, the EV plan and the battery level. Pick a half-hour where the battery shows FULL, so the "surplus to ESB hydrogen plants" line is on screen. |
+| 1 | 4 | 20 s | Dashboard: the historical target, the forecast, the EV plan and the battery level. The battery fills with the whole day's forecast (10,000 MWh = full): pick a day forecast above 10,000 MWh so it shows FULL and the "surplus to ESB hydrogen plants" line is on screen. |
 | 2 | 6 | 35 s | Forecast page, the chosen day: the +30 min forecast beside EirGrid's recorded curtailment; hover one hit and one miss. |
-| 3 | 7 | 35 s | Battery page, then EV page for the same day, default fleet: "Cars that can charge through the day" and the best half-hour. |
+| 3 | 7 | 35 s | Battery page, then EV page for the same day, default fleet: "Cars that can charge through the day" and the best time to charge. |
 | 4 | 9 | 20 s | EV page, SaveThePlanet Rewards: Join free (demo), an evening with an offer, 20 kWh, Reserve, the split line. Then "leave demo". |
 
 **Insert each one:** click the grey area and note its size and position, then Insert › Video › This Device,

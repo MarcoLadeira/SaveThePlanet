@@ -19,31 +19,31 @@
     "time": "0:45–1:05",
     "title": "Why not just charge cars with it?",
     "screen": "Slide 3.",
-    "say": "So why not just charge cars with it? Four things have to line up: surplus in the next half-hour, a site that can take it, a price below ordinary smart charging, and a fair way to share the saving.",
-    "caption": "Four checks: surplus soon, the site can take it, cheaper than smart charging, the saving shared.",
+    "say": "So why not just charge cars with it? Four things have to line up: surplus today, a site that can take it, a price below ordinary smart charging, and a fair way to share the saving.",
+    "caption": "Four checks: surplus today, the site can take it, cheaper than smart charging, the saving shared.",
     "evidence": "E3"
   },
   {
     "time": "1:05–1:25",
     "title": "The dashboard",
     "screen": "Slide 4 with recording 1 (Dashboard, 20 s): the forecast, the EV plan and the battery level. If the battery shows FULL, point at the 'surplus to ESB hydrogen plants' line.",
-    "say": "SaveThePlanet makes those four checks every half-hour. This is our dashboard replaying a real half-hour: the forecast, which cars charge, and the grid battery filling up. Once it's full, the surplus goes towards ESB's hydrogen plants instead of being turned away.",
-    "caption": "Every half-hour: the forecast, the cars, the battery. A full battery sends its surplus towards hydrogen (simulated).",
+    "say": "SaveThePlanet makes those four checks every day. This is our dashboard replaying a real day: the day's forecast, which cars charge, and the grid battery filling up. Once it's full, the surplus goes towards ESB's hydrogen plants instead of being turned away.",
+    "caption": "Every day: the forecast, the cars, the battery. A full battery sends its surplus towards hydrogen (simulated).",
     "evidence": "E3, E4, E18"
   },
   {
     "time": "1:25–1:45",
     "title": "January through the model",
     "screen": "Slide 5. Point at 11 January, then at the evening columns.",
-    "say": "Each square is one half-hour of January, as the GridToEv model saw it thirty minutes ahead. The darker the square, the more power it expected to be turned away. There's no timetable, so it has to be predicted.",
-    "caption": "Real GridToEv predictions for 1,434 half-hours of January 2026, made 30 minutes ahead.",
+    "say": "Each row is one day of January, as the GridToEv model saw it ahead of time. The darker the square, the more power it expected to be turned away. There's no timetable, so it has to be predicted.",
+    "caption": "Real GridToEv predictions for every day of January 2026, made ahead of time.",
     "evidence": "E5"
   },
   {
     "time": "1:45–2:25",
     "title": "Forecast against reality",
     "screen": "Slide 6 with recording 2 (Forecast page, 35 s): one replay day, the forecast beside EirGrid's recorded curtailment; hover one hit and one miss.",
-    "say": "Here's one of those days in the app. The forecast, made half an hour before each slot, sits next to what EirGrid actually recorded, so you can see where it was right and where it missed. This is history being replayed, not live control of the grid, and no decision ever uses information from after its own time.",
+    "say": "Here's one of those days in the app. The forecast, made ahead of time, sits next to what EirGrid actually recorded, so you can see where it was right and where it missed. This is history being replayed, not live control of the grid, and no decision ever uses information from after its own time.",
     "caption": "The forecast next to EirGrid's recorded curtailment. A historical replay, with no hindsight.",
     "evidence": "E4, E6"
   },
@@ -51,7 +51,7 @@
     "time": "2:25–3:05",
     "title": "What the site can take",
     "screen": "Slide 7 with recording 3 (Battery page, then EV page: \"Cars that can charge through the day\", 35 s), same day as recording 2.",
-    "say": "Next, the physics. The EV page plans a simulated fleet: eighteen cars across a depot and a car park, ten chargers, and a power limit at each site. Every car has its own arrival time, deadline and charge it needs. A forecast only matters if the plan fits inside all of that. This one shows which half-hours to charge in, and it never goes over a limit.",
+    "say": "Next, the physics. The EV page plans a simulated fleet: eighteen cars across a depot and a car park, ten chargers, and a power limit at each site. Every car has its own arrival time, deadline and charge it needs. A forecast only matters if the plan fits inside all of that. This one shows when in the day to charge, and it never goes over a limit.",
     "caption": "18 simulated cars, 10 chargers, a power limit at each site: the plan stays inside all of them.",
     "evidence": "E7, E8"
   },
