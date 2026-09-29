@@ -74,7 +74,7 @@ async function loadDayPlan() {
   } catch {
     if (request === dayPlan.request) Object.assign(dayPlan, { status: 'error', data: null, key });
   } finally {
-    if (request === dayPlan.request && ['impact', 'charging'].includes(pageFromHash())) render();
+    if (request === dayPlan.request && ['impact', 'charging', 'overview'].includes(pageFromHash())) render();
   }
 }
 // The day-plan half-hour that is the selected forecast target (-1 when the target is not on the day).
