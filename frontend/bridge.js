@@ -118,38 +118,27 @@ function presetPicker() {
     .map(([id, name]) => `<option value="${id}" ${modelState.fleetPreset === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>`;
 }
 
+// The battery card shows every energy figure in MWh, like the energy-at-risk card beside it. Below 1 MWh it
+// keeps 1 kWh precision (0.054 MWh) so a small non-zero flow never reads as 0.
+const bridgeMwh = (valueKwh) => {
+  const mwh = valueKwh / 1000;
+  return `${Math.abs(mwh) >= 1 ? n(mwh) : String(Math.round(mwh * 1000) / 1000)} MWh`;
+};
+
+// Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
+const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
+
+// The simulated grid battery: its level on the picture, then the level, room left and this half-hour's charge.
 function dashboardBattery() {
   const alt = planAlternative();
-  const head = cardHead('green', 'Battery', 'Energy bridge: where every forecast kWh goes') + presetPicker();
+  const head = cardHead('green', 'Battery', 'Simulated grid battery · level and room left');
   if (!alt) return `<section class="dash-card dash-battery">${head}${planPlaceholder('Energy bridge')}</section>`;
-  const L = alt.optimized.ledger;
-  const notEligible = L.notEligibleKwh > 0
-    ? `<p class="bridge-note">${kwh(L.notEligibleKwh)} of the ${kwh(L.predictedAtRiskKwh)} at risk cannot be claimed by this fleet: ${escapeHtml(L.notEligibleReasons.map((r) => r.message).join(' '))}</p>` : '';
-  const why = L.unallocatedReasons[0]?.message, S = L.storage;
-  const storageRows = S
-    ? `<div class="is-storage"><dt>To grid battery (simulated)</dt><dd>${kwh(L.allocatedToRealStorageKwh)}</dd></div>
-      <div class="is-sub"><dt>stored</dt><dd>${kwh(S.storedKwh)}</dd></div>
-      <div class="is-sub"><dt>conversion loss (${n((1 - S.chargeEfficiency) * 100)}%)</dt><dd>${kwh(S.lossKwh)}</dd></div>`
-    : `<div><dt>To storage</dt><dd>${kwh(L.allocatedToRealStorageKwh)}</dd></div>`;
+  const L = alt.optimized.ledger, S = L.storage;
   const label = S
-    ? `Simulated grid battery: ${n(S.gridKwh)} kWh taken, ${n(S.storedKwh)} kWh stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
-    : `${n(L.allocatedToChargersGridKwh)} kWh routed to EV chargers: ${n(L.batteryDeliveredKwh)} kWh into EV batteries and ${n(L.chargingLossKwh)} kWh charging loss`;
-  const balanced = Math.abs(L.eligibleOpportunityKwh - L.allocatedToChargersGridKwh - L.allocatedToRealStorageKwh - L.unallocatedOpportunityKwh) < 1e-6;
+    ? `Simulated grid battery: ${bridgeMwh(S.storedKwh)} stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
+    : `${bridgeMwh(L.allocatedToChargersGridKwh)} routed to EV chargers`;
   return `<section class="dash-card dash-battery">${head}
-    <div class="bridge-in"><span>In · eligible forecast energy</span><strong>${kwh(L.eligibleOpportunityKwh)}</strong></div>
-    ${notEligible}
     ${chartSlot('bridgeBattery', label, 'bridge-battery')}
-    ${chartSlot('bridgeUsed', `${n((L.usedWithStorageFraction ?? L.utilizationFraction ?? 0) * 100)}% of the eligible energy is used`, 'bridge-used')}
-    <dl class="bridge-ledger">
-      <div class="is-charger"><dt>To EV chargers</dt><dd>${kwh(L.allocatedToChargersGridKwh)}</dd></div>
-      <div class="is-sub"><dt>into EV batteries</dt><dd>${kwh(L.batteryDeliveredKwh)}</dd></div>
-      <div class="is-sub"><dt>charging loss (${n((1 - L.chargingEfficiency) * 100)}%)</dt><dd>${kwh(L.chargingLossKwh)}</dd></div>
-      ${storageRows}
-      <div class="is-left"><dt>Left unallocated</dt><dd>${kwh(L.unallocatedOpportunityKwh)}</dd></div>
-    </dl>
-    ${why ? `<p class="bridge-note"><b>Why not more:</b> ${escapeHtml(why)}</p>` : ''}
-    <p class="bridge-check ${balanced ? 'is-ok' : 'is-bad'}">${balanced ? icon('check', 14) : ''} ${n(L.eligibleOpportunityKwh)} = ${n(L.allocatedToChargersGridKwh)} + ${n(L.allocatedToRealStorageKwh)} + ${n(L.unallocatedOpportunityKwh)} kWh · every kWh accounted for</p>
-    <p class="bridge-foot">Simulated fleet${S ? ' and grid battery (charging only; release not modelled)' : ''} · network eligibility unverified · grid-side kWh · a plan, not measured charging</p>
   </section>`;
 }
 
@@ -184,41 +173,43 @@ dashCharts.bridgeBattery = {
     const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
     if (!S) return base;
     return { ...base, grid: S.gridKwh, stored: S.storedKwh, start: S.startFraction, end: S.endFraction,
-             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy };
+             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy, surplus: bridgeSurplusKwh(L) };
   },
   // The battery fills from its starting charge.
-  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, surplus: 0, end: target.start }) }),
+  // The battery's level after this half-hour, drawn on the cabinets themselves (a fill masked to the picture),
+  // then the same level as a number and the room left. A battery never goes past 100%: once it is full, what
+  // is left over is shown as surplus sent to the ESB hydrogen plants instead.
   draw(v) {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
-    const limit = { 'power-limit': `held to its ${n(v.power)} kW power limit`, full: 'now full', 'took-everything': 'took all that was left' }[v.limitedBy] || 'nothing left to take';
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><span>Simulated grid battery · ${n(v.capacity / 1000)} MWh / ${n(v.power / 1000)} MW</span></div>
-    <div class="bridge-battery-copy is-grid"><span>Stored in the grid battery</span><strong>${n(v.stored)}<small>kWh</small></strong><span class="bridge-of">${n(v.grid)} kWh taken from the grid, ${escapeHtml(limit)}</span>
+    const full = end >= 1 - 1e-9, surplus = Math.max(0, v.surplus || 0);
+    const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
+    const badge = full && surplus > 0 ? `<span class="bridge-h2-badge"><b>H₂</b>+${bridgeMwh(surplus)} → ESB hydrogen</span>` : '';
+    return `<div class="bridge-cabinet-art is-yard${full ? ' is-full' : ''}" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${full ? 'FULL' : bridgePct(end)}</b>${badge}</div></div>
+    <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
+      <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
-      <em><i class="is-battery"></i>${n(v.start * 100)}% → ${n(v.end * 100)}% full · EV chargers took ${n(v.routed)} kWh first</em></div>`;
+      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p>
+      ${full ? `<p class="bridge-surplus"><b>H₂</b><span><strong>${bridgeMwh(surplus)}</strong> surplus to ESB hydrogen plants</span><small>simulated</small></p>` : ''}</div>`;
   },
 };
 
-function bridgeRoutingCopy({ routed, eligible, battery, loss }) {
-  return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"><span>Illustrative energy routing</span></div>
-    <div class="bridge-battery-copy"><span>Routed to EV chargers</span><strong>${n(routed)}<small>kWh</small></strong><span class="bridge-of">of ${n(eligible)} kWh eligible</span>
-      <em><i class="is-battery"></i>${n(battery)} kWh into EV batteries</em><em><i class="is-loss"></i>${n(loss)} kWh charging loss</em></div>`;
+// Energy the full battery cannot take: once it is full, whatever the EVs and battery left is surplus for the
+// ESB hydrogen plants (a simulated destination; the optimizer does not route to it). A reported level above
+// 100% counts too, since the battery itself can only hold its capacity.
+function bridgeSurplusKwh(L) {
+  const S = L.storage;
+  if (!S) return 0;
+  const over = Math.max(0, S.endFraction - 1) * S.capacityKwh;
+  return (S.limitedBy === 'full' || S.endFraction >= 1 ? L.unallocatedOpportunityKwh : 0) + over;
 }
 
-dashCharts.bridgeUsed = {
-  values() {
-    const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
-    return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
-  },
-  start: () => ({ used: 0, stored: 0 }),
-  // Drawn to scale: a small share stays a small sliver (with a marker so it is findable), never rounded up.
-  // EV chargers first, then the grid battery's share stacked after it.
-  draw: ({ used, stored = 0 }) => {
-    const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
-    return `<div class="bridge-used-head"><span>Share of eligible energy used${stored > 0 ? ' <i class="is-battery"></i>EVs <i class="is-storage"></i>grid battery' : ''}</span><b>${n((used + stored) * 100)}%</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<b style="left:${total}%"></b></div>`;
-  },
-};
+function bridgeRoutingCopy({ routed, eligible }) {
+  return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"></div>
+    <div class="bridge-battery-copy"><div class="bridge-stat"><span>Routed to EV chargers</span><strong>${bridgeMwh(routed).replace(' MWh', '<small>MWh</small>')}</strong></div>
+      <div class="bridge-charge"><span>Usable</span><b>${bridgeMwh(eligible)}</b></div></div>`;
+}
 
 // Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
 // move between sites), so the two simple bars show each site's share per car.
@@ -304,18 +295,31 @@ dashCharts.planBars = {
 };
 
 // Re-measure after layout so the ribbons connect cards at any desktop scale.
+// The ribbons meet the battery picture itself, not its box: object-fit: contain letterboxes the image,
+// so work out where it is drawn inside the box (content box, then object-position).
+function cabinetRect(art){
+  const img=art.querySelector('img'),box=(img||art).getBoundingClientRect();
+  if(!img||!img.naturalWidth)return box;
+  const st=getComputedStyle(img),pl=parseFloat(st.paddingLeft),pr=parseFloat(st.paddingRight),pt=parseFloat(st.paddingTop),pb=parseFloat(st.paddingBottom);
+  const w=box.width-pl-pr,h=box.height-pt-pb,scale=Math.min(w/img.naturalWidth,h/img.naturalHeight);
+  const dw=img.naturalWidth*scale,dh=img.naturalHeight*scale,[px,py]=st.objectPosition.split(' ').map((v)=>parseFloat(v)/100);
+  const left=box.left+pl+(w-dw)*(isNaN(px)?.5:px),top=box.top+pt+(h-dh)*(isNaN(py)?.5:py);
+  return {left,top,width:dw,height:dh,right:left+dw,bottom:top+dh};
+}
 function updateDashboardFlow(){
   const grid=document.querySelector('.bridge-layout'),svg=grid?.querySelector('.dashboard-flow-links');
   if(!svg)return;
   const source=grid.querySelector('.dash-hero'),art=grid.querySelector('.bridge-cabinet-art'),dest=grid.querySelector('.dash-flexible');
   if(!source||!art||!dest){svg.innerHTML='';return}
-  const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=art.getBoundingClientRect(),c=dest.getBoundingClientRect();
+  const pic=art.querySelector('img');
+  if(pic&&!pic.complete)pic.addEventListener('load',()=>requestAnimationFrame(updateDashboardFlow),{once:true});
+  const g=grid.getBoundingClientRect(),a=source.getBoundingClientRect(),b=cabinetRect(art),c=dest.getBoundingClientRect();
   if(c.left<=b.left){svg.innerHTML='';return}
   svg.setAttribute('viewBox',`0 0 ${g.width} ${g.height}`);
-  const y=b.top-g.top+b.height*.43;
+  const y=b.top-g.top+b.height*.6;
   const paths=[
-    ['green',a.right-g.left-10,a.top-g.top+a.height*.72,b.left-g.left+b.width*.32,y],
-    ['orange',b.left-g.left+b.width*.68,y,c.left-g.left+12,c.top-g.top+c.height*.65]
+    ['green',a.right-g.left-10,a.top-g.top+a.height*.72,b.left-g.left+b.width*.1,y],
+    ['orange',b.left-g.left+b.width*.9,y,c.left-g.left+12,c.top-g.top+c.height*.65]
   ];
   const L=planAlternative()?.optimized.ledger;
   svg.innerHTML=paths.map(([tone,x1,y1,x2,y2])=>{

@@ -4,7 +4,10 @@
 //  01 Who saves, who earns: SaveThePlanet's profit as hubs are added, where each € goes (50/25/25) and a
 //     what-if drawer the server answers (/api/v1/business/offers/estimate).
 //  02 Why operators partner: the operator's margin before and after, and an illustrative 1/10/100-hub scale.
-//  03 What the planet gets: the hub battery's energy flow and modelled CO2.
+//  03 What the planet gets: the hub battery's energy flow and modelled CO2; then "Beyond EVs: green
+//     hydrogen" (issue #76, backend/hydrogen.py): where the eligible spare energy could go (EVs first, then a
+//     hypothetical electrolyser, then unused), when the electrolyser could take it, and how that shifts as
+//     EV demand grows.
 // The depot's normal / basic smart / AI comparison stays one click away as supporting evidence.
 // The page draws the backend's figures and never recomputes them.
 const bz = {
@@ -17,6 +20,9 @@ const bz = {
   sites: 100, // the scaling scenario's number of hubs
   // open: the what-if drawer; view: which inputs show (main | costs)
   calc: { values: null, errors: {}, view: 'main', open: false, result: null, seq: 0, pending: false, error: '', timer: null },
+  // Beyond EVs: the stage and night shown, the electrolyser switch and kWh per kg (a change asks the server
+  // again: /api/v1/business/hydrogen), and the half-hour being read on the timeline.
+  h2: { stage: null, night: null, plant: 'on', kwhPerKg: null, block: null, pending: false, error: '', seq: 0, at: null },
 };
 try { const m = localStorage.getItem('impact-metric'); if (['money', 'co2', 'renewable'].includes(m)) bz.metric = m; } catch {}
 
@@ -119,6 +125,7 @@ async function bzLoad(refresh = false) {
     next = { status: 'failed', error: error.name === 'AbortError' ? 'The server took too long to answer.' : 'Could not reach the SaveThePlanet server.' };
   }
   bz.inFlight = false;
+  if (next.result && next.result !== bz.result) Object.assign(bz.h2, { block: null, plant: 'on', kwhPerKg: null, error: '', at: null });
   const polled = bz.status === 'preparing' && next.status === 'preparing';
   Object.assign(bz, next);
   bzTrackProgress(Date.now());
@@ -136,7 +143,8 @@ function bzTrackProgress(now) {
 }
 
 // Re-render and put keyboard focus back where it was, since render() rebuilds <main>.
-const BZ_FOCUS = ['data-bz-metric', 'data-bz-view', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset', 'data-bz-sites', 'data-bz-whatif', 'data-bz-goto'];
+const BZ_FOCUS = ['data-bz-metric', 'data-bz-view', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset', 'data-bz-sites', 'data-bz-whatif', 'data-bz-goto',
+  'data-bz-h2-stage', 'data-bz-h2-plant', 'data-bz-h2-night', 'data-bz-h2-kg', 'data-bz-h2-chart'];
 function bzRender() {
   if (pageFromHash() !== 'business') return;
   const el = document.activeElement, attr = el && BZ_FOCUS.find((a) => el.hasAttribute?.(a));
@@ -621,6 +629,273 @@ bzChart('bzFlow', {
   },
 });
 
+// ---------------------------------------------------------------- 03: beyond EVs, green hydrogen (issue #76)
+// The replayed week's eligible spare energy (the +30 forecast, capped by the pilot sites' hypothetical network
+// access): EVs first (the Rewards hub battery, then EV sites), then a hypothetical 1 MW electrolyser, then what
+// is left unused. Every figure is backend/hydrogen.py's; the page only picks the stage and the night.
+const bzH2 = () => bz.h2.block || (bz.result?.hydrogen?.status === 'illustrative' ? bz.result.hydrogen : null);
+function bzH2Stage() {
+  const b = bzH2();
+  return b ? b.stages.find((s) => s.id === bz.h2.stage) || b.stages.find((s) => s.id === b.defaultStage) || b.stages[0] : null;
+}
+function bzH2NightIndex() {
+  const b = bzH2();
+  return b ? Math.min(b.nights.length - 1, Math.max(0, bz.h2.night ?? b.defaultNight)) : 0;
+}
+// Energy in MWh with one decimal (kWh below 0.1 MWh), and a share as a whole percentage.
+function bzMwh(kwh) {
+  if (!bzHas(kwh)) return '—';
+  if (Math.abs(kwh) < 100 && kwh !== 0) return `${n(Math.round(kwh))} kWh`;
+  return Math.abs(kwh) >= 1e6 ? `${n(Math.round(kwh / 1000))} MWh` : `${bzOneDecimal.format(Math.round(kwh / 100) / 10)} MWh`;
+}
+const bzPct = (share) => (bzHas(share) ? `${Math.round(share * 100)}%` : '—');
+const bzClock = (iso) => iso.slice(11, 16);
+const bzWhen = (iso) => `${new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(iso))} ${bzClock(iso)}`;
+function bzNightLabel(night) {
+  const day = (iso, weekday = true) => new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', ...(weekday ? { weekday: 'short' } : {}), day: 'numeric', month: 'short' }).format(new Date(`${iso}T12:00:00Z`));
+  const next = new Date(Date.parse(`${night.date}T12:00:00Z`) + 864e5).toISOString().slice(0, 10);
+  return `${day(night.date)} 12:00 → ${day(next)} 12:00`;
+}
+// Where the eligible energy goes, in the order it is offered: EVs (EV sites, then the Rewards hub battery,
+// which is EV energy too, counted once where it is drawn), hydrogen, and what stays unused (never forced to zero).
+const BZ_H2_PARTS = [['ev', 'evTotalKwh', 'EV charging'], ['battery', 'batteryKwh', 'Grid battery'], ['h2', 'hydrogenKwh', 'Hydrogen'],
+  ['unused', 'unusedKwh', 'Still unused']];
+bzChart('bzH2Alloc', {
+  values() {
+    const s = bzH2Stage(), on = bzSeen('h2') ? 1 : 0;
+    if (!s) return { sites: 0, hub: 0, battery: 0, h2: 0, unused: 0, total: 0, target: 0 };
+    const t = s.totals;
+    return { sites: t.evKwh * on, hub: t.hubKwh * on, battery: t.batteryKwh * on, h2: t.hydrogenKwh * on, unused: t.unusedKwh * on, total: t.eligibleKwh, target: (s.targetEvShare ?? 0) * on };
+  },
+  start: (t) => ({ ...t, sites: 0, hub: 0, battery: 0, h2: 0, unused: 0, target: 0 }),
+  draw(v) {
+    const s = bzH2Stage(), b = bzH2();
+    if (!s) return '';
+    if (!(v.total > 0)) return '<p class="bz-h2-empty">No spare renewable energy was eligible for our sites in this replay, so there is nothing to allocate.</p>';
+    const pct = (kwh) => (Math.max(0, kwh) / v.total) * 100, ev = v.sites + v.hub, label = (w) => (w >= 8 ? `<b>${Math.round(w)}%</b>` : '');
+    const evGroup = `<i class="is-ev" style="width:${pct(ev).toFixed(3)}%"><span class="is-sites" style="flex:${Math.max(0, v.sites).toFixed(3)} 1 0"></span><span class="is-hub" style="flex:${Math.max(0, v.hub).toFixed(3)} 1 0"></span>${label(pct(ev))}</i>`;
+    const bar = `${evGroup}<i class="is-battery" style="width:${pct(v.battery).toFixed(3)}%">${label(pct(v.battery))}</i><i class="is-h2" style="width:${pct(v.h2).toFixed(3)}%">${label(pct(v.h2))}</i><i class="is-unused" style="width:${pct(v.unused).toFixed(3)}%">${label(pct(v.unused))}</i>`;
+    const target = s.targetEvShare !== null && v.target > 0
+      ? `<span class="bz-h2-target${v.target > 0.8 ? ' is-end' : ''}" style="left:${(v.target * 100).toFixed(2)}%"><em>EVs planned: ${escapeHtml(s.targetLabel || bzPct(s.targetEvShare))}</em></span>` : '';
+    const gb = s.gridBattery, notes = {
+      ev: `EV sites ${bzMwh(v.sites)} · Rewards hub battery ${bzMwh(v.hub)}`,
+      battery: gb.fullAt ? `The Dashboard's battery, ${bzPct(gb.startFraction)} to 100% full` : `The Dashboard's battery, ${bzPct(gb.startFraction)} to ${bzPct(gb.endFraction)} full`,
+      h2: !b.plant.enabled ? 'Electrolyser switched off' : gb.fullAt ? 'Surplus once the battery reads 100%' : 'Nothing: the battery never filled',
+      unused: s.unusedReasons[0] ? s.unusedReasons[0].label : 'Nothing left over',
+    };
+    const legend = BZ_H2_PARTS.map(([id, , name]) => {
+      const kwh = id === 'ev' ? ev : v[id];
+      return `<li class="is-${id}"><i></i><span>${name}<small>${escapeHtml(notes[id])}</small></span><b>${bzMwh(kwh)}</b><em>${bzPct(kwh / v.total)}</em></li>`;
+    }).join('');
+    return `<div class="bz-h2-bar">${bar}${target}</div><ul class="bz-h2-legend">${legend}</ul>`;
+  },
+});
+// The three hydrogen figures count up with the section and glide when the stage or an assumption changes.
+const bzH2Total = (key, scale = 1) => { const s = bzH2Stage(); return s ? s.totals[key] / scale : 0; };
+bzCount('bzH2In', 'h2', () => bzH2Total('hydrogenKwh', 1000), (v) => `${bzOneDecimal.format(Math.round(v * 10) / 10)}<small>MWh</small>`);
+bzCount('bzH2Kg', 'h2', () => bzH2Total('hydrogenKg'), (v) => `${n(Math.round(v))}<small>kg</small>`);
+bzCount('bzH2Unused', 'h2', () => bzH2Total('unusedKwh', 1000), (v) => `${bzOneDecimal.format(Math.round(v * 10) / 10)}<small>MWh</small>`);
+
+// When: one night, half-hour by half-hour. Each column is what EVs left over: the electrolyser's share (solid)
+// and what stays unused (hatched), against the plant's power limit.
+const BZ_H2_PLOT = { W: 660, H: 214, left: 44, right: 10, top: 14, bottom: 26 };
+function bzH2NightSeries() {
+  const b = bzH2(), s = bzH2Stage();
+  if (!b || !s) return null;
+  const night = b.nights[bzH2NightIndex()], at = (arr) => arr.slice(night.from, night.to);
+  return { night, battery: at(s.series.battery), h2: at(s.series.hydrogen), unused: at(s.series.unused), level: at(s.series.batteryLevel),
+    eligible: at(b.slots.eligibleKwh), full: s.gridBattery.fullIndex === null ? null : s.gridBattery.fullIndex - night.from };
+}
+bzChart('bzH2Night', {
+  values() {
+    const d = bzH2NightSeries(), on = bzSeen('h2') ? 1 : 0;
+    return d ? { battery: d.battery.map((x) => x * on), h2: d.h2.map((x) => x * on), unused: d.unused.map((x) => x * on), level: d.level.map((x) => x * on) }
+      : { battery: [], h2: [], unused: [], level: [] };
+  },
+  start: (t) => ({ battery: t.battery.map(() => 0), h2: t.h2.map(() => 0), unused: t.unused.map(() => 0), level: t.level.map(() => 0) }),
+  draw(v) {
+    const b = bzH2(), d = bzH2NightSeries();
+    if (!b || !d) return '';
+    const { W, H, left, right, top, bottom } = BZ_H2_PLOT, plotH = H - top - bottom, cols = d.h2.length;
+    const cap = b.plant.capKwhPerHalfHour, max = Math.max(b.access.kwhPerHalfHour, cap, ...d.h2.map((x, i) => x + d.unused[i] + d.battery[i])) || 1;
+    const y = (kwh) => top + plotH - (kwh / max) * plotH, cw = (W - left - right) / cols, bw = Math.max(2, cw * 0.72);
+    const step = max > 600 ? 250 : max > 240 ? 100 : 50;
+    const grid = [];
+    for (let k = 0; k <= max + 1e-9; k += step) grid.push(`<line class="bz-h2-gl" x1="${left}" x2="${W - right}" y1="${y(k).toFixed(1)}" y2="${y(k).toFixed(1)}"/><text class="bz-h2-ytick" x="${left - 8}" y="${(y(k) + 4).toFixed(1)}" text-anchor="end">${n(k)}</text>`);
+    const bars = d.h2.map((h, i) => {
+      const x = left + i * cw + (cw - bw) / 2, c = v.battery[i] || 0, g = v.h2[i] || 0, u = v.unused[i] || 0;
+      const rect = (cls, from, kwh) => (kwh > 0.05 ? `<rect class="${cls}" x="${x.toFixed(1)}" y="${y(from + kwh).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(from) - y(from + kwh)).toFixed(1)}" rx="2"/>` : '');
+      return `<g class="bz-h2-col${bz.h2.at === i ? ' is-at' : ''}" data-bz-h2-i="${i}"><rect class="bz-h2-hit" x="${(left + i * cw).toFixed(1)}" y="${top}" width="${cw.toFixed(1)}" height="${plotH}"/>${rect('bz-h2-charge', 0, c)}${rect('bz-h2-take', c, g)}${rect('bz-h2-left', c + g, u)}</g>`;
+    }).join('');
+    const ticks = [0, 8, 16, 24, 32, 40, 48].map((i) => `<text class="bz-h2-xtick" x="${(left + i * cw).toFixed(1)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === 48 ? 'end' : 'middle'}">${String((12 + i / 2) % 24).padStart(2, '0')}:00</text>`).join('');
+    const limit = `<line class="bz-h2-limit" x1="${left}" x2="${W - right}" y1="${y(cap).toFixed(1)}" y2="${y(cap).toFixed(1)}"/><text class="bz-h2-limit-label" x="${W - right}" y="${(y(cap) - 6).toFixed(1)}" text-anchor="end">${n(b.plant.ratedKw / 1000)} MW plant limit</text>`;
+    const empty = d.eligible.every((x) => x <= 0) ? `<text class="bz-h2-none" x="${(left + W - right) / 2}" y="${(top + plotH / 2).toFixed(1)}" text-anchor="middle">No spare renewable energy was forecast this night</text>` : '';
+    const hatch = '<defs><pattern id="bz-h2-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="bz-h2-hatch-bg" width="5" height="5"/><rect class="bz-h2-hatch" width="2" height="5"/></pattern></defs>';
+    // The grid battery's level through the night (0-100% on the same height), and where it reads 100%.
+    const ly = (f) => top + plotH - Math.max(0, Math.min(1, f)) * plotH;
+    const pts = v.level.map((f, i) => `${(left + (i + 0.5) * cw).toFixed(1)},${ly(f).toFixed(1)}`).join(' ');
+    const full = d.full !== null && d.full >= 0 && d.full < cols
+      ? `<g class="bz-h2-full"><line x1="${(left + (d.full + 0.5) * cw).toFixed(1)}" x2="${(left + (d.full + 0.5) * cw).toFixed(1)}" y1="${top}" y2="${(top + plotH).toFixed(1)}"/><text x="${(left + (d.full + 0.5) * cw + 6).toFixed(1)}" y="${top + 11}">Battery 100%: surplus to hydrogen</text></g>` : '';
+    const level = v.level.length ? `<polyline class="bz-h2-level" points="${pts}"/><text class="bz-h2-level-label" x="${W - right}" y="${(ly(v.level.at(-1)) + (v.level.at(-1) > 0.9 ? 14 : -6)).toFixed(1)}" text-anchor="end">Battery ${Math.round(v.level.at(-1) * 100)}%</text>` : '';
+    return `<svg class="bz-h2-svg" viewBox="0 0 ${W} ${H}" aria-hidden="true">${hatch}${grid.join('')}${bars}${b.plant.enabled ? limit : ''}${level}${full}${ticks}${empty}</svg>`;
+  },
+});
+// The hover and keyboard read-out of one half-hour: forecast and record, access, the plant, the dispatch.
+function bzH2Tip(i) {
+  const b = bzH2(), s = bzH2Stage(), d = bzH2NightSeries();
+  if (!b || !s || !d || i === null || i === undefined || i < 0 || i >= d.h2.length) return '';
+  const t = d.night.from + i, slots = b.slots, fc = slots.forecastKwh[t], seen = slots.observedKwh[t], kwh = (x) => `${n(Math.round(x))} kWh`;
+  const ev = slots.hubKwh[t] + s.series.ev[t], h2 = s.series.hydrogen[t], left = s.series.unused[t], why = s.series.why[t];
+  const charged = s.series.battery[t], level = s.series.batteryLevel[t];
+  const end = new Date(Date.parse(slots.start[t]) + 18e5).toISOString();
+  const forecast = fc === null ? 'No +30 min forecast' : fc > 0 ? `${bzMwh(fc)} at risk in Ireland (+30 min forecast)` : 'No curtailment forecast';
+  const record = seen === null ? 'Not recorded' : seen > 0 ? `${bzMwh(seen)} curtailed (recorded)` : 'None recorded: a false alarm if forecast';
+  const rows = [
+    ['Forecast', forecast], ['EirGrid record', record],
+    ['Network access', slots.eligibleKwh[t] > 0 ? `${kwh(slots.eligibleKwh[t])} eligible · ${b.access.status}` : 'Nothing eligible'],
+    ['EVs took', kwh(ev)],
+    ['Grid battery', `${charged > 0.05 ? `+${kwh(charged)} · ` : ''}${Math.round(level * 100)}% full`],
+    ['Electrolyser', b.plant.enabled ? `${kwh(h2)} of ${kwh(b.plant.capKwhPerHalfHour)} (${n(Math.round(h2 * 2))} kW)` : 'Switched off'],
+    ['Unused', left > 0.05 ? `${kwh(left)} · ${escapeHtml(b.reasons[why] || '')}` : 'None'],
+  ];
+  return `<b>${bzClock(slots.start[t])}–${bzClock(end)}</b>${rows.map(([k, x]) => `<span><em>${k}</em>${x}</span>`).join('')}`;
+}
+function bzH2Read(i) {
+  const main = document.querySelector('main[data-current-page="business"]'), tip = main?.querySelector('.bz-h2-tip');
+  bz.h2.at = i;
+  main?.querySelectorAll('.bz-h2-col').forEach((c) => c.classList.toggle('is-at', Number(c.dataset.bzH2I) === i));
+  if (!tip) return;
+  const html = i === null ? '' : bzH2Tip(i);
+  tip.innerHTML = html;
+  tip.hidden = !html;
+  if (html) {
+    const { W, left, right } = BZ_H2_PLOT, cols = bzH2NightSeries()?.h2.length || 48, x = (left + (i + 0.5) * ((W - left - right) / cols)) / W;
+    tip.style.left = `${(x * 100).toFixed(2)}%`;
+    tip.classList.toggle('is-flip', x > 0.6);
+  }
+}
+
+// As EV demand grows: the same eligible energy and limits, three illustrative stages. EVs grow, hydrogen takes
+// the flexible remainder, and unused stays wherever constraints bind; the planned EV share is only a marker.
+bzChart('bzH2Stages', {
+  values() {
+    const b = bzH2(), on = bzSeen('h2') ? 1 : 0;
+    return b ? { shown: bzH2Stage().id, rows: b.stages.map((s) => ({ ev: (s.shares.evTotal ?? 0) * on, battery: (s.shares.battery ?? 0) * on, h2: (s.shares.hydrogen ?? 0) * on, unused: (s.shares.unused ?? 0) * on })) } : { rows: [] };
+  },
+  start: (t) => ({ ...t, rows: t.rows.map(() => ({ ev: 0, battery: 0, h2: 0, unused: 0 })) }),
+  draw({ rows }) {
+    const b = bzH2(), shown = bzH2Stage(); // the selected stage is in values() too, so a new pick redraws the highlight
+    if (!b) return '';
+    return `<ol class="bz-h2-steps">${b.stages.map((s, i) => {
+      const r = rows[i] || { ev: 0, battery: 0, h2: 0, unused: 0 }, sites = s.segments.reduce((a, g) => a + g.sites, 0);
+      const detail = s.segments.map((g) => `${n(g.sites)} ${g.label.toLowerCase()}`).join(', ');
+      const who = sites ? `${n(s.vehicles)} EVs at ${n(sites)} ${sites === 1 ? 'site' : 'sites'}` : 'The Rewards hub only';
+      const target = s.targetEvShare !== null ? `<span class="bz-h2-mark" style="left:${(s.targetEvShare * 100).toFixed(2)}%" title="EVs planned: ${escapeHtml(s.targetLabel || '')}"></span>` : '';
+      return `<li class="${s.id === shown.id ? 'is-shown' : ''}"><div class="bz-h2-step-name"><b>${escapeHtml(s.label)}</b><small${detail ? ` title="${escapeHtml(detail)}"` : ''}>${escapeHtml(who)}</small></div>
+        <div class="bz-h2-step-bar"><i class="is-ev" style="width:${(r.ev * 100).toFixed(2)}%"></i><i class="is-battery" style="width:${(r.battery * 100).toFixed(2)}%"></i><i class="is-h2" style="width:${(r.h2 * 100).toFixed(2)}%"></i><i class="is-unused" style="width:${(r.unused * 100).toFixed(2)}%"></i>${target}</div>
+        <p class="bz-h2-step-fig"><span class="is-ev">EVs <b>${bzPct(r.ev)}</b></span><span class="is-battery">Battery <b>${bzPct(r.battery)}</b></span><span class="is-h2">H₂ <b>${bzPct(r.h2)}</b></span><span class="is-unused">Unused <b>${bzPct(r.unused)}</b></span></p></li>`;
+    }).join('')}</ol>`;
+  },
+});
+
+// 03, beyond EVs: the stage and switch, then where (allocation and the three figures), when (one night) and
+// how it scales (three stages), the proposed buyer, and how it is counted. Nothing here is priced.
+const BZ_H2_KG = [50, 52.5, 55];
+function bzHydrogen(r) {
+  const raw = r.hydrogen;
+  if (!raw) return ''; // switched off on the server: section 03 is exactly as it was
+  if (raw.status !== 'illustrative') {
+    return `<div class="bz-h2 is-unavailable" role="status"><p><b>Beyond EVs: green hydrogen</b>${escapeHtml(raw.message || 'The hydrogen scenario is unavailable.')}</p></div>`;
+  }
+  const b = bzH2(), s = bzH2Stage(), ni = bzH2NightIndex(), night = b.nights[ni], p = b.plant, a = b.access, env = b.environment, c = b.commercial, gb = s.gridBattery;
+  const byNight = s.byNight[ni], unusedTop = s.unusedReasons[0];
+  const stages = `<div class="bz-seg is-small bz-h2-pick" role="radiogroup" aria-label="EV market stage">${b.stages.map((x) => `<button type="button" role="radio" aria-checked="${x.id === s.id}" data-bz-h2-stage="${x.id}" class="${x.id === s.id ? 'is-active' : ''}">${escapeHtml(x.label)}</button>`).join('')}</div>`;
+  const plant = `<button type="button" class="bz-h2-switch${p.enabled ? ' is-on' : ''}" role="switch" aria-checked="${p.enabled}" data-bz-h2-plant="${p.enabled ? 'off' : 'on'}"><i aria-hidden="true"></i>Electrolyser ${p.enabled ? 'on' : 'off'}</button>`;
+  const kg = `<select class="bz-h2-kg" data-bz-h2-kg aria-label="Electricity per kg of hydrogen">${BZ_H2_KG.map((k) => `<option value="${k}"${k === p.kwhPerKg ? ' selected' : ''}>${n(k)}</option>`).join('')}${BZ_H2_KG.includes(p.kwhPerKg) ? '' : `<option selected>${n(p.kwhPerKg)}</option>`}</select>`;
+  const info = `<details class="bz-h2-info"><summary aria-label="About these figures">${bzIcon('info', 16)}</summary><div class="bz-h2-pop">
+      <p><b>${escapeHtml(p.name)}</b>${n(p.ratedKw / 1000)} MW (${n(p.capKwhPerHalfHour)} kWh a half-hour), runs at ${n(Math.round(p.minLoadFraction * 100))}% load or more. ${escapeHtml(p.sizing)}</p>
+      <p><b>${n(p.kwhPerKg)} kWh per kg</b>IEA range ${n(p.kwhPerKgRange[0])}–${n(p.kwhPerKgRange[1])}. ${escapeHtml(p.boundary)}</p>
+      <p><b>Utilisation ${bzPct(s.hydrogen.utilisation)}</b>It runs in ${n(s.hydrogen.halfHoursRunning)} of ${n(b.period.halfHours)} half-hours of the replay week.</p>
+      <p><b>Modelled, not measured</b>Potential hydrogen from a replay, not delivered. Network access is ${escapeHtml(a.status)}: ${escapeHtml(a.note)}</p></div></details>`;
+  const allocLabel = `Where the spare energy could go, ${s.label}: ${BZ_H2_PARTS.map(([, key, label]) => `${label} ${bzMwh(s.totals[key])}`).join(', ')} of ${bzMwh(s.totals.eligibleKwh)} eligible (EV charging includes ${bzMwh(s.totals.hubKwh)} into the Rewards hub battery)`;
+  const alloc = `<article class="bz-card bz-h2-alloc">
+    ${bzCardHead('Where the spare energy could go', `${escapeHtml(s.label)} · replay week ${bzPeriod(r.period)} · energy at the grid connection`)}
+    <p class="bz-h2-context"><span><b>${bzMwh(b.forecast.atRiskKwh)}</b>forecast at risk in Ireland, context only</span><span><b>${bzMwh(b.forecast.eligibleKwh)}</b>eligible for our sites: up to ${n(a.kw / 1000)} MW of network access, ${escapeHtml(a.status)}</span></p>
+    <div class="bz-h2-body"><div class="bz-h2-main">${chartSlot('bzH2Alloc', allocLabel, 'bz-h2-alloc-chart')}
+      <p class="bz-h2-why">${escapeHtml(env.why)} <b>${escapeHtml(env.label)}. ${escapeHtml(env.co2.label)}.</b></p></div>
+      <div class="bz-h2-kpis"><div class="bz-h2-kpis-head"><b>Hydrogen plant</b>${info}</div>
+        <p class="bz-h2-batt${gb.fullAt ? ' is-full' : ''}"><i style="--level:${(gb.endFraction * 100).toFixed(1)}%"></i><span><b>${gb.fullAt ? 'Grid battery 100% full' : `Grid battery ${bzPct(gb.endFraction)} full`}</b>${gb.fullAt ? `from ${escapeHtml(bzWhen(gb.fullAt))}: its surplus goes to hydrogen` : 'it never filled, so nothing goes to hydrogen'}</span></p>
+        <div class="bz-h2-kpi is-h2"><span>Sent to hydrogen</span>${chartSlot('bzH2In', `Sent to hydrogen once the grid battery is full: ${bzMwh(s.totals.hydrogenKwh)}`, 'bz-h2-figure')}<small>${bzPct(s.shares.hydrogen)} of the eligible energy</small></div>
+        <div class="bz-h2-kpi is-kg"><span>Hydrogen, potential</span>${chartSlot('bzH2Kg', `Estimated ${n(Math.round(s.totals.hydrogenKg))} kg of hydrogen`, 'bz-h2-figure')}<small>at ${kg} kWh per kg</small></div>
+        <div class="bz-h2-kpi is-unused"><span>Still unused</span>${chartSlot('bzH2Unused', `Still unallocated ${bzMwh(s.totals.unusedKwh)}`, 'bz-h2-figure')}<small>${escapeHtml(unusedTop ? unusedTop.label : 'Nothing left over')}</small></div>
+      </div></div>
+  </article>`;
+  const nav = `<div class="bz-h2-nav"><button type="button" data-bz-h2-night="-1" aria-label="Previous night"${ni === 0 ? ' disabled' : ''}>${bzIcon('chevron', 16)}</button><b>${escapeHtml(bzNightLabel(night))}</b><button type="button" data-bz-h2-night="1" aria-label="Next night"${ni === b.nights.length - 1 ? ' disabled' : ''}>${bzIcon('chevron', 16)}</button></div>`;
+  const sum = night.eligibleKwh <= 0 ? 'No spare renewable energy was forecast for this night: nothing to allocate.'
+    : !p.enabled ? `Electrolyser switched off: ${bzMwh(byNight.unusedKwh)} that EVs could not take stays unused this night.`
+      : `${byNight.batteryKwh > 0.05 ? `The grid battery takes ${bzMwh(byNight.batteryKwh)}. ` : ''}The hydrogen plant runs in ${n(byNight.halfHoursRunning)} of 48 half-hours and takes ${bzMwh(byNight.hydrogenKwh)}; ${byNight.unusedKwh > 0.05 ? `${bzMwh(byNight.unusedKwh)} stays unused (${escapeHtml((b.reasons[byNight.unusedReason] || '').toLowerCase())}).` : 'nothing is left unused.'}`;
+  const time = `<article class="bz-card bz-h2-time">
+    ${bzCardHead('When hydrogen could take the surplus', `${escapeHtml(s.label)} · what EVs leave: the grid battery first, hydrogen once it is full`, nav)}
+    <p class="bz-h2-key"><span class="is-battery"><i></i>Grid battery charging</span><span class="is-level"><i></i>Battery level</span><span class="is-h2"><i></i>To hydrogen</span><span class="is-unused"><i></i>Left unused</span>${p.enabled ? `<span class="is-limit"><i></i>${n(p.ratedKw / 1000)} MW plant limit</span>` : ''}</p>
+    <div class="bz-h2-plot" tabindex="0" data-bz-h2-chart="night" aria-label="${escapeHtml(`${bzNightLabel(night)}: ${sum} Use the left and right arrow keys to read each half-hour.`)}">
+      ${chartSlot('bzH2Night', `Half-hour timeline for ${bzNightLabel(night)}`, 'bz-h2-night-chart')}<div class="bz-h2-tip" role="status" aria-live="polite" hidden></div></div>
+    <p class="bz-h2-sum">${sum}</p>
+  </article>`;
+  const scale = `<article class="bz-card bz-h2-scale">
+    ${bzCardHead('As EV demand grows, our AI adapts', 'Same eligible energy and limits in every stage · planning scenarios, not forecasts')}
+    ${chartSlot('bzH2Stages', `EV, grid battery, hydrogen and unused shares by stage: ${b.stages.map((x) => `${x.label}: EVs ${bzPct(x.shares.evTotal)}, grid battery ${bzPct(x.shares.battery)}, hydrogen ${bzPct(x.shares.hydrogen)}, unused ${bzPct(x.shares.unused)} (EVs planned ${x.targetLabel || ''})`).join('; ')}`, 'bz-h2-stages-chart', 'group')}
+    <p class="bz-h2-note"><span class="bz-h2-mark-key" aria-hidden="true"></span>EV sites planned for about 1/3, 2/3 or all of it. The bar is what they could really take while plugged in; hydrogen stays a flexible second market.</p>
+  </article>`;
+  const v = s.verification, grey = s.hydrogen.greyEquivalentT;
+  const how = `<details class="bz-how bz-h2-how"><summary>How we count hydrogen</summary>
+    <ul>${b.method.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+    <p><b>EV sites in each stage:</b> ${b.segments.map((g) => `${escapeHtml(g.label)} of ${n(g.vehiclesPerSite)} ${escapeHtml(g.unit)} (${escapeHtml(g.plugIn)}, ${escapeHtml(g.days)}, ${n(g.chargerKw)} kW chargers, ${n(g.sitePowerKw)} kW connection)`).join('; ')}.</p>
+    ${v.recordedShare === null ? '' : `<p><b>Against the record:</b> ${bzPct(v.recordedShare)} of the electrolyser's input fell in half-hours when EirGrid recorded curtailment; ${bzMwh(v.falseAlarmKwh)} were false alarms and ${bzMwh(v.notObservedKwh)} not recorded. That is national: it still does not show the energy could reach the plant.</p>`}
+    <p><b>${escapeHtml(env.co2.label)}.</b> ${escapeHtml(env.co2.baseline)} For scale only, not a claim: replacing grey hydrogen at that rate would be ${n(grey[0])}–${n(grey[1])} t CO₂-eq for this week. Not included: ${env.co2.notIncluded.map((x) => escapeHtml(x.toLowerCase())).join(', ')}. ${escapeHtml(env.evUnchanged)}</p>
+    <ul>${b.limitations.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+    <p class="bz-h2-sources"><b>Sources:</b> ${b.sources.map((x) => `<a href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.label)}</a>`).join(' · ')}</p></details>`;
+  return `<div class="bz-h2${bzSeen('h2') ? ' is-seen' : ''}${bz.h2.pending ? ' is-pending' : ''}" id="bz-h2" data-bz-reveal="h2" role="region" aria-labelledby="bz-h2-title">
+    <header class="bz-h2-head"><div class="bz-h2-title"><h3 id="bz-h2-title">Beyond EVs: green hydrogen</h3><p>EVs get the eligible spare energy first, then the Dashboard's grid battery. Once the battery reads 100%, its surplus goes to a hypothetical ${n(p.ratedKw / 1000)} MW hydrogen plant; what none of them can use stays in view.</p></div>
+      <div class="bz-h2-controls">${stages}${plant}<span class="bz-sec-tag" title="${escapeHtml(b.label)}">Illustrative hydrogen</span></div></header>
+    ${bz.h2.error ? `<p class="bz-h2-error" role="alert">${escapeHtml(bz.h2.error)}</p>` : ''}
+    <div class="bz-h2-grid">${alloc}${time}${scale}</div>
+    <div class="bz-h2-foot"><p><b>Who could pay</b>${escapeHtml(c.buyer)}</p><p><b>${escapeHtml(c.label)}</b>${escapeHtml(c.model)}</p>${how}</div>
+  </div>`;
+}
+// Asks the server for the hydrogen scenario with the page's switch and kWh per kg (the defaults need no call).
+async function bzH2Fetch() {
+  const seq = ++bz.h2.seq;
+  bz.h2.error = '';
+  if (bz.h2.plant === 'on' && !bz.h2.kwhPerKg) {
+    bz.h2.block = null;
+    bz.h2.pending = false;
+    bzRender();
+    return;
+  }
+  const q = new URLSearchParams({ plant: bz.h2.plant });
+  if (bz.h2.kwhPerKg) q.set('kwhPerKg', String(bz.h2.kwhPerKg));
+  bz.h2.pending = true;
+  document.querySelector('main[data-current-page="business"] .bz-h2')?.classList.add('is-pending');
+  let error = '';
+  try {
+    const { ok, body } = await bzFetch(`/api/v1/business/hydrogen?${q}`);
+    if (seq !== bz.h2.seq) return;
+    if (ok && body.status === 'illustrative') bz.h2.block = body;
+    else error = body.error?.message || body.message || 'The hydrogen scenario could not be recalculated.';
+  } catch (err) {
+    if (seq !== bz.h2.seq) return;
+    error = err?.name === 'AbortError' ? 'The server took too long to answer.' : 'Could not reach the SaveThePlanet server.';
+  }
+  bz.h2.pending = false;
+  bz.h2.error = error;
+  if (error) { // the controls go back to what is drawn
+    const drawn = bzH2()?.plant;
+    bz.h2.plant = drawn?.enabled === false ? 'off' : 'on';
+    bz.h2.kwhPerKg = drawn && drawn.kwhPerKg !== bz.result?.hydrogen?.plant?.kwhPerKg ? drawn.kwhPerKg : null;
+  }
+  bzRender();
+}
+
 function bzSecHead(num, title, line, tag, extra = '') {
   return `<header class="bz-sec-head"><span class="bz-sec-num" aria-hidden="true">${num}</span><div class="bz-sec-copy"><h2>${title}</h2><p>${line}</p></div>${extra}<span class="bz-sec-tag">${tag}</span></header>`;
 }
@@ -680,7 +955,7 @@ function bzSection3(r) {
   const big = r.discountWindows.scale?.sites.at(-1);
   const how = `<details class="bz-how"><summary>How we count</summary><p><b>Baseline:</b> ${escapeHtml(env.baseline)} Direct surplus in the windows: ${n(env.directSurplusKwh)} kWh.</p><ul>${[...env.method, ...env.caveats].map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul></details>`;
   return `<section class="bz-sec${bzSeen('s3') ? ' is-seen' : ''}" data-bz-section="s3" id="bz-s3" aria-labelledby="bz-s3-title">
-    ${bzSecHead('03', '<span id="bz-s3-title">What the planet gets</span>', 'Wind that would be switched off, stored and delivered to EVs.', 'Per hub · a month · modelled')}
+    ${bzSecHead('03', '<span id="bz-s3-title">What the planet gets</span>', r.hydrogen ? 'Wind that would be switched off, delivered to EVs first, with hydrogen as a second destination.' : 'Wind that would be switched off, stored and delivered to EVs.', 'Per hub · a month · modelled')}
     <div class="bz-s3">
       <article class="bz-card bz-flowcard">${bzCardHead('Where the energy goes', 'Hub battery (hypothetical) · a month', env.balanced ? '<span class="bz-chip is-ok">Ledger balances</span>' : '')}
         ${chartSlot('bzFlow', 'Energy flow of the hub battery for a month', 'bz-flow-chart', 'group')}${how}</article>
@@ -693,6 +968,7 @@ function bzSection3(r) {
         <small>vs grid charging at ${n(env.intensityKgPerKwh)} kg/kWh · modelled, not verified</small>
       </article>
     </div>
+    ${bzHydrogen(r)}
   </section>`;
 }
 
@@ -709,11 +985,11 @@ function bzWatch() {
   bzObserver?.disconnect();
   const main = document.querySelector('main[data-current-page="business"]');
   if (!main || !bzCanWatch()) return;
-  const sections = [...main.querySelectorAll('[data-bz-section]')];
+  const sections = [...main.querySelectorAll('[data-bz-section], [data-bz-reveal]')]; // a section, or a block that reveals on its own
   if (!sections.length) return;
   bzObserver = new IntersectionObserver((entries) => {
     for (const e of entries) {
-      const id = e.target.dataset.bzSection;
+      const id = e.target.dataset.bzSection || e.target.dataset.bzReveal;
       if (e.isIntersecting && !bz.seen[id]) {
         bz.seen[id] = true;
         e.target.classList.add('is-seen', 'is-revealing');
@@ -965,6 +1241,18 @@ document.addEventListener('click', (event) => {
     if (chart) chartsSync(chart.parentElement); // the numbers glide to the new scale, nothing else moves
     return;
   }
+  if ((el = pick('data-bz-h2-stage'))) {
+    if (bz.h2.stage === el.dataset.bzH2Stage) return;
+    bz.h2.stage = el.dataset.bzH2Stage;
+    bz.h2.at = null;
+    bzRender(); return;
+  }
+  if ((el = pick('data-bz-h2-night'))) {
+    bz.h2.night = bzH2NightIndex() + Number(el.dataset.bzH2Night);
+    bz.h2.at = null;
+    bzRender(); return;
+  }
+  if ((el = pick('data-bz-h2-plant'))) { bz.h2.plant = el.dataset.bzH2Plant; bzH2Fetch(); return; }
   if ((el = pick('data-bz-whatif'))) { bzWhatIfOpen(el.dataset.bzWhatif === 'open'); return; }
   if ((el = pick('data-bz-costs'))) { bzCosts(el.dataset.bzCosts); return; }
   if ((el = pick('data-bz-preset'))) { bzPreset(el.dataset.bzPreset); bzRender(); return; }
@@ -972,6 +1260,34 @@ document.addEventListener('click', (event) => {
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && bz.calc.open && pageFromHash() === 'business') bzWhatIfOpen(false);
+  // The hydrogen timeline: arrow keys read one half-hour after another.
+  const plot = event.target.closest?.('[data-bz-h2-chart]');
+  if (!plot || pageFromHash() !== 'business') return;
+  const cols = bzH2NightSeries()?.h2.length || 0;
+  if (!cols) return;
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    event.preventDefault();
+    const at = bz.h2.at === null ? (event.key === 'ArrowRight' ? 0 : cols - 1) : bz.h2.at + (event.key === 'ArrowRight' ? 1 : -1);
+    bzH2Read(Math.max(0, Math.min(cols - 1, at)));
+  } else if (event.key === 'Escape') bzH2Read(null);
+});
+document.addEventListener('mouseover', (event) => {
+  const col = event.target.closest?.('[data-bz-h2-i]');
+  if (col && pageFromHash() === 'business') bzH2Read(Number(col.dataset.bzH2I));
+});
+document.addEventListener('mouseout', (event) => {
+  const plot = event.target.closest?.('[data-bz-h2-chart]');
+  if (plot && !plot.contains(event.relatedTarget) && document.activeElement !== plot) bzH2Read(null);
+});
+document.addEventListener('focusout', (event) => {
+  if (event.target.matches?.('[data-bz-h2-chart]')) bzH2Read(null);
+});
+document.addEventListener('change', (event) => {
+  const el = event.target.closest?.('[data-bz-h2-kg]');
+  if (!el || pageFromHash() !== 'business') return;
+  const kg = Number(el.value);
+  bz.h2.kwhPerKg = kg === bz.result?.hydrogen?.plant?.kwhPerKg ? null : kg; // the backend's default needs no call
+  bzH2Fetch();
 });
 // Opens or closes the what-if drawer; the donut on the page follows its inputs while it is open.
 function bzWhatIfOpen(open) {

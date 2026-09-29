@@ -369,6 +369,83 @@ the Impact figures.
 - Measure real bookings, arrivals and no-shows instead of assumed demand.
 - Settle real sessions against metered data; only then can the page show earned money.
 
+## Beyond EVs: green hydrogen (issue #76)
+
+`backend/hydrogen.py` (`hydrogen/v1`), shown in section 03 of the Impact page as "Beyond EVs: green hydrogen".
+It answers where the week's eligible spare renewable energy could go when EVs cannot take it all. It is a
+**simulated pilot with a hypothetical, ESB-inspired electrolyser**: no ESB partnership, connection, agreement or
+delivery is implied, and the page says so.
+
+**For every half-hour of the replayed week** (the same nights, +30 minute forecasts and EirGrid observations as
+the rest of the page), in this order, all in grid-side kWh:
+
+1. **Forecast at risk (context only):** the +30 minute forecast of curtailment in Ireland. The +60 minute
+   forecast of the same half-hour is never added.
+2. **Eligible:** `min(forecast, access kW x 0.5 h)`. The pilot sites' network access is a hypothetical 1.5 MW
+   shared bottleneck; its status comes from `eligibility.site_claims`: `conditional` (curtailment is system-wide,
+   deliverability is not confirmed). National MWh above it are "not accessible" and never shared out.
+3. **EVs first:** the Rewards hub battery's draw (the `offers.replay` of section 01, unchanged, counted once where
+   it is drawn), then EV sites: each vehicle within its charger rate, its site connection and its plug-in window,
+   earliest departure first, no look-ahead. Every session is met: from surplus when there is some, otherwise
+   from the grid at the latest half-hour it still can be (that grid energy is outside this ledger).
+4. **The Dashboard's grid battery next:** `storage.DEFAULT` (10 MWh, 5 MW, 90% charge efficiency, 40% full at
+   the start), charged with `storage.charge()`, the same function the Dashboard's battery card uses, from the
+   level the previous half-hour ended at. Charge side only, as on the Dashboard: once it reads 100% it stays full.
+5. **Hydrogen only then:** the surplus the full battery cannot take, to the electrolyser: at most rated power
+   x 0.5 h (1 MW: 500 kWh), only at or above its 10% minimum stable load, outside downtime, within the day's
+   hydrogen offtake (none by default) and only with network access.
+6. **Unused:** `eligible - EVs - hub battery - grid battery - electrolyser`, never forced to zero, with the
+   binding reason (plant at capacity, below minimum load, offtake met, no offtake, downtime, no access, off).
+
+Conservation, checked for every half-hour of every stage by `optimizer.check_ledger` (which now accepts an
+optional `allocatedToHydrogenGridKwh`) and `hydrogen.check_hydrogen`:
+
+    eligible = EV chargers + storage (hub battery + grid battery) + electrolyser + unused
+    kg H2 = electrolyser input kWh / kWh per kg        (default 55; IEA range 50-55; 39.4 to 80 accepted)
+    hydrogen energy = kg x 33.3 kWh/kg (LHV)            conversion loss = input - hydrogen energy
+
+The electricity boundary is the plant connection: stack plus balance of plant; compression above the stack
+outlet, storage and transport are excluded. Ramping and a warm start take minutes, so they do not bind at a
+half-hour; the minimum load does.
+
+**Three stages, one pool.** Every stage uses the same eligible energy and limits. EV participation is sized to
+*plan* for an illustrative share of it: Pilot about 1/3 (fleet depots), Growing EV market about 2/3 (depots,
+workplaces, public chargers), Mature EV market all of it. Sites are whole: 20 vehicles each (the depot is this
+page's example depot). What EVs really take is simulated and is usually lower, because surplus often comes when
+the vehicles are away or already full. The shares are hypotheses, not forecasts of adoption or allocations.
+
+| Simulated example week (fixture) | EVs | Grid battery | Hydrogen | Unused |
+| --- | ---: | ---: | ---: | ---: |
+| Pilot (the Rewards hub only) | 27% | 23% | 46% (247 kg) | 3% |
+| Growing EV market (80 EVs) | 39% | 23% | 36% (191 kg) | 3% |
+| Mature EV market (160 EVs) | 50% | 23% | 25% (136 kg) | 2% |
+
+Of 29.3 MWh eligible; the grid battery fills from 40% to 100% (6.67 MWh from the grid) before any hydrogen.
+On a historical replay the week, the pool and the shares come from the model's forecasts.
+
+**Commercial:** "Commercial potential: not yet priced". A possible buyer is an industrial electrolyser operator,
+for flexible electricity-use recommendations; ESB could pilot this, but there is no contract, sale or agreement.
+Any fee would be a separate software or performance fee on verified net value to the plant. It never touches
+the EV Rewards 50/25/25 split, and no kWh earns both (each is allocated once). Pricing it needs the plant's
+power price and network charges, conversion, operating and water costs, the hydrogen's value to its buyer, our
+servicing costs and contract terms: none is verified, so no euro figure is shown.
+
+**Environment:** hydrogen is potential, not delivered. **CO₂ impact not verified**: not kWh x grid average. For
+scale only, grey hydrogen from unabated natural gas emits about 10-12 kg CO₂-eq per kg (IEA); replacing it would
+avoid that much only if the surplus would otherwise have been dispatched down, the energy could reach the plant,
+and the electrolyser's lifecycle emissions are counted. The page also reports how much of the electrolyser's
+input fell in half-hours when EirGrid recorded curtailment. The EV CO₂ estimate above is unchanged.
+
+**Switching it off:** `HYDROGEN_SCENARIO=off` leaves the `hydrogen` key `null` and section 03 exactly as before;
+an error in the scenario fails closed (`status: "unavailable"`) and never breaks the page.
+
+**Sources:** [ESB hydrogen (Aghada, Moneypoint)](https://esb.ie/what-we-do/generation-and-trading/hydrogen) ·
+[ESB Emerging Technology Insights 2025](https://cdn.esb.ie/media/docs/default-source/innovation/emerging-technology-insights-2025.pdf)
+(1 MW Aghada electrolyser described as due in 2026) ·
+[EirGrid TES 2023](https://cms.eirgrid.ie/sites/default/files/publications/TES-2023-Final-Full-Report.pdf) ·
+[IEA Global Hydrogen Review 2024](https://iea.blob.core.windows.net/assets/89c1e382-dc59-46ca-aa47-9f7d41531ab5/GlobalHydrogenReview2024.pdf) ·
+[Curtailed Irish electricity to hydrogen (2025)](https://doi.org/10.1016/j.ijhydene.2025.150675).
+
 ## API
 
 ### `GET /api/v1/business/impact[?refresh=1]`
@@ -431,6 +508,13 @@ costs use the defaults above. Sessions are capped by the site and, once the repl
 windows it found worth offering a month. `200 {"month": {...split, operator, platform, yearly}, "capacity":
 {"sessionsPerWindow", "maxPerMonth", "siteMaxPerMonth", "eligibleWindowsPerMonth", "requested", "counted",
 "capped", "limitedBy": "windows" | "site" | "session-kwh" | null, "limit"}, "noSpareEnergy"}` or `400` with `fields`.
+
+### `GET /api/v1/business/hydrogen[?plant=on|off&kwhPerKg=&ratedKw=&accessKw=&minLoadPct=&offtakeKgPerDay=]`
+
+The hydrogen block again for the same replay with the page's switch and assumptions (kWh per kg 39.4-80, sizes
+0-100,000 kW, minimum load 0-99%, offtake 0-1,000,000 kg a day). `200` with the `hydrogen/v1` block (`stages[]`
+with `totals`, `shares`, `gridBattery`, `byNight`, `series` per half-hour, `ledger`, `verification`), `202`
+while the week is prepared, `400` with `fields`, `404` when switched off, `409` if the replay changed.
 
 ### `GET /api/v1/business/offers?member=` and `POST /api/v1/business/offers`
 
