@@ -93,7 +93,7 @@ async function build() {
     const s = slide();
     const may = data('recorded-2026-05-10.json');
     headline(s, 'On Sunday 10 May, Ireland turned away 6,917 MWh.',
-      'Recorded wind and solar curtailment, half-hour by half-hour. That’s the energy for about 345,000 EV charges.');
+      'Recorded wind and solar curtailment across the day. That’s the energy for about 345,000 EV charges.');
     const x0 = 1.55, x1 = W - RM, slot = (x1 - x0) / 48, bw = slot * 0.66, top = 2.75, base = 6.3, max = 600;
     const yOf = (mwh) => base - (mwh / max) * (base - top);
     // Evening peak 17:00-19:00 Irish time = 16:00-18:00 UTC = half-hours 32-35.
@@ -119,7 +119,7 @@ async function build() {
     const key = (x, color, text) => { box(s, x, top - 0.29, 0.13, 0.13, color); T(s, text, { x: x + 0.2, y: top - 0.33, w: 2.3, h: 0.22, fontSize: 12, color: C.ink }); };
     key(x0, C.green, `Wind  ${Math.round(may.windMwh).toLocaleString('en-IE')} MWh`);
     key(x0 + 2.2, C.amber, `Solar  ${Math.round(may.solarMwh).toLocaleString('en-IE')} MWh`);
-    T(s, 'Irish time. Source: EirGrid half-hourly dispatch-down workbooks (curtailment, Ireland), via the GridToEv archive. 345,000 = 6,917 MWh ÷ 20 kWh.',
+    T(s, 'Irish time. Source: EirGrid dispatch-down workbooks (curtailment, Ireland), via the GridToEv archive. 345,000 = 6,917 MWh ÷ 20 kWh.',
       { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
     s.addNotes(notes[n - 1]);
   }
@@ -128,14 +128,14 @@ async function build() {
   {
     const s = slide();
     headline(s, 'Why not just charge cars with it?');
-    const qs = ['Will there be surplus in the next 30 minutes?', 'Can this site physically take it?',
+    const qs = ['Will there be surplus today?', 'Can this site physically take it?',
       'Is it cheaper than ordinary smart charging?', 'Who gets the saving?'];
     qs.forEach((q, i) => {
       const y = 2.05 + i * 0.82;
       T(s, String(i + 1), { x: LM, y, w: 0.5, h: 0.5, fontSize: 26, color: C.muted });
       T(s, q, { x: LM + 0.65, y, w: 10.5, h: 0.5, fontSize: 26, color: C.ink });
     });
-    T(s, 'SaveThePlanet answers all four, every half-hour.', { x: LM, y: 5.6, w: CW, h: 0.5, fontSize: 26, color: C.green, bold: true });
+    T(s, 'SaveThePlanet answers all four, every day.', { x: LM, y: 5.6, w: CW, h: 0.5, fontSize: 26, color: C.green, bold: true });
     footer(s, n);
     s.addNotes(notes[n - 1]);
   }
@@ -143,9 +143,9 @@ async function build() {
   // 4 · Dashboard recording ------------------------------------------------------------------------------
   {
     const s = slide();
-    headline(s, 'Our dashboard, replaying a real half-hour.');
+    headline(s, 'Our dashboard, replaying a real day.');
     recording(s, LM, 1.62, 9.4, 'Screen recording 1 · Dashboard · 20 s');
-    T(s, 'The forecast, which cars charge, and the grid battery filling up.',
+    T(s, 'The day’s forecast, which cars charge, and the grid battery filling up.',
       { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.1, fontSize: 13, color: C.ink2 });
     T(s, 'Battery full? The surplus goes towards ESB’s hydrogen plants.',
       { x: LM + 9.7, y: 2.85, w: CW - 9.7, h: 1.1, fontSize: 13, color: C.violet, bold: true });
@@ -158,8 +158,8 @@ async function build() {
   {
     const s = slide();
     const jan = data('forecast-2026-01-plus30.json');
-    headline(s, 'Every half-hour of January, forecast 30 minutes ahead.',
-      'Real GridToEv predictions, replayed. The darker the square, the more power the model expected to be turned away.');
+    headline(s, 'January, day by day, forecast ahead.',
+      'Real GridToEv predictions, replayed. Each row is one day; the darker, the more power the model expected to be turned away.');
     const x0 = 1.55, x1 = 10.1, y0 = 2.55, y1 = 6.4, cols = 48, rows = jan.days.length;
     const cw = (x1 - x0) / cols, ch = (y1 - y0) / rows, g = 0.022;
     const bin = (v) => (v <= 0 ? C.none : v < 25 ? C.ramp[0] : v < 75 ? C.ramp[1] : v < 150 ? C.ramp[2] : v < 250 ? C.ramp[3] : C.ramp[4]);
@@ -186,13 +186,13 @@ async function build() {
     T(s, 'expected at risk over the month', { x: rx, y: y0 + 0.36, w: rw, h: 0.4, fontSize: 12, color: C.ink2 });
     T(s, `${Math.round(jan11).toLocaleString('en-IE')} MWh`, { x: rx, y: y0 + 1.0, w: rw, h: 0.4, fontSize: 22, bold: true });
     T(s, 'on 11 January alone', { x: rx, y: y0 + 1.41, w: rw, h: 0.4, fontSize: 12, color: C.ink2 });
-    T(s, 'MWh per half-hour', { x: rx, y: y0 + 2.2, w: rw, h: 0.22, fontSize: 10, color: C.muted });
+    T(s, 'MWh per square', { x: rx, y: y0 + 2.2, w: rw, h: 0.22, fontSize: 10, color: C.muted });
     [['none', C.none], ['under 25', C.ramp[0]], ['25–75', C.ramp[1]], ['75–150', C.ramp[2]], ['150–250', C.ramp[3]], ['250+', C.ramp[4]]].forEach(([label, color], i) => {
       const y = y0 + 2.5 + i * 0.22;
       box(s, rx, y + 0.03, 0.2, 0.12, color);
       T(s, label, { x: rx + 0.3, y, w: rw - 0.3, h: 0.2, fontSize: 10, color: C.ink2 });
     });
-    T(s, 'GridToEv V1 model 1.1.0, +30-minute predictions for 1,434 half-hours, 2–31 January 2026 (blank: no prediction). Predictions, not recorded outcomes.',
+    T(s, 'GridToEv V1 model 1.1.0, 1,434 predictions across 2–31 January 2026 (blank: no prediction). Predictions, not recorded outcomes.',
       { x: LM, y: 6.8, w: CW, h: 0.22, fontSize: 10, color: C.muted });
     s.addNotes(notes[n - 1]);
   }
@@ -327,7 +327,7 @@ async function build() {
     });
     T(s, 'EVs first, then the grid battery; once it is full, the surplus goes towards ESB’s hydrogen plants. Dashed: the EV share planned.',
       { x: LM, y: 6.25, w: CW, h: 0.3, fontSize: 13, color: C.ink2 });
-    T(s, 'Simulated with backend/hydrogen.py on GridToEv 1.1.0’s +30-min predictions (total at risk). Hypothetical 1.5 MW access and 1 MW electrolyser (55 kWh/kg); hydrogen is potential, not delivered. No ESB agreement.',
+    T(s, 'Simulated with backend/hydrogen.py on GridToEv 1.1.0’s predictions (total at risk). Hypothetical 1.5 MW access and 1 MW electrolyser (55 kWh/kg); hydrogen is potential, not delivered. No ESB agreement.',
       { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
     s.addNotes(notes[n - 1]);
   }
