@@ -128,24 +128,17 @@ const bridgeMwh = (valueKwh) => {
 // Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
 const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
 
-// Three destinations for the forecast energy the fleet can use: EV chargers, the grid battery, left unused.
+// The simulated grid battery: its level on the picture, then the level, room left and this half-hour's charge.
 function dashboardBattery() {
   const alt = planAlternative();
-  const head = cardHead('green', 'Battery', 'Where the forecast energy goes · simulated');
+  const head = cardHead('green', 'Battery', 'Simulated grid battery · level and room left');
   if (!alt) return `<section class="dash-card dash-battery">${head}${planPlaceholder('Energy bridge')}</section>`;
   const L = alt.optimized.ledger, S = L.storage;
   const label = S
     ? `Simulated grid battery: ${bridgeMwh(S.storedKwh)} stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
     : `${bridgeMwh(L.allocatedToChargersGridKwh)} routed to EV chargers`;
-  const tile = (tone, name, kwhValue) => `<div class="is-${tone}"><dt><i></i>${name}</dt><dd>${bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>')}</dd></div>`;
   return `<section class="dash-card dash-battery">${head}
     ${chartSlot('bridgeBattery', label, 'bridge-battery')}
-    ${chartSlot('bridgeUsed', `${n((L.usedWithStorageFraction ?? L.utilizationFraction ?? 0) * 100)}% of the usable forecast energy is captured`, 'bridge-used')}
-    <dl class="bridge-ledger">
-      ${tile('charger', 'EV chargers', L.allocatedToChargersGridKwh)}
-      ${S || L.allocatedToRealStorageKwh ? tile('storage', 'Grid battery', L.allocatedToRealStorageKwh) : ''}
-      ${tile('left', 'Left unused', L.unallocatedOpportunityKwh)}
-    </dl>
   </section>`;
 }
 
@@ -246,44 +239,43 @@ dashCharts.bridgeBattery = {
     const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
     if (!S) return base;
     return { ...base, grid: S.gridKwh, stored: S.storedKwh, start: S.startFraction, end: S.endFraction,
-             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy };
+             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy, surplus: bridgeSurplusKwh(L) };
   },
   // The battery fills from its starting charge.
-  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, surplus: 0, end: target.start }) }),
   // The battery's level after this half-hour, drawn on the cabinets themselves (a fill masked to the picture),
-  // then the same level as a number, the room left and what this half-hour added.
+  // then the same level as a number and the room left. A battery never goes past 100%: once it is full, what
+  // is left over is shown as surplus sent to the ESB hydrogen plants instead.
   draw(v) {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
+    const full = end >= 1 - 1e-9, surplus = Math.max(0, v.surplus || 0);
     const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level" style="--level:${level}%"></div></div>
+    const badge = full && surplus > 0 ? `<span class="bridge-h2-badge"><b>H₂</b>+${bridgeMwh(surplus)} → ESB hydrogen</span>` : '';
+    return `<div class="bridge-cabinet-art is-yard${full ? ' is-full' : ''}" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${full ? 'FULL' : bridgePct(end)}</b>${badge}</div></div>
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
       <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
-      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p></div>`;
+      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p>
+      ${full ? `<p class="bridge-surplus"><b>H₂</b><span><strong>${bridgeMwh(surplus)}</strong> surplus to ESB hydrogen plants</span><small>simulated</small></p>` : ''}</div>`;
   },
 };
+
+// Energy the full battery cannot take: once it is full, whatever the EVs and battery left is surplus for the
+// ESB hydrogen plants (a simulated destination; the optimizer does not route to it). A reported level above
+// 100% counts too, since the battery itself can only hold its capacity.
+function bridgeSurplusKwh(L) {
+  const S = L.storage;
+  if (!S) return 0;
+  const over = Math.max(0, S.endFraction - 1) * S.capacityKwh;
+  return (S.limitedBy === 'full' || S.endFraction >= 1 ? L.unallocatedOpportunityKwh : 0) + over;
+}
 
 function bridgeRoutingCopy({ routed, eligible }) {
   return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"></div>
     <div class="bridge-battery-copy"><div class="bridge-stat"><span>Routed to EV chargers</span><strong>${bridgeMwh(routed).replace(' MWh', '<small>MWh</small>')}</strong></div>
       <div class="bridge-charge"><span>Usable</span><b>${bridgeMwh(eligible)}</b></div></div>`;
 }
-
-// One bar that adds up to 100% of the usable forecast energy: EV chargers, grid battery, left unused, in the
-// tile colours below it. Drawn to scale, so the EVs' share stays a sliver rather than being rounded up.
-dashCharts.bridgeUsed = {
-  values() {
-    const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
-    return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
-  },
-  start: () => ({ used: 0, stored: 0 }),
-  draw: ({ used, stored = 0 }) => {
-    const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
-    return `<div class="bridge-used-head"><span>Energy split</span><b>${bridgePct(used + stored)} captured</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<i class="is-left" style="left:${total}%;width:${100 - total}%"></i></div>`;
-  },
-};
 
 // Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
 // move between sites), so the two simple bars show each site's share per car.

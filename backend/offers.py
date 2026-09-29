@@ -271,7 +271,8 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
     power_cap = int(battery['powerKw'] * WINDOW_MINUTES / 60 // kwh + 1e-9)
     energy = {'gridChargedKwh': 0.0, 'surplusChargedKwh': 0.0, 'conventionalChargedKwh': 0.0, 'chargeLossKwh': 0.0,
               'offeredKwh': 0.0, 'dischargeLossKwh': 0.0, 'conventionalReleasedKwh': 0.0, 'chargeCostEur': 0.0,
-              'creditedBySlot': {}}  # surplus kWh the battery drew in each half-hour, to check scaling against curtailment
+              'creditedBySlot': {},  # surplus kWh the battery drew in each half-hour, to check scaling against curtailment
+              'drawBySlot': {}}  # grid kWh it drew on a surplus forecast in each half-hour (hydrogen.py serves it first)
     calls = {'charged': 0, 'right': 0, 'falseAlarms': 0, 'unknown': 0}
     windows = []
     for night in nights:
@@ -297,6 +298,7 @@ def replay(nights, kwh=SESSION_KWH, tariff=business.TARIFF, battery=BATTERY, pri
             calls['charged'] += 1
             calls['unknown' if seen is None else 'right' if credited >= draw - 1e-6 else 'falseAlarms'] += 1
             energy['creditedBySlot'][slot['start']] = credited
+            energy['drawBySlot'][slot['start']] = draw
             store.surplus += credited * eff_in
             store.surplus_eur += credited * (band - discount)
             store.conventional += (draw - credited) * eff_in

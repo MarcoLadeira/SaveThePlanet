@@ -70,7 +70,7 @@ test('battery shows routed energy split into battery and loss', () => {
   assert.doesNotMatch(empty, /NaN|Infinity/);
 });
 
-test('grid battery: stored energy, charge bar from its starting level, and its share of the used bar', () => {
+test('grid battery: level, room left and the charge bar from its starting level', () => {
   const alt = alternative(30, { allocated: 65, eligible: 8000 });
   Object.assign(alt.optimized.ledger, {
     allocatedToRealStorageKwh: 2500, unallocatedOpportunityKwh: 5435,
@@ -83,7 +83,7 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   assert.match(html, /Battery level<\/span><strong>63%<small>full<\/small><\/strong><em>6\.25 of 10 MWh<\/em>/);
   assert.match(html, /Room left<\/span><b>3\.75<small>MWh<\/small><\/b>/);
   assert.match(html, /\+2\.25 MWh stored this half-hour · 40% → 63%/);  // whole percentages for the pitch
-  assert.match(html, /class="bridge-level" style="--level:62\.5%"/);
+  assert.match(html, /class="bridge-level-box" style="--level:62\.5%"><div class="bridge-level"><\/div><b class="bridge-level-tag">63%<\/b>/);
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);
@@ -91,17 +91,6 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const first = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values));
   assert.match(first, /is-added" style="left:40%;width:0%/);
   assert.doesNotMatch(first, /NaN|Infinity/);
-  const used = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(used, /<b>32% captured<\/b>/);  // (65 + 2500) / 8000
-  assert.match(used, /class="is-storage" style="left:0\.8125%;width:31\.25/);
-  assert.match(used, /class="is-left" style="left:32\.0625%;width:67\.9375%/);  // the bar adds up to 100%
-});
-
-test('used share is drawn to scale, never rounded up to 100%', () => {
-  const { dashCharts } = load(30, [alternative(30, { allocated: 52.04, eligible: 16479.7 })]);
-  const html = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(html, /<b><1% captured<\/b>/);
-  assert.match(html, /width:0\.315/);
 });
 
 test('flexible charging card: charged energy, power used and the equal share at each site', () => {
@@ -135,4 +124,48 @@ test('next move compares the baseline with the equal-share plan', () => {
   assert.match(html, /is-recovery" style="--plan-h:1"/);
   assert.match(dashCharts.planHeadline.draw(dashCharts.planHeadline.values()), /Share <em>65 kWh<\/em> equally between <em>4 cars<\/em>/);
   assert.match(dashCharts.planHeadline.draw({ energy: 0, cars: 0, time: '23:00' }), /charge as usual/);
+});
+
+test('full battery: tag reads FULL, surplus goes to the ESB hydrogen plants', () => {
+  const alt = alternative(30, { allocated: 65, eligible: 104000 });
+  Object.assign(alt.optimized.ledger, {
+    allocatedToRealStorageKwh: 1000, unallocatedOpportunityKwh: 102935,
+    storage: { gridKwh: 1000, storedKwh: 900, lossKwh: 100, startKwh: 9100, endKwh: 10000, startFraction: 0.91, endFraction: 1,
+               capacityKwh: 10000, maxPowerKw: 5000, chargeEfficiency: 0.9, limitedBy: 'full' },
+  });
+  const { dashCharts } = load(30, [alt]);
+  const html = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.values());
+  assert.match(html, /bridge-cabinet-art is-yard is-full/);
+  assert.match(html, /<b class="bridge-level-tag">FULL<\/b>/);
+  assert.match(html, /100%<small>full<\/small><\/strong><em>10 of 10 MWh/);
+  assert.match(html, /Room left<\/span><b>0<small>MWh/);
+  assert.match(html, /<strong>102\.94 MWh<\/strong> surplus to ESB hydrogen plants/);
+  assert.match(html, /\+102\.94 MWh → ESB hydrogen/);
+});
+
+test('a reported level over 100% is drawn as full, the excess counted as hydrogen surplus', () => {
+  const alt = alternative(30, { allocated: 65, eligible: 8000 });
+  Object.assign(alt.optimized.ledger, {
+    allocatedToRealStorageKwh: 2500, unallocatedOpportunityKwh: 0,
+    storage: { gridKwh: 2500, storedKwh: 2250, lossKwh: 250, startKwh: 8250, endKwh: 10500, startFraction: 0.825, endFraction: 1.05,
+               capacityKwh: 10000, maxPowerKw: 5000, chargeEfficiency: 0.9, limitedBy: 'took-everything' },
+  });
+  const { dashCharts } = load(30, [alt]);
+  const html = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.values());
+  assert.match(html, /style="--level:100%"/);  // never drawn past the top
+  assert.match(html, /<strong>100%<small>full/);
+  assert.match(html, /\+0\.5 MWh → ESB hydrogen/);  // 5% of 10 MWh
+});
+
+test('battery with room left shows no hydrogen surplus', () => {
+  const alt = alternative(30, { allocated: 65, eligible: 8000 });
+  Object.assign(alt.optimized.ledger, {
+    allocatedToRealStorageKwh: 2500, unallocatedOpportunityKwh: 5435,
+    storage: { gridKwh: 2500, storedKwh: 2250, lossKwh: 250, startKwh: 4000, endKwh: 6250, startFraction: 0.4, endFraction: 0.625,
+               capacityKwh: 10000, maxPowerKw: 5000, chargeEfficiency: 0.9, limitedBy: 'power-limit' },
+  });
+  const { dashCharts } = load(30, [alt]);
+  const html = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.values());
+  assert.doesNotMatch(html, /ESB|H₂|FULL/);
+  assert.match(html, /Room left/);
 });
