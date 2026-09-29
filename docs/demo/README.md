@@ -6,7 +6,8 @@
 | `script.md` | The same script as one document (795 words, 0:00–7:00), with captions for muted viewing. |
 | `evidence-ledger.md` | Every number on a slide: value, status (recorded / predicted / deterministic / illustrative / hypothetical / estimate) and source. |
 | `qa.md` | Short answers to the questions judges are likely to ask. |
-| `hydrogen.md` | A 15-second hydrogen and scalability insert for slide 12, and what it assumes (issue #76). |
+| `hydrogen.md` | The hydrogen and scalability story (slides 4 and 12) for a live app demo, and what it assumes (issue #76). |
+| `hydrogen_stages.py` | Writes `data/hydrogen-stages-2026-01-24.json`, the slide 12 chart, from `backend/hydrogen.py`. |
 | `data/` | The real data behind the two charts: EirGrid's recorded curtailment for 10 May 2026, and the GridToEv model's +30-minute predictions for January 2026. |
 | `build-deck.js`, `script.json` | Source. Edit `script.json`, then run `node docs/demo/build-deck.js` (needs `pptxgenjs`). |
 
@@ -24,9 +25,9 @@ access, so nothing there is faked.
 
 | Recording | Slide | Length | Show |
 | --- | --- | --- | --- |
-| 1 | 4 | 20 s | Dashboard: the historical target, the forecast, the battery routing, the EV plan. |
+| 1 | 4 | 20 s | Dashboard: the historical target, the forecast, the EV plan and the battery level. Pick a half-hour where the battery shows FULL, so the "surplus to ESB hydrogen plants" line is on screen. |
 | 2 | 6 | 35 s | Forecast page, the chosen day: the +30 min forecast beside EirGrid's recorded curtailment; hover one hit and one miss. |
-| 3 | 7 | 35 s | Battery page, then EV page for the same day, default fleet: "When charging can run on renewables" and "Best half-hours to charge". |
+| 3 | 7 | 35 s | Battery page, then EV page for the same day, default fleet: "Cars that can charge through the day" and the best half-hour. |
 | 4 | 9 | 20 s | EV page, SaveThePlanet Rewards: Join free (demo), an evening with an offer, 20 kWh, Reserve, the split line. Then "leave demo". |
 
 **Insert each one:** click the grey area and note its size and position, then Insert › Video › This Device,
