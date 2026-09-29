@@ -118,23 +118,32 @@ function presetPicker() {
     .map(([id, name]) => `<option value="${id}" ${modelState.fleetPreset === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label>`;
 }
 
-// The battery card shows every energy figure in MWh, like the energy-at-risk card beside it. Below 1 MWh it
-// keeps 1 kWh precision (0.054 MWh) so a small non-zero flow never reads as 0.
+// The battery card shows every energy figure in MWh, like the energy-at-risk card beside it. From 100 MWh up
+// it rounds to whole MWh; below 1 MWh it keeps 1 kWh precision (0.054 MWh) so a small flow never reads as 0.
 const bridgeMwh = (valueKwh) => {
   const mwh = valueKwh / 1000;
-  return `${Math.abs(mwh) >= 1 ? n(mwh) : String(Math.round(mwh * 1000) / 1000)} MWh`;
+  return `${Math.abs(mwh) >= 100 ? n(Math.round(mwh)) : Math.abs(mwh) >= 1 ? n(mwh) : String(Math.round(mwh * 1000) / 1000)} MWh`;
 };
 
 // Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
 const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
 
 // The simulated grid battery: its level on the picture, then the level, room left and this half-hour's charge.
+// The Dashboard's battery is filled by the whole day: the daily model's predicted curtailment for the day
+// (dashboard.js, /api/v1/dashboard/day) goes into a simulated 10,000 MWh grid battery. 7,000 MWh reads 70%
+// full; 11,000 MWh reads 100% with 1,000 MWh surplus to the ESB hydrogen plants. Until the daily view
+// arrives, or when it cannot (demo data, model down), the card shows the half-hour plan's battery instead.
+const DAY_BATTERY_KWH = 10_000_000;
+const bridgeDay = () => (typeof dashDayReady === 'function' && dashDayReady() && Number.isFinite(dashDay.data?.predictedMwh) ? dashDay.data : null);
+
 function dashboardBattery() {
-  const alt = planAlternative();
-  const head = cardHead('green', 'Battery', 'Simulated grid battery · level and room left');
+  const alt = planAlternative(), day = bridgeDay();
+  const head = cardHead('green', 'Battery', day ? `Simulated ${bridgeMwh(DAY_BATTERY_KWH)} grid battery · filled by today’s forecast` : 'Simulated grid battery · level and room left');
   if (!alt) return `<section class="dash-card dash-battery">${head}${planPlaceholder('Energy bridge')}</section>`;
   const L = alt.optimized.ledger, S = L.storage;
-  const label = S
+  const label = day
+    ? `Simulated grid battery: today's ${n(Math.round(day.predictedMwh))} MWh forecast fills it to ${bridgePct(Math.min(1, day.predictedMwh * 1000 / DAY_BATTERY_KWH))}`
+    : S
     ? `Simulated grid battery: ${bridgeMwh(S.storedKwh)} stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
     : `${bridgeMwh(L.allocatedToChargersGridKwh)} routed to EV chargers`;
   return `<section class="dash-card dash-battery">${head}
@@ -235,6 +244,12 @@ document.addEventListener('click', (event) => {
 // Charts drawn by the shared engine in charts3d.js, so they grow in and glide between plans.
 dashCharts.bridgeBattery = {
   values() {
+    const day = bridgeDay();
+    if (day) {
+      const kwhToday = Math.max(0, day.predictedMwh * 1000);
+      return { day: 1, start: 0, end: kwhToday / DAY_BATTERY_KWH, capacity: DAY_BATTERY_KWH, stored: Math.min(kwhToday, DAY_BATTERY_KWH),
+               surplus: Math.max(0, kwhToday - DAY_BATTERY_KWH), rise: 1 };
+    }
     const L = planAlternative().optimized.ledger, S = L.storage;
     const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
     if (!S) return base;
@@ -256,7 +271,9 @@ dashCharts.bridgeBattery = {
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
       <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
-      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p>
+      <p class="bridge-added"><i></i>${v.day
+        ? `Today’s forecast: ${bridgeMwh(v.stored + surplus)} of renewable energy at risk${bridgeDay() ? ` · ${escapeHtml(dashDayLabel(bridgeDay().date))}` : ''}`
+        : `+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}`}</p>
       ${full ? `<p class="bridge-surplus"><b>H₂</b><span><strong>${bridgeMwh(surplus)}</strong> surplus to ESB hydrogen plants</span><small>simulated</small></p>` : ''}</div>`;
   },
 };
