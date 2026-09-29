@@ -9,23 +9,6 @@ const evMwhNum = (kwh) => new Intl.NumberFormat('en-IE', { maximumFractionDigits
 const evMwh = (kwh) => `${evMwhNum(kwh)} MWh`;
 const evPlain = (text) => String(text).replace(/ \(hypothetical\)/g, '');
 
-// ---------- KPI row ----------
-function evKpi(tone, glyph, label, value, unit, pill, note) {
-  return `<article class="dash-card cg-kpi ev-kpi is-${tone}"><span class="cg-kpi-icon" aria-hidden="true">${icon(glyph, 22)}</span><div class="cg-kpi-copy"><span>${label}</span><div class="cg-kpi-figure"><strong>${value}<small>${unit}</small></strong></div></div><p class="cg-kpi-foot">${pill}<em>${note}</em></p></article>`;
-}
-function evKpis(plan, alt) {
-  const o = alt.optimized, b = alt.baseline, L = o.ledger, total = o.vehicles.length, imp = alt.improvement;
-  const gain = imp.improved
-    ? `<span class="cg-pill is-up">↑ ${n(Math.round(imp.claimedPercent * 10) / 10)}%</span>`
-    : '<span class="cg-pill is-flat">→ 0%</span>';
-  return `<section class="cg-kpis" aria-label="Optimised plan for the selected half-hour">
-    ${evKpi('green', 'car', 'Cars fully charged', `${n(o.vehiclesMet)}`, `of ${n(total)}`, `<span class="cg-pill is-share">${n(b.vehiclesMet)}</span>`, 'if they charge on arrival')}
-    ${evKpi('green', 'leaf', 'Charged on renewable energy', evMwhNum(o.window.chargedKwh), 'MWh', gain, `vs ${evMwhNum(b.window.chargedKwh)} on arrival`)}
-    ${evKpi('orange', 'charge', 'Into EV batteries', evMwhNum(L.batteryDeliveredKwh), 'MWh', `<span class="cg-pill is-share">≈ ${n(Math.round(planImpact(L).rangeKm))} km</span>`, 'of driving')}
-    ${evKpi('purple', 'battery', 'Charge still missing', evMwhNum(o.unmetKwh), 'MWh', `<span class="cg-pill ${o.vehiclesMissed ? 'is-down' : 'is-share'}">${n(o.vehiclesMissed)}</span>`, o.vehiclesMissed === 1 ? 'car leaves short' : 'cars leave short')}
-  </section>`;
-}
-
 // ---------- "Cars that can charge through the day" (in the style of the Forecast page's day chart) ----------
 // For each half-hour of the replayed day, the +30 min forecast of energy at risk turned into potential full
 // EV charges on the server (dayplan.py: kWh x charging efficiency / 70 kWh). An energy equivalent, not a
@@ -141,7 +124,7 @@ function evPage() {
   const picker = `<div class="ev-toolbar">${presetPicker()}<em class="ev-sim">Simulated fleet · plans are recommendations, no charger is controlled</em></div>`;
   if (!alt) return `${picker}<section class="dash-card cg-card ev-wait">${planPlaceholder('EV charging plan')}</section>`;
   const foot = `<p class="studio-provenance"><span class="cg-source">${escapeHtml(plan.dataMode === 'simulated' ? 'Example data' : 'Historical dataset prediction')}</span> ${escapeHtml(plan.fleet.fixture)} · solver ${escapeHtml(plan.solver.id)} · ${escapeHtml(plan.status)} · Window energy is a projection, not measured recovery · no charger is controlled.</p>`;
-  return `${picker}${evKpis(plan, alt)}<div class="ev-main">${evTimelineCard()}<div class="ev-side">${evCompareCard(plan, alt)}${dwCard()}</div></div>${foot}`;
+  return `${picker}<div class="ev-main">${evTimelineCard()}<div class="ev-side">${evCompareCard(plan, alt)}${dwCard()}</div></div>${foot}`;
 }
 function renderEvComparison() {
   return studioShell('EV', 'Which simulated EVs charge when, and how much of it uses renewable energy at risk.', evPage);
