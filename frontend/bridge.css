@@ -242,3 +242,15 @@
 .dash-ev-hours .ev-hour.is-selected .ev-hour-track i { background: linear-gradient(180deg, #ffc79c, #ff9a52 55%, #e3701f); box-shadow: 0 4px 10px -4px rgba(255,136,62,.7); }
 .dash-ev-hours .ev-hours-note { margin: 0; color: #bfe3d6; font-size: 10.5px; line-height: 1.35; }
 .dash-ev-hours .ev-hours-note b { color: #fff; }
+
+/* Flexible charging "N cars/day": keep the figure in the space left of the car at any size. The car
+   starts about 36% of the card's width from its left, so the number, "cars/day" (on its own line) and
+   the caption stay inside that column, and the number's font shrinks with its length (--len, set in
+   bridge.js; a digit is about 0.6 em wide at this weight). */
+.bridge-layout .dash-flexible .fleet-demand { max-width: calc(36cqw - 6px); }
+.bridge-layout .dash-flexible .fleet-figure.is-day { flex-direction: column; align-items: flex-start; gap: 2px; white-space: nowrap; }
+.bridge-layout .dash-flexible .fleet-figure.is-day strong { font-size: min(clamp(30px, min(10.5cqw, 15cqh), 52px), calc((36cqw - 6px) / (var(--len, 3) * 0.62))); }
+.bridge-layout .dash-flexible .fleet-caption { white-space: normal; }
+/* The car takes the same share of the card at every size (it grew wider on large, landscape cards and
+   started under the number), so the column above always has the same room. */
+.bridge-layout .dash-flexible .fleet-scene { right: -18px; bottom: -10px; width: 62cqw; height: auto; }
