@@ -13,20 +13,36 @@ const DAY = {
 };
 const HALF_HOUR = { targetAt: '2026-01-11T14:00:00+00:00', horizonMinutes: 30, atRiskMwh: 44.2, probability: 1, risk: 'high', lowerMwh: 30, upperMwh: 60 };
 
-function load(dataMode = 'historical-prediction') {
+// A day plan (GET /api/v1/impact/day): +30 min targets from 00:30 to 00:00 the next day.
+function dayPlan({ skip = [] } = {}) {
+  const first = Date.parse('2026-01-11T00:30:00Z'), intervals = [];
+  for (let k = 0; k < 48; k++) {
+    if (skip.includes(k)) continue;
+    const mwh = k === 27 ? 90 : k >= 20 && k < 30 ? 80 : 5; // a daytime peak; a quarter of it curtailment
+    intervals.push({ targetAt: new Date(first + k * 18e5).toISOString().replace('.000Z', '+00:00'), atRiskMwh: mwh, curtailmentMwh: mwh / 4, constraintMwh: mwh * 3 / 4, probability: 0.9, risk: mwh > 50 ? 'high' : 'low' });
+  }
+  return { date: '2026-01-11', intervals };
+}
+
+function load({ dataMode = 'historical-prediction', plan = dayPlan(), planStatus = 'ready' } = {}) {
   const context = vm.createContext({
     document: { addEventListener() {} },
-    modelState: { data: { dataMode, intervalMinutes: 30, predictions: [HALF_HOUR] }, horizon: 30 },
+    modelState: { data: { dataMode, intervalMinutes: 30, predictions: [HALF_HOUR] }, horizon: 30, capacity: 100 },
     settings: { timezone: 'UTC' },
     n: (value) => new Intl.NumberFormat('en-IE', { maximumFractionDigits: 2 }).format(value),
     escapeHtml: (value) => String(value),
     icon: (name) => `<svg data-icon="${name}"></svg>`,
     cardHead: (tone, title, subtitle, extra = '') => `<div class="head"><h2>${title}</h2><p>${subtitle}</p>${extra}</div>`,
-    modelTime: (value) => new Date(value).toISOString().slice(11, 16),
+    modelTime: (value, date) => (date ? '11 Jan 2026, 14:00' : new Date(value).toISOString().slice(11, 16)),
     selectedPrediction: () => HALF_HOUR,
     pageFromHash: () => 'overview',
     render() {},
     fetch: async () => { throw new Error('no network in tests'); },
+    // bridge.js's day plan, stubbed.
+    dayPlan: { status: planStatus, data: planStatus === 'ready' ? plan : null },
+    dayPlanReady: () => planStatus === 'ready',
+    dayPlanLoading: () => planStatus === 'loading',
+    ensureDayPlan() {},
   });
   for (const file of ['charts3d.js', 'dashboard.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
   const run = (code) => vm.runInContext(code, context);
@@ -47,33 +63,50 @@ test('the top card shows the daily model for the dashboard day', () => {
   assert.equal(run('dashCharts.dayLikelihood.values().risk'), 'high');
 });
 
-test('the second card compares predicted with recorded and links the half-hour plan', () => {
+test('waste through the day: 48 half-hours, the planned one, the best window and the charger limit', () => {
   const run = load();
   run(`Object.assign(dashDay, { key: '2026-01-11', status: 'ready', data: DAY })`);
   const html = text(run('dashboardConfidence(selectedPrediction())'));
-  assert.match(html, /Forecast vs what happened/);
-  assert.match(html, /Model 2 for Sun 11 Jan 2026 against EirGrid’s record · typically off by 1,723 MWh a day/);
-  assert.match(html, /Battery and EV plan: 14:00–14:30 this day · model 1, \+30 min · 44\.2 MWh at risk/);
-  const chart = run('dashCharts.dayCompare.draw(dashCharts.dayCompare.values())');
-  assert.match(chart, /8,963 MWh/);
-  assert.match(chart, /7,011 MWh/);
-  assert.match(chart, /99% wind/);
-  assert.match(chart, /100% wind/);
+  assert.match(html, /Waste through the day/);
+  // Curtailment compared like for like: day-ahead (model 2), the half-hourly curtailment added up (model 1), recorded.
+  assert.match(html, /Curtailment over the day, forecast three ways Day-ahead 8,963 ?MWh Half-hourly 250 ?MWh Recorded 7,011 ?MWh/);
+  assert.doesNotMatch(html, /Battery &amp; EV plan/, 'the planned half-hour is shown by its outlined bar only');
+  const values = run('dashCharts.dayWaste.values()');
+  assert.equal(values.v.length, 48);
+  assert.equal(values.sel, 27, '14:00 is the 28th +30 min slot after 00:30');
+  assert.equal(values.win, '20|8');
+  assert.equal(values.cap, 50);
+  const chart = run('dashCharts.dayWaste.draw(dashCharts.dayWaste.values())');
+  assert.equal(chart.match(/class="dw-col[ "]/g).length, 48);
+  assert.equal(chart.match(/dw-col is-plan/g).length, 1);
+  assert.match(chart, /charger limit 50 MWh/);
+  assert.equal(chart.match(/dw-bar is-curtail/g).length, 48, 'every bar shows its curtailment part');
+  assert.match(chart, /Curtailment <strong>22\.5 MWh<\/strong>/);
+  assert.match(chart, /Grid constraint <strong>67\.5 MWh<\/strong>/);
+  assert.doesNotMatch(chart, /NaN|undefined/);
 });
 
-test('until the daily view arrives, or for demo data, the half-hour cards are shown', () => {
+test('the best window prefers the most energy, then the shortest, then the earliest run', () => {
   const run = load();
-  assert.match(text(run('dashboardHero(selectedPrediction())')), /Renewable energy at risk/);
-  run(`Object.assign(dashDay, { key: '2026-01-11', status: 'loading', data: null })`);
-  assert.match(text(run('dashboardHero(selectedPrediction())')), /Loading the daily forecast/);
-  run(`Object.assign(dashDay, { status: 'error', error: 'down' })`);
-  assert.match(text(run('dashboardHero(selectedPrediction())')), /Renewable energy at risk/);
-  assert.match(text(run('dashboardConfidence(selectedPrediction())')), /Forecast confidence/);
-  assert.equal(load('simulated')('dashDayKey()'), '', 'demo data never asks for a daily view');
+  assert.deepEqual({ ...run('wasteWindow([0, 60, 60, 0, 0, 90, 90, 0], 50, 4)') }, { start: 5, len: 2, takenMwh: 100, atRiskMwh: 180 });
+  assert.deepEqual({ ...run('wasteWindow([0, 60, 60, 0, 0, 60, 60, 0], 50, 4)') }, { start: 1, len: 2, takenMwh: 100, atRiskMwh: 120 });
+  assert.equal(run('wasteWindow([0, 0, 0], 50)'), null);
 });
 
-test('a day with nothing recorded says so instead of drawing a 0% / 100% mix', () => {
-  const run = load();
-  run(`Object.assign(dashDay, { key: '2026-01-11', status: 'ready', data: { ...DAY, recorded: { status: 'available', curtailmentMwh: 0, split: null } } })`);
-  assert.match(run('dashCharts.dayCompare.draw(dashCharts.dayCompare.values())'), /nothing was curtailed/);
+test('a day with a gap in the dataset keeps every bar in its own time slot', () => {
+  const run = load({ plan: dayPlan({ skip: [30, 31] }) });
+  const values = run('dashCharts.dayWaste.values()');
+  assert.equal(values.v.length, 48);
+  assert.equal(values.sel, 27);
+  const chart = run('dashCharts.dayWaste.draw(dashCharts.dayWaste.values())');
+  assert.equal(chart.match(/dw-col is-missing/g).length, 2);
+  assert.match(chart, /15:30–16:00/);
+  assert.match(text(run('dashboardConfidence(selectedPrediction())')), /2 missing from the dataset/);
+});
+
+test('while the day plan loads it says so; on error, or for demo data, the half-hour card is shown', () => {
+  assert.match(text(load({ planStatus: 'loading' })('dashboardConfidence(selectedPrediction())')), /Replaying the day’s 48 half-hours/);
+  assert.match(text(load({ planStatus: 'error' })('dashboardConfidence(selectedPrediction())')), /Forecast confidence/);
+  assert.match(text(load({ dataMode: 'simulated' })('dashboardConfidence(selectedPrediction())')), /Forecast confidence/);
+  assert.equal(load({ dataMode: 'simulated' })('dashDayKey()'), '', 'demo data never asks for a daily view');
 });

@@ -44,27 +44,79 @@ dashCharts.dayLikelihood = {
   },
 };
 
-// Predicted vs recorded curtailment on one scale, then the wind / solar mix of each.
-dashCharts.dayCompare = {
+// "Waste through the day": model 1's +30 min forecast for each half-hour of the Dashboard day, from the
+// same day plan the Battery and EV pages use (bridge.js, GET /api/v1/impact/day; cached server-side).
+// Marks the half-hour the battery and EV cards plan, the best charging window and the charger limit.
+const WASTE_WINDOW_SLOTS = 8; // up to 4 hours, as on the Wind & Solar page
+
+// The run of up to `slots` half-hours where chargers of `capMwh` per half-hour could take the most:
+// sum(min(at risk, cap)). Ties: most energy at risk, then the shortest run, then the earliest.
+const wasteBetter = (a, b) => { const i = a.findIndex((k, j) => k !== b[j]); return i >= 0 && a[i] > b[i]; };
+function wasteWindow(values, capMwh, slots = WASTE_WINDOW_SLOTS) {
+  let best = null;
+  for (let start = 0; start < values.length; start++) {
+    let taken = 0, total = 0;
+    for (let len = 1; len <= slots && start + len <= values.length; len++) {
+      const v = values[start + len - 1] || 0;
+      taken += Math.min(v, capMwh); total += v;
+      const key = [Math.round(taken * 1e6), Math.round(total * 1e6), -len, -start];
+      if (taken > 0 && (!best || wasteBetter(key, best.key))) best = { key, start, len, taken, total };
+    }
+  }
+  return best && { start: best.start, len: best.len, takenMwh: best.taken, atRiskMwh: best.total };
+}
+
+// A replay day's 48 slots are the +30 min targets from 00:30 to 00:00 the next day. A day with a gap in the
+// dataset has fewer intervals, so each one is placed in its own slot (missing slots stay empty).
+// Each bar is split into its two causes: curtailment (the same quantity the daily model in the card
+// above predicts) and grid constraints (only model 1 predicts these). Comparing the day's curtailment
+// like for like is what keeps the two cards consistent: the top card never meets the chart's total.
+const WASTE_SLOTS = 48;
+function wasteSeries() {
+  const plan = dayPlan.data, p = selectedPrediction();
+  const first = Date.parse(`${plan.date}T00:30:00Z`), slotOf = (t) => Math.round((Date.parse(t) - first) / 18e5);
+  const values = Array(WASTE_SLOTS).fill(null), curt = Array(WASTE_SLOTS).fill(0), rows = Array(WASTE_SLOTS).fill(null);
+  for (const i of plan.intervals) {
+    const k = slotOf(i.targetAt);
+    if (k < 0 || k >= WASTE_SLOTS) continue;
+    values[k] = i.atRiskMwh || 0;
+    curt[k] = Math.min(values[k], Math.max(0, i.curtailmentMwh ?? 0));
+    rows[k] = i;
+  }
+  const cap = modelState.capacity * 0.5, sel = slotOf(p.targetAt);
+  const at = (k) => new Date(first + k * 18e5).toISOString();
+  const known = values.filter((v) => v !== null);
+  return { plan, values, curt, rows, cap, at, known,
+    curtailmentMwh: curt.reduce((a, v) => a + v, 0), totalMwh: known.reduce((a, v) => a + v, 0),
+    sel: sel >= 0 && sel < WASTE_SLOTS && rows[sel] ? sel : -1, window: wasteWindow(values, cap) };
+}
+
+dashCharts.dayWaste = {
   values() {
-    const d = dashDay.data, rec = d?.recorded.curtailmentMwh;
-    const split = d?.split.status === 'ok' ? d.split : null, recSplit = d?.recorded.split;
-    return {
-      pred: d?.predictedMwh ?? 0, rec: rec ?? 0, hasRec: Number.isFinite(rec) ? '1' : '',
-      max: chartNiceMax(Math.max(d?.predictedMwh ?? 0, rec ?? 0, 1)),
-      predWind: split ? split.windSharePercent : 0, hasPredMix: split ? '1' : '',
-      recWind: recSplit?.windSharePercent ?? 0, hasRecMix: recSplit && Number.isFinite(recSplit.windSharePercent) ? '1' : '',
-      rise: 1,
-    };
+    if (!dayPlanReady()) return { v: [], c: [], max: 1, sel: -1, win: '', cap: 0, rise: 0, meta: '' };
+    const s = wasteSeries();
+    return { v: s.values.map((x) => x ?? 0), c: s.curt, max: chartNiceMax(Math.max(...s.values.map((x) => x ?? 0), 1)), sel: s.sel, cap: s.cap, rise: 1,
+      win: s.window ? `${s.window.start}|${s.window.len}` : '',
+      meta: s.rows.map((r, k) => `${modelTime(s.at(k))}~${r ? Math.round(r.probability * 100) : ''}~${r ? 'ok' : 'none'}~${modelTime(s.at(k + 1))}`).join('|') };
   },
-  start: (t) => ({ ...t, pred: 0, rec: 0, predWind: 0, recWind: 0, rise: 0 }),
-  draw({ pred, rec, hasRec, max, predWind, hasPredMix, recWind, hasRecMix, rise }) {
-    const w = (v) => `${Math.max(0, Math.min(100, (v / max) * 100)).toFixed(2)}%`;
-    const amount = (cls, label, value, note) => `<div class="day-row"><span class="day-label">${label}</span><span class="day-track"><i class="day-bar ${cls}" style="width:${w(value)}"></i></span><b>${note || `${n(Math.round(value))} MWh`}</b></div>`;
-    const mix = (label, wind) => `<div class="day-row is-mix"><span class="day-label">${label}</span><span class="day-track is-mix"><i class="is-wind" style="width:${(wind * rise).toFixed(2)}%"><em>${Math.round(wind)}% wind</em></i><i class="is-solar" style="width:${((100 - wind) * rise).toFixed(2)}%"><em>${Math.round(100 - wind)}% solar</em></i></span></div>`;
-    const recMix = hasRecMix ? mix('Recorded', recWind) : `<div class="day-row is-mix"><span class="day-label">Recorded</span><span class="day-none">${hasRec && rec === 0 ? 'nothing was curtailed' : 'no wind / solar record'}</span></div>`;
-    return `<div class="day-cmp"><p class="day-title">Curtailment over the day</p>${amount('is-pred', 'Predicted', pred)}${amount('is-rec', 'Recorded', rec, hasRec ? '' : 'pending')}
-      <p class="day-title">Where it comes from</p>${hasPredMix ? mix('Predicted', predWind) : '<div class="day-row is-mix"><span class="day-label">Predicted</span><span class="day-none">split unavailable</span></div>'}${recMix}</div>`;
+  start: (t) => ({ ...t, v: t.v.map(() => 0), c: t.c.map(() => 0), rise: 0 }),
+  draw({ v, c, max, sel, win, cap, rise, meta }) {
+    if (!v.length) return '';
+    const rows = meta.split('|').map((m) => m.split('~'));
+    const h = (x) => `${(Math.min(1, Math.max(0, x / max)) * 100 * rise).toFixed(2)}%`;
+    const mwh = (x) => n(Math.round(x * 10) / 10);
+    const cols = v.map((x, i) => {
+      const [time, chance, state, next] = rows[i] || ['', '', 'none', ''];
+      if (state === 'none') return `<span class="dw-col is-missing"><span class="dw-tip"><b>${time}–${next}</b><small>No forecast in the dataset for this half-hour</small></span></span>`;
+      const curtail = Math.min(c[i] || 0, x), constraint = Math.max(0, x - curtail);
+      return `<span class="dw-col${i === sel ? ' is-plan' : ''}"><i class="dw-bar is-constraint" style="height:${h(constraint)}"></i><i class="dw-bar is-curtail" style="height:${h(curtail)}"></i>${i === sel ? '<em class="dw-plan">Plan</em>' : ''}
+        <span class="dw-tip"><b>${time}–${next}</b><span><i class="is-curtail"></i>Curtailment <strong>${mwh(curtail)} MWh</strong></span><span><i class="is-constraint"></i>Grid constraint <strong>${mwh(constraint)} MWh</strong></span><span>Chance of any <strong>${chance}%</strong></span>${i === sel ? '<small>Planned: the battery and EV cards on the right use this half-hour (curtailment + constraint)</small>' : ''}</span></span>`;
+    }).join('');
+    const [ws, wl] = win ? win.split('|').map(Number) : [0, 0];
+    const band = win ? `<span class="dw-window" style="left:${(ws / v.length) * 100}%;width:${(wl / v.length) * 100}%" title="Best charging window: ${rows[ws]?.[0]}–${rows[ws + wl - 1]?.[3]}"></span>` : '';
+    const limit = cap <= max ? `<span class="dw-cap" style="bottom:${(cap / max) * 100}%"><b>charger limit ${n(Math.round(cap))} MWh</b></span>` : '';
+    const ticks = rows.map((r, i) => (i % 8 === 0 ? `<span style="left:${(i / v.length) * 100}%">${r[0]}</span>` : '')).join('');
+    return `<div class="dw-chart"><div class="dw-head"><span>${n(max)} MWh</span><span class="dw-key"><i class="is-curtail"></i>Curtailment<i class="is-constraint"></i>Grid constraint${win ? '<i class="is-window"></i>Best window' : ''}</span></div><div class="dw-cols">${band}${cols}${limit}</div><div class="dw-axis">${ticks}</div></div>`;
   },
 };
 
@@ -90,16 +142,29 @@ function dashboardDayHero(d) {
 }
 
 function dashboardConfidence(p) {
-  if (dashDayReady()) return dashboardDayCompare(dashDay.data, p);
+  if (modelState.data?.dataMode !== 'simulated') {
+    ensureDayPlan();
+    if (dayPlanReady()) return dashboardWaste(p);
+    if (dayPlanLoading()) {
+      return `<section class="dash-card dash-confidence is-daily is-waste">${cardHead('orange', 'Waste through the day', 'Renewable power model 1 expects to be switched off in each half-hour of the day')}
+        <div class="day-loading is-light" role="status"><span class="fx-busy is-on"><i></i>Replaying the day’s 48 half-hours…</span><small>About 15 seconds the first time</small></div></section>`;
+    }
+  }
   const legend='<div class="confidence-legend"><span><i class="is-range"></i>Likely range</span><span><i class="is-expected"></i>Expected</span></div>';
   return `<section class="dash-card dash-confidence">${cardHead('orange','Forecast confidence','Energy at risk (MWh) for the selected half-hour, forecast 30 and 60 minutes before it: the expected value and the range it will likely fall in',legend)}${chartSlot('confidence','Forecast targets','confidence-chart','group')}</section>`;
 }
 
-function dashboardDayCompare(d, p) {
-  const t = d.model.test, miss = t.dailyMaeMwh ? ` · typically off by ${n(Math.round(t.dailyMaeMwh))} MWh a day` : '';
-  return `<section class="dash-card dash-confidence is-daily">${cardHead('orange', 'Forecast vs what happened', `Model 2 for ${escapeHtml(dashDayLabel(d.date))} against EirGrid’s record${miss}`)}
-    ${chartSlot('dayCompare', `Predicted ${n(Math.round(d.predictedMwh))} MWh, recorded ${Number.isFinite(d.recorded.curtailmentMwh) ? `${n(Math.round(d.recorded.curtailmentMwh))} MWh` : 'pending'}`, 'day-compare')}
-    <p class="day-plan-link" title="The battery and EV cards plan one half-hour with the short-term model (model 1), which includes grid constraints as well as curtailment.">${icon('charge', 15)}<span>Battery and EV plan: <b>${escapeHtml(targetWindow(p))}</b> this day · model 1, +${p.horizonMinutes} min · <b>${n(p.atRiskMwh)} MWh</b> at risk</span></p>
+function dashboardWaste(p) {
+  const s = wasteSeries(), day = dashDayReady() ? dashDayLabel(dashDay.data.date) : modelTime(p.targetAt, true).slice(0, 11);
+  const missing = WASTE_SLOTS - s.known.length;
+  const rec = dashDayReady() ? dashDay.data.recorded.curtailmentMwh : null, ahead = dashDayReady() ? dashDay.data.predictedMwh : null;
+  const cell = (label, value, cls, title) => `<div class="dw-stat ${cls}" title="${title}"><span>${label}</span><b>${Number.isFinite(value) ? `${n(Math.round(value))}<small>MWh</small>` : dashDay.status === 'loading' ? '…' : '—'}</b></div>`;
+  return `<section class="dash-card dash-confidence is-daily is-waste">${cardHead('orange', 'Waste through the day', `Model 1, 30 min ahead, per half-hour${missing ? ` · ${missing} missing from the dataset` : ''}`)}
+    ${chartSlot('dayWaste', `Curtailment and grid constraints forecast for each half-hour of ${day}; the planned half-hour is outlined`, 'dw-slot')}
+    <div class="dw-compare" title="The same quantity, curtailment, forecast three ways. Half-hour forecasts are made 30 minutes ahead with live grid readings, so they are usually much closer to what happens than the forecast made at midnight from the weather.">
+      <p>Curtailment over the day, forecast three ways</p>
+      ${cell('Day-ahead', ahead, 'is-ahead', 'Model 2: one forecast for the whole day, made at midnight from the weather forecast')}${cell('Half-hourly', s.curtailmentMwh, 'is-now', 'Model 1: the curtailment part of the 48 half-hour forecasts above, each made 30 minutes ahead, added up')}${cell('Recorded', rec, 'is-rec', 'What EirGrid recorded')}
+    </div>
   </section>`;
 }
 

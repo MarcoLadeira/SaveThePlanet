@@ -114,6 +114,8 @@ def interval(fleet, prediction, mode='expected', battery=storage.DEFAULT, day_sh
     return dict(
         targetAt=prediction['targetAt'], probability=prediction.get('probability'), risk=prediction.get('risk'),
         atRiskMwh=prediction['atRiskMwh'], atRiskKwh=at_risk_kwh, eligibleKwh=ledger['eligibleOpportunityKwh'],
+        # The two causes, so a chart can show curtailment (what the daily model predicts) apart from constraints.
+        curtailmentMwh=prediction.get('curtailmentMwh'), constraintMwh=prediction.get('constraintMwh'),
         lowerMwh=prediction['lowerMwh'], medianMwh=prediction['medianMwh'], upperMwh=prediction['upperMwh'],
         carsCharged=len(alt['optimized']['opportunityAllocations'] or []),
         potentialFullCharges=full_charges(at_risk_kwh, fleet['chargingEfficiency']),

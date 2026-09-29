@@ -239,10 +239,15 @@ def _replay_day(day, capacity):
     hours = min(24.0, ((last - start).total_seconds() / 3600) + 0.5)
     if start < first or hours <= 0:
         raise DateOutOfRange(first.date(), last.date())
-    payload = model_request('/predict/window/from-dataset', dict(
-        start_timestamp_utc=start.isoformat().replace('+00:00', 'Z'), duration_hours=hours,
-        forecast_horizons_minutes=[30], flexible_load_capacity_mw=capacity), timeout=WINDOW_TIMEOUT)
-    rows = payload['predictions']
+    try:
+        rows = _replay_window(start, hours, capacity)
+    except HTTPError as error:
+        # A day with a gap in the dataset (e.g. 26 Jan 2026) cannot be replayed as one window:
+        # replay each unbroken run of issue times instead, as the Forecast page does.
+        if error.code != 404:
+            raise
+        error.close()
+        rows = _replay_runs(day, capacity)
     if not isinstance(rows, list) or not rows:
         raise ValueError('Empty window replay')
     points = sorted((normalize_row(row, capacity) for row in rows), key=lambda p: p['targetAt'])
@@ -253,6 +258,29 @@ def _replay_day(day, capacity):
     return dict(date=day.isoformat(), range=dict(min=first.date().isoformat(), max=last.date().isoformat()),
                 source='grid-to-ev-model', modelVersion=points[0]['modelVersion'], intervalMinutes=30,
                 horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
+
+
+def _replay_window(start, hours, capacity):
+    payload = model_request('/predict/window/from-dataset', dict(
+        start_timestamp_utc=start.isoformat().replace('+00:00', 'Z'), duration_hours=hours,
+        forecast_horizons_minutes=[30], flexible_load_capacity_mw=capacity), timeout=WINDOW_TIMEOUT)
+    return payload['predictions']
+
+
+def _replay_runs(day, capacity):
+    """+30 minute rows for a day whose issue times have gaps: one window per gap-free run. A run whose
+    final target falls outside the dataset drops its last half-hour, like explorer._window."""
+    times = [t for t in explorer.short_term_info()['times'] if t[:10] == day.isoformat()]
+    rows = []
+    for run in explorer.contiguous_runs(times):
+        try:
+            rows += _replay_window(run[0], len(run) / 2, capacity)
+        except HTTPError as error:
+            if error.code != 404 or len(run) < 2:
+                raise
+            error.close()
+            rows += _replay_window(run[0], len(run) / 2 - 0.5, capacity)
+    return rows
 
 
 def neighbour_days(day, first, last, span=None):

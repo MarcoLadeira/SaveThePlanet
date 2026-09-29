@@ -77,6 +77,25 @@ class ImpactDayTests(unittest.TestCase):
         _, fake = self.replay([1] * 48, day='2026-01-31')
         self.assertEqual(fake.windows[0]['duration_hours'], 23.0)
 
+    def test_a_day_with_a_gap_is_replayed_one_unbroken_run_at_a_time(self):
+        # 26 Jan 2026: the dataset has no issue times at 15:00 and 15:30, so the whole-day window is refused.
+        day = datetime(2026, 1, 26, tzinfo=timezone.utc)
+        issues = [day + timedelta(minutes=30 * k) for k in range(48) if k not in (30, 31)]
+        times = [t.isoformat().replace('+00:00', 'Z') for t in issues]
+        fake = FakeModel([1] * 48)
+
+        def model(path, body=None, timeout=None):
+            if body and body['duration_hours'] == 24.0:
+                raise server.HTTPError('http://model', 404, 'Not Found', {}, None)
+            return fake(path, body, timeout)
+        with patch('server.model_request', model), patch('explorer.short_term_info', return_value={'times': times}):
+            replay = server.fetch_day_replay(day.date(), 100)
+        self.assertEqual([w['duration_hours'] for w in fake.windows], [15.0, 8.0])  # 00:00-14:30, then 16:00-23:30
+        targets = [p['targetAt'] for p in replay['predictions']]
+        self.assertEqual(len(targets), 46)
+        self.assertNotIn('2026-01-26T15:30:00+00:00', targets)
+        self.assertNotIn('2026-01-26T16:00:00+00:00', targets)
+
     def test_replay_is_cached_per_day_and_capacity(self):
         fake = FakeModel([1] * 48)
         with patch('server.model_request', fake):
@@ -174,6 +193,9 @@ class ImpactDayHttpTests(unittest.TestCase):
         self.assertFalse(body['additive'], 'each half-hour is a separate what-if')
         for key in ('capturedKwh', 'capturedShare', 'evGridKwh', 'storageGridKwh', 'co2AvoidedKg'):
             self.assertIn(key, body['intervals'][0])
+        # Each half-hour carries its two causes, which add up to the energy at risk.
+        first = body['intervals'][0]
+        self.assertAlmostEqual(first['curtailmentMwh'] + first['constraintMwh'], first['atRiskMwh'])
         with patch('server.model_request', FakeModel([1] * 48)):
             self.assertEqual(self.get('/api/v1/impact/day?date=2026-01-10')[1]['fleet']['preset'], server.DAY_PLAN_PRESET)
 

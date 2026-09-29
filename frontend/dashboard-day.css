@@ -1,43 +1,70 @@
-/* Dashboard left cards when they show the daily model (V2) for the dashboard's day (dashboard.js).
-   Predicted is the Dashboard's "at risk" orange, recorded is green; wind is blue and solar amber,
-   as on the Wind & Solar page. */
-.dashboard-main{--day-pred:#ff883e;--day-pred-top:#ffc08f;--day-rec:#1fae6c;--day-rec-top:#72dfa9;--day-wind:#2f7be0;--day-wind-top:#7fb0f5;--day-solar:#f2a23a;--day-solar-top:#f8cb88}
-.dashboard-main[data-theme="dark"]{--day-rec:#34bb7b;--day-wind:#78a9ff;--day-wind-top:#a9c8ff}
+/* Dashboard left cards (dashboard.js): the daily model (V2) headline and "Waste through the day".
+   Risk colours follow the Dashboard: high orange, medium amber, low green-grey; the planned
+   half-hour is outlined, the best charging window is a green band, the charger limit a dashed line. */
+.dashboard-main{--dw-curtail:#e0691e;--dw-curtail-top:#ff9d5c;--dw-constraint:rgba(255,136,62,.32);--dw-high:#ff883e;--dw-high-top:#ffc08f;--dw-medium:#f2a23a;--dw-medium-top:#f8cb88;--dw-low:#a9b8af;--dw-low-top:#d3ddd6;--dw-window:rgba(31,153,96,.12);--dw-window-edge:#1f9960;--dw-cap:#c67a1a;--dw-tip:#10281f}
+.dashboard-main[data-theme="dark"]{--dw-curtail:#ff883e;--dw-curtail-top:#ffc08f;--dw-constraint:rgba(255,160,100,.3);--dw-low:#56665d;--dw-low-top:#76897e;--dw-window:rgba(127,224,174,.1);--dw-window-edge:#7fe0ae;--dw-cap:#ffb070;--dw-tip:#08140f}
 
-.bridge-layout .dash-hero.is-daily .day-loading{display:grid;flex:1;place-items:center;color:#bed8d0;font-size:13px}
+.bridge-layout .dash-hero.is-daily .day-loading,.bridge-layout .dash-confidence .day-loading{display:grid;flex:1;place-content:center;justify-items:center;gap:4px;color:#bed8d0;font-size:13px}
+.bridge-layout .dash-confidence .day-loading{color:var(--ink-2)}
+.bridge-layout .day-loading small{font-size:12px;color:var(--ink-3)}
 .bridge-layout .dash-hero.is-daily .fx-busy{color:#bed8d0}
 
-.bridge-layout .dash-confidence.is-daily{gap:10px}
-.day-legend i.is-pred{background:linear-gradient(90deg,var(--day-pred-top),var(--day-pred))}
-.day-legend i.is-rec{background:linear-gradient(90deg,var(--day-rec-top),var(--day-rec))}
-.day-compare{flex:1 1 auto;min-height:0}
-.day-cmp{display:grid;gap:7px}
-.day-title{margin:2px 0 0;font-size:12.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
-.day-row{display:grid;grid-template-columns:82px minmax(0,1fr) 100px;align-items:center;gap:10px}
-.day-row.is-mix{grid-template-columns:82px minmax(0,1fr)}
-.day-label{font-size:14.5px;font-weight:750;color:var(--ink-2)}
-.day-track{display:flex;height:18px;border-radius:9px;background:var(--grey-soft);overflow:hidden;box-shadow:inset 0 1px 2px rgba(10,40,30,.08)}
-.day-track.is-mix{height:26px}
-.day-bar{display:block;height:100%;border-radius:9px}
-.day-bar.is-pred{background:linear-gradient(90deg,var(--day-pred-top),var(--day-pred))}
-.day-bar.is-rec{background:linear-gradient(90deg,var(--day-rec-top),var(--day-rec))}
-.day-track i.is-wind,.day-track i.is-solar{display:flex;align-items:center;min-width:0;overflow:hidden}
-.day-track i.is-wind{background:linear-gradient(180deg,var(--day-wind-top),var(--day-wind))}
-.day-track i.is-solar{background:linear-gradient(180deg,var(--day-solar-top),var(--day-solar))}
-.day-track em{padding:0 8px;font-size:13px;font-style:normal;font-weight:800;color:#0e2233;white-space:nowrap}
-.day-row>b{font-size:15px;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
-.day-none{font-size:13.5px;color:var(--ink-3)}
-.day-plan-link{display:flex;align-items:flex-start;gap:8px;margin:auto 0 0;padding:9px 12px;border-radius:12px;background:var(--surface-2);font-size:13.5px;line-height:1.45;color:var(--ink-2)}
+/* Waste through the day */
+.bridge-layout .dash-confidence.is-waste{gap:8px}
+.dw-slot{position:relative;flex:1 1 auto;min-height:150px}
+.dw-chart{position:absolute;inset:0;display:flex;flex-direction:column}
+.dw-head{display:flex;align-items:center;justify-content:space-between;gap:8px;height:16px;font-size:11px;font-weight:700;color:var(--ink-3)}
+.dw-key{display:flex;align-items:center;gap:5px;font-weight:650;color:var(--ink-2)}
+.dw-key i,.dw-tip i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.dw-key i+i,.dw-key i:not(:first-child){margin-left:8px}
+i.is-curtail{background:var(--dw-curtail)}
+i.is-constraint{background:var(--dw-constraint);box-shadow:inset 0 0 0 1px var(--dw-curtail)}
+.dw-cols{position:relative;display:grid;grid-template-columns:repeat(48,minmax(0,1fr));align-items:end;column-gap:1.5px;flex:1;margin-top:4px;border-bottom:1.5px solid var(--line)}
+.dw-col{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;outline:none}
+.dw-bar{display:block;flex:0 0 auto;width:100%}
+.dw-bar.is-curtail{background:linear-gradient(180deg,var(--dw-curtail-top),var(--dw-curtail))}
+.dw-bar.is-constraint{border-radius:3px 3px 0 0;background:var(--dw-constraint)}
+.dw-bar.is-high{background:linear-gradient(180deg,var(--dw-high-top),var(--dw-high))}
+.dw-bar.is-medium{background:linear-gradient(180deg,var(--dw-medium-top),var(--dw-medium))}
+.dw-bar.is-low{background:linear-gradient(180deg,var(--dw-low-top),var(--dw-low))}
+.dw-col.is-plan{box-shadow:0 0 0 2px var(--ink);border-radius:3px}
+.dw-plan{position:absolute;top:2px;left:50%;z-index:3;box-shadow:0 1px 3px rgba(0,0,0,.25);padding:1px 6px;border-radius:6px;background:var(--ink);color:var(--surface);font-size:10.5px;font-style:normal;font-weight:800;white-space:nowrap;transform:translateX(-50%)}
+.dw-window{position:absolute;top:0;bottom:0;z-index:0;border-radius:6px;background:var(--dw-window);box-shadow:inset 0 0 0 1.5px var(--dw-window-edge)}
+.dw-cap{position:absolute;left:0;right:0;z-index:2;height:0;border-top:2px dashed var(--dw-cap);pointer-events:none}
+.dw-cap b{position:absolute;left:0;bottom:2px;padding:0 5px;border-radius:5px;background:var(--surface);font-size:10.5px;font-weight:700;color:var(--dw-cap);white-space:nowrap}
+.dw-axis{position:relative;height:18px}
+.dw-axis span{position:absolute;top:3px;font-size:11.5px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+/* Hover tooltip, pure CSS. */
+.dw-tip{position:absolute;bottom:calc(100% + 8px);left:50%;z-index:5;display:none;flex-direction:column;gap:3px;min-width:150px;padding:8px 10px;border-radius:10px;background:var(--dw-tip);color:#fff;font-size:12px;white-space:nowrap;transform:translateX(-50%);box-shadow:0 8px 22px rgba(0,0,0,.2);pointer-events:none}
+.dw-col:nth-child(-n+8) .dw-tip{left:0;transform:none}
+.dw-col:nth-last-child(-n+9) .dw-tip{left:auto;right:0;transform:none}
+.dw-tip span{display:flex;gap:10px;color:#cfe3d9}
+.dw-tip strong{margin-left:auto;color:#fff}
+.dw-tip small{font-size:11px;color:#9fbcb0;white-space:normal}
+.dw-col:hover .dw-tip{display:flex}
+.dw-col.is-missing{background:repeating-linear-gradient(135deg,transparent 0 3px,var(--line) 3px 4px);opacity:.6}
+.dw-col:hover .dw-bar{filter:brightness(1.08)}
+i.is-window{background:var(--dw-window);box-shadow:inset 0 0 0 1.5px var(--dw-window-edge)}
+.dw-compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:6px;border-radius:12px;background:var(--surface-2)}
+.dw-compare>p{grid-column:1/-1;margin:0 2px;font-size:11.5px;font-weight:800;letter-spacing:.02em;color:var(--ink-2)}
+.dw-stat{display:grid;gap:0;min-width:0;padding:3px 8px;border-radius:9px;background:var(--surface)}
+.dw-stat span{font-size:11px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dw-stat b{font-size:16px;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dw-stat b small{margin-left:2px;font-size:11px;color:var(--ink-3)}
+.dw-stat.is-now b{color:var(--dw-curtail)}
+.dw-stat.is-rec b{color:var(--green-deep)}
+.dashboard-main[data-theme="dark"] .dw-stat.is-rec b{color:var(--green)}
+
+.day-plan-link{display:flex;align-items:flex-start;gap:8px;margin:0;padding:7px 12px;border-radius:12px;background:var(--surface-2);font-size:13.5px;line-height:1.45;color:var(--ink-2)}
 .day-plan-link svg{flex:0 0 auto;margin-top:1px;color:var(--green)}
 .day-plan-link b{color:var(--ink)}
-.day-note{margin:0;font-size:13.5px;line-height:1.45;color:var(--ink-3)}
-.day-note b{color:var(--ink-2)}
-/* Bigger writing in the two model-2 cards for readability. */
+
+/* Bigger writing in the two left cards for readability. */
 .bridge-layout :is(.dash-hero,.dash-confidence).is-daily .dash-head-copy h2{font-size:18px}
 .bridge-layout :is(.dash-hero,.dash-confidence).is-daily .dash-head-copy p{font-size:13px;line-height:1.35}
 .bridge-layout .dash-hero.is-daily .hero-figure p{font-size:13px;line-height:1.35}
 .bridge-layout .dash-hero.is-daily .hero-figure .hero-kwh{font-size:13.5px}
 .bridge-layout .dash-hero.is-daily .dash-hero-stats span{font-size:12px}
 .bridge-layout .dash-hero.is-daily .dash-hero-stats strong{font-size:15px}
-.bridge-layout .dash-confidence.is-daily .day-legend span{font-size:12px}
 .bridge-layout .dash-hero.is-daily .hero-gauge .gauge-caption{font-size:12px}
+@media (prefers-reduced-motion:reduce){.dw-col:hover .dw-bar{filter:none}}
