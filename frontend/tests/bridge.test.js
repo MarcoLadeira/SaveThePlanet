@@ -28,8 +28,9 @@ function alternative(horizonMinutes, { allocated = 65, eligible = 350, shares } 
   };
 }
 
-function load(horizon = 30, alternatives = [alternative(30), alternative(60, { allocated: 40 })]) {
+function load(horizon = 30, alternatives = [alternative(30), alternative(60, { allocated: 40 })], globals = {}) {
   const context = vm.createContext({
+    ...globals,
     modelState: { horizon },
     n: (value) => String(Math.round(value * 100) / 100),
     escapeHtml: String,
@@ -139,8 +140,8 @@ test('full battery: tag reads FULL, surplus goes to the ESB hydrogen plants', ()
   assert.match(html, /<b class="bridge-level-tag">FULL<\/b>/);
   assert.match(html, /100%<small>full<\/small><\/strong><em>10 of 10 MWh/);
   assert.match(html, /Room left<\/span><b>0<small>MWh/);
-  assert.match(html, /<strong>102\.94 MWh<\/strong> surplus to ESB hydrogen plants/);
-  assert.match(html, /\+102\.94 MWh → ESB hydrogen/);
+  assert.match(html, /<strong>103 MWh<\/strong> surplus to ESB hydrogen plants/);
+  assert.match(html, /\+103 MWh → ESB hydrogen/);  // whole MWh from 100 up
 });
 
 test('a reported level over 100% is drawn as full, the excess counted as hydrogen surplus', () => {
@@ -168,4 +169,39 @@ test('battery with room left shows no hydrogen surplus', () => {
   const html = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.values());
   assert.doesNotMatch(html, /ESB|H₂|FULL/);
   assert.match(html, /Room left/);
+});
+
+// The daily view (dashboard.js) as bridge.js sees it: today's predicted curtailment for the whole day.
+const dayGlobals = (predictedMwh) => ({
+  dashDay: { data: { date: '2026-01-11', predictedMwh } }, dashDayReady: () => true, dashDayLabel: () => 'Sun 11 Jan 2026',
+});
+
+test('day battery: the forecast for the day fills a 10,000 MWh battery (7,000 MWh is 70%, 6,000 MWh is 60%)', () => {
+  for (const [mwh, pct, room] of [[7000, '70%', '3000'], [6000, '60%', '4000']]) {  // the test n() has no thousands separators
+    const { dashCharts } = load(30, undefined, { ...dayGlobals(mwh) });
+    const html = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.values());
+    assert.match(html, new RegExp(`<strong>${pct}<small>full</small></strong><em>${mwh} of 10000 MWh`));
+    assert.match(html, new RegExp(`Room left</span><b>${room}<small>MWh`));
+    assert.match(html, new RegExp(`<b class="bridge-level-tag">${pct}</b>`));
+    assert.match(html, new RegExp(`Today’s forecast: ${mwh} MWh of renewable energy at risk · Sun 11 Jan 2026`));
+    assert.doesNotMatch(html, /ESB|half-hour/);
+  }
+});
+
+test('day battery: 11,000 MWh fills it and sends 1,000 MWh surplus to the ESB hydrogen plants', () => {
+  const { dashCharts } = load(30, undefined, { ...dayGlobals(11000) });
+  const values = dashCharts.bridgeBattery.values();
+  const html = dashCharts.bridgeBattery.draw(values);
+  assert.match(html, /style="--level:100%"/);
+  assert.match(html, /<b class="bridge-level-tag">FULL<\/b>/);
+  assert.match(html, /<strong>100%<small>full<\/small><\/strong><em>10000 of 10000 MWh/);
+  assert.match(html, /\+1000 MWh → ESB hydrogen/);
+  assert.match(html, /<strong>1000 MWh<\/strong> surplus to ESB hydrogen plants/);
+  // It fills up from empty.
+  assert.match(dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values)), /style="--level:0%"/);
+});
+
+test('day battery: without the daily view the card keeps the half-hour plan battery', () => {
+  const { dashCharts } = load(30, undefined, { dashDay: { data: null }, dashDayReady: () => false });
+  assert.equal(dashCharts.bridgeBattery.values().day, undefined);
 });
