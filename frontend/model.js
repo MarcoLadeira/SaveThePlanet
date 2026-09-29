@@ -319,7 +319,8 @@ function updateModelInputs(immediate = false) {
         if (input.value === "" || !input.validity.valid || !Number.isFinite(Number(input.value))) {
             clearTimeout(modelUpdateTimer);
             modelUpdateTimer = 0;
-            modelInputsDirty = false;
+            // A previously edited value may not have been sent; retry once inputs are valid.
+            // Preserve the dirty flag so restoring the same value still updates the server.
             return;
         }
         changes[key] = Number(input.value);
