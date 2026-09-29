@@ -11,7 +11,7 @@ const data = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, 'data', n
 // White slides, one ink, one green. Greens and amber pass the dataviz palette checks on white.
 const C = {
   ink: '17201C', ink2: '5B6661', muted: '8D9792', rule: 'DFE4E1', fill: 'F1F4F2',
-  green: '0E8A62', amber: 'D48F0F', grey: 'A3AEA9', dark: '2E3833', none: 'E9EDEB',
+  green: '0E8A62', amber: 'D48F0F', grey: 'A3AEA9', dark: '2E3833', none: 'E9EDEB', violet: '6F4FE8',
   ramp: ['7CC4A1', '4FAA82', '268C64', '10704D', '075236'],
 };
 const FONT = 'Arial';
@@ -145,8 +145,11 @@ async function build() {
     const s = slide();
     headline(s, 'Our dashboard, replaying a real half-hour.');
     recording(s, LM, 1.62, 9.4, 'Screen recording 1 · Dashboard · 20 s');
-    T(s, 'The forecast, what the site’s battery does with it, and which cars charge.',
-      { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.4, fontSize: 13, color: C.ink2 });
+    T(s, 'The forecast, which cars charge, and the grid battery filling up.',
+      { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.1, fontSize: 13, color: C.ink2 });
+    T(s, 'Battery full? The surplus goes towards ESB’s hydrogen plants.',
+      { x: LM + 9.7, y: 2.85, w: CW - 9.7, h: 1.1, fontSize: 13, color: C.violet, bold: true });
+    T(s, 'Simulated: no ESB agreement yet.', { x: LM + 9.7, y: 3.95, w: CW - 9.7, h: 0.5, fontSize: 11, color: C.muted });
     footer(s, n);
     s.addNotes(notes[n - 1]);
   }
@@ -295,23 +298,36 @@ async function build() {
     s.addNotes(notes[n - 1]);
   }
 
-  // 12 · Scale -------------------------------------------------------------------------------------------
+  // 12 · Growing with EVs ------------------------------------------------------------------------------
   {
     const s = slide();
-    headline(s, 'Start with one Irish site. Then repeat it.');
-    const cols = [6.05, 8.25, 10.43], cw = 2.0;
-    ['1 site', '10 sites', '100 sites'].forEach((h, i) => T(s, h, { x: cols[i], y: 2.2, w: cw, h: 0.3, fontSize: 14, color: C.muted, align: 'right' }));
-    const rows = [['Drivers save, a year', ['€4,800', '€48,000', '€480,000']], ['Operators earn, a year', ['€1,200', '€12,000', '€120,000']], ['CO₂ avoided, a year (estimate)', ['24 t', '240 t', '2,400 t']]];
-    rows.forEach(([label, vals], r) => {
-      const y = 2.7 + r * 1.0;
-      rule(s, LM, y - 0.12, CW);
-      T(s, label, { x: LM, y: y + 0.12, w: 5, h: 0.4, fontSize: 18, color: C.ink2 });
-      vals.forEach((v, i) => T(s, v, { x: cols[i], y, w: cw, h: 0.6, fontSize: 30, bold: i === 2, color: i === 2 ? C.ink : C.ink2, align: 'right' }));
+    const h2 = data('hydrogen-stages-2026-01-24.json');
+    headline(s, 'We grow as the EV market grows.',
+      `Where the spare power our sites can reach would go: ${h2.eligibleMwh.toLocaleString('en-IE')} MWh in one replayed week, 24–31 January 2026.`);
+    const bx = 4.25, bw = W - RM - bx - 1.75, parts = [['evTotal', C.green, 'EV charging'], ['battery', C.amber, 'Grid battery'], ['hydrogen', C.violet, 'Hydrogen'], ['unused', C.none, 'Unused']];
+    parts.forEach(([, color, label], i) => {
+      box(s, bx + i * 1.9, 2.35, 0.14, 0.14, color);
+      T(s, label, { x: bx + i * 1.9 + 0.22, y: 2.3, w: 1.6, h: 0.24, fontSize: 12, color: C.ink2 });
     });
-    rule(s, LM, 5.58, CW);
-    T(s, 'Each country needs its own grid data, model training and tariffs. Other European grids turn away power too.',
-      { x: LM, y: 5.8, w: CW, h: 0.4, fontSize: 16, color: C.ink2 });
-    T(s, 'Illustrative: every site at the pilot month (400 charges), capped by its own chargers and connection. Not a forecast or a sales pipeline.',
+    h2.stages.forEach((st, r) => {
+      const y = 2.95 + r * 1.12;
+      T(s, st.label, { x: LM, y: y - 0.02, w: bx - LM - 0.2, h: 0.35, fontSize: 18, bold: true });
+      T(s, `${st.vehicles.toLocaleString('en-IE')} EVs`, { x: LM, y: y + 0.36, w: bx - LM - 0.2, h: 0.28, fontSize: 12, color: C.muted });
+      let x = bx;
+      parts.forEach(([key, color]) => {
+        const w = bw * st.shares[key];
+        if (w <= 0.005) return;
+        box(s, x, y, Math.max(0.01, w - 0.03), 0.55, color);
+        if (st.shares[key] >= 0.08) T(s, `${Math.round(st.shares[key] * 100)}%`, { x, y: y + 0.12, w: w - 0.03, h: 0.3, fontSize: 14, bold: true, color: key === 'unused' ? C.ink2 : 'FFFFFF', align: 'center' });
+        x += w;
+      });
+      // The share EVs were planned for (about 1/3, 2/3, all): a target, never forced.
+      s.addShape('line', { x: bx + bw * st.targetEvShare, y: y - 0.1, w: 0, h: 0.75, line: { color: C.ink, width: 1.25, dashType: 'dash' } });
+      T(s, `${st.hydrogenKg.toLocaleString('en-IE')} kg H₂`, { x: W - RM - 1.6, y: y + 0.12, w: 1.6, h: 0.3, fontSize: 14, color: C.violet, bold: true, align: 'right' });
+    });
+    T(s, 'EVs first, then the grid battery; once it is full, the surplus goes towards ESB’s hydrogen plants. Dashed: the EV share planned.',
+      { x: LM, y: 6.25, w: CW, h: 0.3, fontSize: 13, color: C.ink2 });
+    T(s, 'Simulated with backend/hydrogen.py on GridToEv 1.1.0’s +30-min predictions (total at risk). Hypothetical 1.5 MW access and 1 MW electrolyser (55 kWh/kg); hydrogen is potential, not delivered. No ESB agreement.',
       { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
     s.addNotes(notes[n - 1]);
   }
@@ -319,7 +335,7 @@ async function build() {
   // 13 · Proof ---------------------------------------------------------------------------------------------
   {
     const s = slide();
-    headline(s, 'Built on real data. Checked by 420 tests.');
+    headline(s, 'Built on real data. Checked by 475 tests.');
     const steps = ['EirGrid data', 'GridToEv forecast', 'Site check', 'Settlement ledger', 'App'];
     const sw = CW / steps.length;
     steps.forEach((t, i) => {
@@ -328,7 +344,7 @@ async function build() {
       T(s, String(i + 1), { x, y: 2.72, w: 0.5, h: 0.3, fontSize: 13, color: C.muted });
       T(s, t, { x, y: 3.05, w: sw - 0.3, h: 0.8, fontSize: 20, bold: true });
     });
-    [['420', 'automated tests (349 backend, 71 frontend) run on every change'], ['To the cent', 'the splits and profits in this talk come straight from that code'], ['Same answer', 'every time a historical day is replayed']].forEach(([big, small], i) => {
+    [['475', 'automated tests (392 backend, 83 frontend) run on every change'], ['To the cent', 'the splits and profits in this talk come straight from that code'], ['Same answer', 'every time a historical day is replayed']].forEach(([big, small], i) => {
       const y = 4.35 + i * 0.72;
       T(s, big, { x: LM, y, w: 2.6, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.green : C.ink });
       T(s, small, { x: LM + 2.8, y: y + 0.07, w: CW - 2.8, h: 0.45, fontSize: 16, color: C.ink2 });
@@ -341,7 +357,7 @@ async function build() {
   {
     const s = slide();
     T(s, 'SaveThePlanet', { x: LM, y: 2.0, w: CW, h: 1.0, fontSize: 60, bold: true });
-    T(s, 'Ireland is turning clean power away.\nWe turn it into cheaper EV charging.', { x: LM, y: 3.25, w: 10.5, h: 1.1, fontSize: 28, color: C.ink2 });
+    T(s, 'Ireland is turning clean power away.\nWe turn it into cheaper EV charging, and surplus for hydrogen.', { x: LM, y: 3.25, w: 11.2, h: 1.1, fontSize: 28, color: C.ink2 });
     T(s, 'Next: one pilot site with an Irish charging operator.', { x: LM, y: 4.75, w: CW, h: 0.5, fontSize: 20, color: C.green, bold: true });
     s.addNotes(notes[n - 1]);
   }

@@ -26,10 +26,10 @@
   {
     "time": "1:05–1:25",
     "title": "The dashboard",
-    "screen": "Slide 4 with recording 1 (Dashboard, 20 s): the historical target, the forecast, the battery routing, the EV plan.",
-    "say": "SaveThePlanet makes those four checks every half-hour. This is our dashboard, replaying a real half-hour from the past: the forecast, what the site's battery does with it, and which cars get charged.",
-    "caption": "SaveThePlanet runs the four checks every half-hour.",
-    "evidence": "E3, E4"
+    "screen": "Slide 4 with recording 1 (Dashboard, 20 s): the forecast, the EV plan and the battery level. If the battery shows FULL, point at the 'surplus to ESB hydrogen plants' line.",
+    "say": "SaveThePlanet makes those four checks every half-hour. This is our dashboard, replaying a real half-hour: the forecast, which cars get charged, and the grid battery filling up. Once the battery is full, the surplus goes towards ESB's hydrogen plants instead of being turned away.",
+    "caption": "Every half-hour: the forecast, the cars, the battery. A full battery sends its surplus towards hydrogen (simulated).",
+    "evidence": "E3, E4, E18"
   },
   {
     "time": "1:25–1:45",
@@ -50,7 +50,7 @@
   {
     "time": "2:25–3:05",
     "title": "What the site can take",
-    "screen": "Slide 7 with recording 3 (Battery page, then EV page, 35 s), same day as recording 2.",
+    "screen": "Slide 7 with recording 3 (Battery page, then EV page: \"Cars that can charge through the day\", 35 s), same day as recording 2.",
     "say": "Next, the physics. The EV page plans a simulated fleet: eighteen cars across a depot and a car park, ten chargers, and a power limit at each site. Every car has its own arrival time, deadline and charge it needs. A forecast only matters if the plan fits inside all of that. This one shows which half-hours to charge in, and it never goes over a limit.",
     "caption": "18 simulated cars, 10 chargers, a power limit at each site: the plan stays inside all of them.",
     "evidence": "E7, E8"
@@ -89,26 +89,26 @@
   },
   {
     "time": "5:30–6:10",
-    "title": "Scale",
-    "screen": "Slide 12. Read along the 100-sites column.",
-    "say": "We'd start with one Irish charging operator and one site, to prove the energy, the prices and the bookings in the real world. After that it's the same software on every new site, each one capped by its own chargers. At a hundred sites that's about half a million euro a year back to drivers, and around two thousand four hundred tonnes of CO₂. Other European grids have the same problem; each needs its own data and model training.",
-    "caption": "One site, then a hundred: €480,000 a year to drivers and about 2,400 t CO₂ (illustrative).",
-    "evidence": "E16"
+    "title": "Growing with EVs",
+    "screen": "Slide 12. Read the green part of each bar from top to bottom, then point at the violet.",
+    "say": "And our business grows as the EV market grows. In this replayed week, today's EVs could use about thirty percent of the spare power we can reach. As more depots, workplaces and public chargers join, that rises to nearly sixty, then over eighty percent. What cars can't use fills the battery, and once it's full, the surplus goes towards ESB's hydrogen plants instead of being wasted. We'd start with one Irish site, then repeat it.",
+    "caption": "As EVs grow they take 29%, then 59%, then 84% of the reachable surplus; once the battery is full, the rest goes towards hydrogen. Simulated, no ESB agreement.",
+    "evidence": "E16, E18, E19, E20"
   },
   {
     "time": "6:10–6:40",
     "title": "Proof",
     "screen": "Slide 13.",
-    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and twenty automated tests run on every change. The splits and profits you've just seen come straight from that code, and replaying the same day always gives the same answer.",
-    "caption": "EirGrid data, GridToEv forecast, site check, settlement ledger, app. 420 tests on every change.",
+    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and seventy-five automated tests run on every change. The splits and profits you've just seen come straight from that code, and replaying the same day always gives the same answer.",
+    "caption": "EirGrid data, GridToEv forecast, site check, settlement ledger, app. 475 tests on every change.",
     "evidence": "E17"
   },
   {
     "time": "6:40–7:00",
     "title": "Close",
     "screen": "Slide 14. Finish by 6:55.",
-    "say": "Ireland is turning clean power away. SaveThePlanet turns it into cheaper charging for drivers and new income for charging operators. Next, we want one operator to pilot it with us. Thank you.",
-    "caption": "SaveThePlanet: cheaper EV charging from power Ireland would otherwise turn away.",
+    "say": "Ireland is turning clean power away. SaveThePlanet turns it into cheaper charging for drivers, new income for charging operators, and surplus for hydrogen. Next, we want one operator to pilot it with us. Thank you.",
+    "caption": "SaveThePlanet: cheaper EV charging, and surplus for hydrogen, from power Ireland would otherwise turn away.",
     "evidence": ""
   }
 ]
