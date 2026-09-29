@@ -173,23 +173,37 @@ dashCharts.bridgeBattery = {
     const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
     if (!S) return base;
     return { ...base, grid: S.gridKwh, stored: S.storedKwh, start: S.startFraction, end: S.endFraction,
-             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy };
+             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy, surplus: bridgeSurplusKwh(L) };
   },
   // The battery fills from its starting charge.
-  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, surplus: 0, end: target.start }) }),
   // The battery's level after this half-hour, drawn on the cabinets themselves (a fill masked to the picture),
-  // then the same level as a number, the room left and what this half-hour added.
+  // then the same level as a number and the room left. A battery never goes past 100%: once it is full, what
+  // is left over is shown as surplus sent to the ESB hydrogen plants instead.
   draw(v) {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
+    const full = end >= 1 - 1e-9, surplus = Math.max(0, v.surplus || 0);
     const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${bridgePct(end)}</b></div></div>
+    const badge = full && surplus > 0 ? `<span class="bridge-h2-badge"><b>H₂</b>+${bridgeMwh(surplus)} → ESB hydrogen</span>` : '';
+    return `<div class="bridge-cabinet-art is-yard${full ? ' is-full' : ''}" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${full ? 'FULL' : bridgePct(end)}</b>${badge}</div></div>
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
       <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
-      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p></div>`;
+      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p>
+      ${full ? `<p class="bridge-surplus"><b>H₂</b><span><strong>${bridgeMwh(surplus)}</strong> surplus to ESB hydrogen plants</span><small>simulated</small></p>` : ''}</div>`;
   },
 };
+
+// Energy the full battery cannot take: once it is full, whatever the EVs and battery left is surplus for the
+// ESB hydrogen plants (a simulated destination; the optimizer does not route to it). A reported level above
+// 100% counts too, since the battery itself can only hold its capacity.
+function bridgeSurplusKwh(L) {
+  const S = L.storage;
+  if (!S) return 0;
+  const over = Math.max(0, S.endFraction - 1) * S.capacityKwh;
+  return (S.limitedBy === 'full' || S.endFraction >= 1 ? L.unallocatedOpportunityKwh : 0) + over;
+}
 
 function bridgeRoutingCopy({ routed, eligible }) {
   return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"></div>
