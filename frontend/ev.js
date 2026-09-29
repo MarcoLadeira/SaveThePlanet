@@ -71,56 +71,55 @@ dashCharts.evTimeline = {
 function evViewToggle() {
   return `<div class="ev-toggle" role="group" aria-label="Plan shown">${EV_VIEWS.map(([id, label]) => `<button type="button" data-ev-view="${id}" aria-pressed="${evView === id}" class="${evView === id ? 'is-on' : ''}">${label}</button>`).join('')}</div>`;
 }
-// ---------- "When the cars charge": kWh per half-hour, both plans side by side ----------
-// A simpler reading of the same plan: for each half-hour, how much the whole fleet charges with each plan
-// (siteLoad kW x 0.5 h, summed over sites). The renewable window is the highlighted column.
-let evDetail = false;
-function evSlotKwh(run, slots) {
-  const kwh = Array(slots).fill(0);
-  run.siteLoad.forEach((l) => { if (l.slot < slots) kwh[l.slot] += l.kw * 0.5; });
-  return kwh;
+let evDetail = false; // "See each car": the per-car timeline instead of the day chart
+
+// ---------- "Cars that can charge through the day" (in the style of the Forecast page's day chart) ----------
+// For each half-hour of the replayed day, the +30 min forecast of energy at risk turned into potential full
+// EV charges on the server (dayplan.py: kWh x charging efficiency / 70 kWh). An energy equivalent, not a
+// count of cars actually charged. The same forecast line as the Forecast page, in cars instead of MWh.
+function evDaySeries() {
+  if (!dayPlanReady()) return null;
+  const list = dayPlan.data.intervals;
+  return { cars: list.map((i) => i.potentialFullCharges ?? 0), mwh: list.map((i) => i.atRiskMwh), times: list.map((i) => i.targetAt) };
 }
-dashCharts.evBars = {
+function evNiceMax(v) {
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000].find((s) => v / s <= 4) || Math.ceil(v / 4);
+  return { max: Math.max(step, Math.ceil(v / step) * step), step };
+}
+function evSelectedSlot(times) {
+  const alt = planAlternative(), at = alt && new Date(alt.window.startAt).getTime();
+  return at ? times.findIndex((t) => new Date(t).getTime() === at) : -1;
+}
+dashCharts.evDay = {
   values() {
-    const plan = modelState.plan, alt = planAlternative();
-    if (!alt) return { a: [], b: [], key: '' };
-    const slots = plan.fleet.planSlots;
-    return { a: evSlotKwh(alt.baseline, slots), b: evSlotKwh(alt.optimized, slots), key: String(plan.id) };
+    const d = evDaySeries();
+    if (!d) return { cars: [], axis: '1|1', sel: '-1', reveal: 0 };
+    const { max, step } = evNiceMax(Math.max(...d.cars, 1));
+    return { cars: d.cars, axis: `${max}|${step}`, sel: String(evSelectedSlot(d.times)), reveal: 1 };
   },
-  start: (t) => ({ ...t, a: t.a.map(() => 0), b: t.b.map(() => 0) }),
-  draw({ a, b }) {
-    const plan = modelState.plan, alt = planAlternative();
-    if (!alt || !a.length) return '';
-    const win = alt.window.slot;
-    let last = a.length - 1;
-    while (last > win + 1 && a[last] < 0.05 && b[last] < 0.05) last--;
-    const n2 = last + 1, w = 700, h = 250, left = 44, right = 8, top = 46, bottom = 30;
-    const max = chartNiceMax(Math.max(...a, ...b, 1)), colW = (w - left - right) / n2, bw = Math.min(22, colW * 0.34);
-    const y = (v) => top + (h - top - bottom) * (1 - v / max), x0 = (i) => left + colW * i;
-    const grid = [0, 0.5, 1].map((f) => `<line class="ev-bars-grid" x1="${left}" x2="${w - right}" y1="${y(max * f)}" y2="${y(max * f)}"/><text class="ev-bars-axis" x="${left - 6}" y="${y(max * f) + 4}" text-anchor="end">${n(max * f)}</text>`).join('');
-    // The green column is only one half-hour wide, so its label sits in its own box above it (sized to the
-    // text, kept inside the chart) with a small pointer down to the column.
-    const cx = x0(win) + colW / 2, labelW = 150, labelX = Math.min(Math.max(cx - labelW / 2, left), w - right - labelW);
-    const band = `<rect class="ev-bars-window" x="${x0(win) + 2}" y="${top}" width="${colW - 4}" height="${h - bottom - top}" rx="6"/>
-      <rect class="ev-bars-window-tag" x="${labelX}" y="2" width="${labelW}" height="36" rx="8"/>
-      <path class="ev-bars-window-tag" d="M${cx - 6} 37 L${cx} ${top - 2} L${cx + 6} 37 Z"/>
-      <text class="ev-bars-window-label" x="${labelX + labelW / 2}" y="17" text-anchor="middle">Renewable window</text>
-      <text class="ev-bars-window-value" x="${labelX + labelW / 2}" y="32" text-anchor="middle">${n(Math.round(a[win] * 10) / 10)} → ${n(Math.round(b[win] * 10) / 10)} kWh</text>`;
-    const bars = a.slice(0, n2).map((va, i) => {
-      const vb = b[i], cx = x0(i) + colW / 2, isWin = i === win;
-      const bar = (v, x, cls) => v > 0.05 ? `<rect class="${cls}" x="${x}" y="${y(v)}" width="${bw}" height="${h - bottom - y(v)}" rx="3"><title>${escapeHtml(`${modelTime(evSlotTime(plan, i))}: ${n(Math.round(v * 10) / 10)} kWh`)}</title></rect>` : '';
-      return bar(va, cx - bw - 1.5, 'ev-bar-arrival') + bar(vb, cx + 1.5, `ev-bar-smart${isWin ? ' is-window' : ''}`);
-    }).join('');
-    const ticks = Array.from({ length: n2 }, (_, i) => i).filter((i) => i % 2 === 0 || i === win).map((i) => `<text class="ev-bars-axis${i === win ? ' is-window' : ''}" x="${x0(i) + colW / 2}" y="${h - 10}" text-anchor="middle">${escapeHtml(modelTime(evSlotTime(plan, i)))}</text>`).join('');
-    return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true">${grid}${band}${bars}${ticks}<text class="ev-bars-axis" x="0" y="${top - 18}">kWh</text></svg>`;
+  start: (t) => ({ ...t, reveal: 0 }),
+  draw({ cars, axis, sel, reveal }) {
+    if (!cars.length) return '';
+    const [max, step] = axis.split('|').map(Number), d = evDaySeries(), last = cars.length - 1;
+    const W = 1000, H = 300, X = (i) => (i / last) * W, Y = (v) => H - (Math.max(0, v) / max) * H;
+    const xp = (i) => `${((i / last) * 100).toFixed(3)}%`, yp = (v) => `${((1 - Math.max(0, v) / max) * 100).toFixed(3)}%`;
+    const pts = cars.map((v, i) => [X(i), Y(v)]), line = fxSmooth(pts), area = `${line} L${W} ${H} L0 ${H}Z`;
+    const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => `<span class="ev-day-tick" style="bottom:${((i * step) / max) * 100}%"><b>${n(i * step)}</b></span>`).join('');
+    const hours = [0, 8, 16, 24, 32, 40, last].map((i) => `<span style="left:${xp(i)}">${escapeHtml(modelTime(d.times[i]))}</span>`).join('');
+    const s = Number(sel), peak = cars.indexOf(Math.max(...cars));
+    const marker = s >= 0 && reveal > 0.97 ? `<span class="ev-day-sel" style="left:${xp(s)}"><em>${escapeHtml(modelTime(d.times[s]))} · ${n(Math.round(cars[s]))} cars</em></span><i class="ev-day-dot" style="left:${xp(s)};top:${yp(cars[s])}"></i>` : '';
+    const label = reveal > 0.97 ? `<span class="ev-day-direct" style="top:${yp(cars[last])}">Predicted +30</span>` : '';
+    return `<div class="ev-day"><div class="ev-day-grid">${ticks}</div><div class="ev-day-area">${label}
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs>
+        <linearGradient id="ev-day-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="ev-day-top"/><stop offset="1" class="ev-day-bottom"/></linearGradient>
+        <clipPath id="ev-day-clip"><rect x="-10" y="-40" width="${(W * reveal + 10).toFixed(1)}" height="${H + 80}"/></clipPath></defs>
+        <g clip-path="url(#ev-day-clip)"><path class="ev-day-fill" d="${area}"/><path class="ev-day-edge" d="${line}"/><path class="ev-day-line" d="${line}"/></g></svg>
+      ${marker}${peak >= 0 && cars[peak] > 0 && reveal > 0.97 && Math.abs(peak - s) > 3 ? `<span class="ev-day-peak" style="left:${xp(peak)};top:${yp(cars[peak])}">Most: ${n(Math.round(cars[peak]))}</span>` : ''}
+      </div><div class="ev-day-x">${hours}</div></div>`;
   },
 };
-function evReadyRow(label, run) {
-  const cars = run.vehicles.map((v) => `<i class="${v.met ? 'is-ready' : 'is-short'}" title="${escapeHtml(`${v.id}: ${v.met ? 'ready' : `${n(Math.round(v.unmetKwh * 10) / 10)} kWh short`}`)}">${icon('car', 14)}</i>`).join('');
-  return `<div class="ev-ready-row"><span>${label}</span><div class="ev-ready-cars">${cars}</div><b>${n(run.vehiclesMet)} of ${n(run.vehicles.length)} ready</b></div>`;
-}
 function evTimelineCard(plan, alt) {
-  const toggle = `<button type="button" class="ev-detail-btn" data-ev-detail>${evDetail ? 'Back to summary' : 'See each car'}</button>`;
+  const toggle = `<button type="button" class="ev-detail-btn" data-ev-detail>${evDetail ? 'Back to the day' : 'See each car'}</button>`;
   if (evDetail) {
     const run = alt[evView], inWindow = run.vehicles.filter((v) => v.schedule.some((s) => s.inWindow && s.kw > 0)).length;
     const how = evView === 'optimized' ? 'The smart plan moves charging into the green renewable window when it can.' : 'Each car starts charging as soon as it plugs in.';
@@ -128,13 +127,41 @@ function evTimelineCard(plan, alt) {
       <p class="ev-how">${how} <span class="ev-keys"><span><i class="ev-key-plug"></i>plugged in</span><span><i class="ev-key-grid"></i>charging</span><span><i class="ev-key-window"></i>charging on renewable energy</span></span></p>
       ${chartSlot('evTimeline', `${EV_VIEWS.find(([id]) => id === evView)[1]}: when each simulated car is plugged in and charging, and whether it is ready when it leaves`, 'ev-timeline-chart')}${evMissed(plan, alt)}</section>`;
   }
-  const b = alt.baseline, o = alt.optimized;
-  return `<section class="dash-card cg-card ev-timeline">${cgHead('green', 'calendar', 'When the cars charge', 'How much the whole fleet charges in each half-hour', toggle)}
-    <p class="ev-how"><span><b>Green column</b> = the half-hour when wind and solar would otherwise be wasted. The taller the smart-plan bar there, the more charging runs on that clean energy.</span></p>
-    <p class="ev-keys"><span><i class="ev-key-arrival"></i>Charge on arrival (normal)</span><span><i class="ev-key-smart"></i>Smart plan</span><span><i class="ev-key-window"></i>Smart plan in the renewable window</span></p>
-    ${chartSlot('evBars', `kWh charged in each half-hour: ${n(b.window.chargedKwh)} kWh with charging on arrival and ${n(o.window.chargedKwh)} kWh with the smart plan in the renewable window`, 'ev-bars-chart')}
-    <div class="ev-ready">${evReadyRow('Charge on arrival', b)}${evReadyRow('Smart plan', o)}</div></section>`;
+  const d = evDaySeries(), day = d ? new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${dayPlan.data.date}T00:00:00Z`)).replace(',', '') : '';
+  const head = cgHead('green', 'car', 'Cars that can charge through the day', `Potential full EV charges per half-hour from the +30 min forecast${day ? ` · ${escapeHtml(day)}` : ''}`, toggle);
+  if (!d) {
+    const failed = dayPlan.status === 'error' && dayPlan.key === dayPlanKey();
+    return `<section class="dash-card cg-card ev-timeline">${head}${failed
+      ? '<div class="cg-empty" role="status"><span>The replayed day needs the forecast model, so this chart is unavailable. “See each car” still shows the selected half-hour.</span></div>'
+      : '<div class="cg-skeleton" role="status"><i></i><span>Replaying the day…</span></div>'}</section>`;
+  }
+  const peak = Math.max(...d.cars), peakAt = d.times[d.cars.indexOf(peak)], total = dayPlan.data.totals.potentialFullCharges ?? d.cars.reduce((a, b) => a + b, 0);
+  const ref = dayPlan.data.evEquivalent?.referenceBatteryKwh || 70;
+  return `<section class="dash-card cg-card ev-timeline">${head}
+    <div class="ev-day-stats"><span><b>${n(Math.round(total))}</b> cars across the day</span><span>Most at <b>${escapeHtml(modelTime(peakAt))}</b>: <b>${n(Math.round(peak))}</b> in one half-hour</span></div>
+    <ul class="cg-legend ev-day-legend"><li><i class="ev-key-pred"></i>Predicted (+30 min) → cars that can charge</li>${evSelectedSlot(d.times) >= 0 ? '<li><i class="ev-key-sel"></i>Your half-hour</li>' : ''}</ul>
+    <div class="ev-day-plot" data-ev-day-plot>${chartSlot('evDay', `Potential full EV charges in each half-hour of ${day}, from the +30 minute forecast. Most: ${Math.round(peak)} at ${modelTime(peakAt)}.`, 'ev-day-chart')}<div class="ev-day-tip" hidden></div></div>
+    <p class="ev-day-note">1 car = one ${n(ref)} kWh battery charged from empty to full with the forecast energy at risk (after 10% charging loss). An estimate, not cars actually charged.</p></section>`;
 }
+// Hover: the half-hour under the pointer, its forecast and cars.
+document.addEventListener('pointermove', (event) => {
+  const plot = event.target.closest?.('[data-ev-day-plot]'), d = evDaySeries();
+  if (!plot || !d) return;
+  const area = plot.querySelector('.ev-day-area'), tip = plot.querySelector('.ev-day-tip');
+  if (!area || !tip) return;
+  const box = area.getBoundingClientRect(), f = (event.clientX - box.left) / box.width;
+  if (f < 0 || f > 1) { tip.hidden = true; return; }
+  const i = Math.round(f * (d.cars.length - 1));
+  tip.hidden = false;
+  tip.style.left = `${(box.left - plot.getBoundingClientRect().left) + (i / (d.cars.length - 1)) * box.width}px`;
+  tip.classList.toggle('is-left', f > 0.6);
+  tip.innerHTML = `<b>${escapeHtml(modelTime(d.times[i]))} half-hour</b><span>${n(Math.round(d.mwh[i] * 100) / 100)} MWh predicted (+30 min)</span><span><strong>${n(Math.round(d.cars[i] * 10) / 10)}</strong> cars could charge fully</span>`;
+});
+document.addEventListener('pointerleave', (event) => {
+  if (!event.target.matches?.('[data-ev-day-plot]')) return;
+  const tip = event.target.querySelector('.ev-day-tip');
+  if (tip) tip.hidden = true;
+}, true);
 
 // ---------- charge on arrival vs smart plan ----------
 function evCompareCard(plan, alt) {
@@ -170,6 +197,7 @@ function evMissed(plan, alt) {
 
 // ---------- page ----------
 function evPage() {
+  ensureDayPlan(); // the replayed day behind "Cars that can charge through the day"
   const plan = modelState.plan, alt = planAlternative();
   const picker = `<div class="ev-toolbar">${presetPicker()}<em class="ev-sim">Simulated fleet · plans are recommendations, no charger is controlled</em></div>`;
   if (!alt) return `${picker}<section class="dash-card cg-card ev-wait">${planPlaceholder('EV charging plan')}</section>`;
