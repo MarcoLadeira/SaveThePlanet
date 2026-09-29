@@ -1,4 +1,4 @@
-"""Smoke test: the hosted GridToEv deployment supports every route the Forecast page uses.
+"""Smoke test: the hosted GridToEv deployment supports every route the Forecast and Wind & Solar pages use.
 
 Opt-in because it calls the real service (slow, needs the API key):
 
@@ -80,3 +80,34 @@ class HostedRouteSmokeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(ENABLED, 'Set GRID_TO_EV_SMOKE=1 and GRID_TO_EV_API_KEY to run against the hosted model')
+class HostedSourcesSmokeTests(unittest.TestCase):
+    """The four wind/solar routes behind the Wind & Solar page (issue #65), through sources.py."""
+
+    @classmethod
+    def setUpClass(cls):
+        import sources
+        cls.sources = sources
+        sources.clear_cache()
+
+    def test_recorded_split_adds_up_and_has_48_half_hours(self):
+        # /actuals/curtailment/sources/coverage + /actuals/curtailment/sources?include_half_hours=true
+        c = self.sources.coverage()
+        day = self.sources.recorded_day(c['completeTo'])
+        self.assertEqual(day['status'], 'available')
+        self.assertEqual(len(day['halfHours']), 48)
+        self.assertAlmostEqual(day['windMwh'] + day['solarMwh'], day['totalMwh'], delta=0.01)
+
+    def test_split_forecast_matches_v2_total_and_model_info_loads(self):
+        # POST /predict/curtailment/sources/day + /predict/curtailment/day + /model-info/curtailment/sources
+        f = self.sources.forecast_split('2026-05-10')
+        self.assertEqual(f['status'], 'ok', f)
+        self.assertAlmostEqual(f['windMwh'] + f['solarMwh'], f['totalMwh'], delta=0.01)
+        v2 = explorer.call('/predict/curtailment/day', {'target_date_utc': '2026-05-10'})
+        self.assertAlmostEqual(f['totalMwh'], v2['predicted_curtailment_mwh'], delta=0.001)
+        info = self.sources.split_info()
+        self.assertEqual(info['status'], 'ok', info)
+        self.assertIsNotNone(info['slope'])
+        self.assertEqual(self.sources.forecast_split('2024-03-31')['status'], 'not_forecastable')

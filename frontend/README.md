@@ -114,27 +114,43 @@ instant when the viewer prefers reduced motion.
 ## Impact page
 
 `business.js` and `business.css` hold the page (route `#business`, labelled **Impact**, after EV in the
-navigation). It answers "what could smarter EV charging save?" from `/api/v1/business/impact`, and never
-recomputes money in the browser: the KPI cards, the waterfall, the comparison and the investment details
-all draw the backend's figures, so they agree to the euro. Contract and methodology:
+navigation). It answers "who saves and who earns when our AI finds cheaper energy?" from
+`/api/v1/business/impact`, and never recomputes money in the browser: the KPI cards, where the € goes, the
+profit bridges, the waterfall, the comparison and the investment details all draw the backend's figures,
+so they agree to the cent. Contract and methodology:
 [docs/BUSINESS_IMPACT.md](../docs/BUSINESS_IMPACT.md).
 
-![Impact page](../docs/screenshots/impact/impact-desktop.png)
+![Impact page, who earns](../docs/screenshots/impact/impact-desktop.png)
+![Impact page, depot savings](../docs/screenshots/impact/impact-depot.png)
 
-- **Header**: title, subtitle and a scenario indicator (simulated company, the evaluation week, and
-  "Historical replay" or an amber "Simulated data · retry model" chip).
-- **KPI row**: projected annual savings, estimated CO₂ reduction, additional AI savings (vs the basic
-  rule) and investment payback ("Not achieved" when net savings are not positive).
+- **Header**: title, subtitle and a scenario indicator (the example site, the evaluation week, and
+  the GridToEv model version replayed, or an amber "Simulated data · retry model" chip).
+- **Two views** (remembered per browser), each one story: *Who earns · per month* and *Depot savings · per
+  year*, with a label beside the switch saying what the figures are ("SaveThePlanet Rewards · illustrative replay · projected
+  revenue, simulated profit · ex VAT").
+
+*Who earns*:
+- **KPI row**: extra savings from our AI vs basic smart charging, what drivers saved, the charging
+  operator's profit and SaveThePlanet's operating profit (with its gross commission beneath it). A loss is red, zero is grey.
+- **Where the € goes** (a what-if): presets (the replay, the 400-session example, *No spare energy*) and
+  three inputs (sessions, kWh, extra saving; costs behind *Edit costs*) drive one 50/25/25 bar that names
+  its parts, then SaveThePlanet's bridge (commission − per-session costs − overhead = operating profit) and the
+  operator's (25% − programme costs = extra profit), each with its break-even and year. The server answers
+  every change (`/api/v1/business/offers/estimate`); sessions beyond the site or the windows worth offering
+  are not counted, and the card says why. Typing only repaints the card, so focus is never lost.
+- **Energy proof**: qualifying kWh, one bar of where it came from (stored surplus, direct surplus,
+  conventional grid), the hypothetical battery's in/out/losses, false-alarm energy that is never offered,
+  and network access (conditional). No money in it.
+
+*Depot savings*:
 - **Where does the money come from?**: a waterfall from normal charging to the cost with our AI, with
   negative and positive steps and a tooltip on each bar (hover or keyboard focus).
 - **Is our AI making a difference?**: normal, basic smart and AI charging on one metric (Money, CO₂ or
-  Renewable energy), whether each met every van's requirement, and how often the forecast was right.
-- **What if my company used this?**: a calculator (EVs, share shifted, price difference, operating days,
-  optional costs) answered by `/api/v1/business/estimate`. The EVs are planned by the energy bridge on
-  the example site, so a site check shows how many fit; prices stay illustrative. Typing only repaints
-  the output, so focus is never lost, and only the newest answer is shown.
-- **View investment details**: payback, 5-year return, conservative/expected/optimistic scenarios and
-  multi-site scaling, over the right-hand column (Escape closes it).
+  Renewable energy), basic against normal and our AI against basic, and how often the forecast was right.
+- **Investment case**: the depot's payback, 5-year return, scenarios and multi-site scaling.
+- **EV page, SaveThePlanet Rewards**: the demo sign-up and discount-window booking card (`charging.js`): join, step through the
+  replayed days, see both windows (offer or "No discounted window right now" with the next opportunity),
+  pick a charge size priced by the server, reserve or cancel.
 
 States: a progress card while the week is replayed (the first run replays ~8 days through the replay
 gate; the server starts it at launch), an error card with retry, an empty state, and the simulated

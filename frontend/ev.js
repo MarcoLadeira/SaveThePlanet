@@ -1,9 +1,13 @@
 // EV page: which simulated EVs charge when, and how much of it uses the forecast renewable half-hour.
-// Loaded after charging.js and bridge.js, so this renderCharging replaces the older Charging page.
+// Loaded after charging.js and bridge.js. The comparison is optional; keep the existing Charging / Rewards screen.
 // Every figure comes from the energy bridge (POST /api/v1/charging/optimize, loaded by bridge.js into
 // modelState.plan for the pinned half-hour and the chosen fleet); nothing is recomputed here.
 
+let evMode = 'current'; // Preserve existing Charging + Rewards as the default.
 let evView = 'optimized';
+function evModeToggle() {
+  return `<div class="ev-toggle ev-mode-toggle" role="group" aria-label="EV page view"><button type="button" data-ev-mode="current" aria-pressed="${evMode === 'current'}" class="${evMode === 'current' ? 'is-on' : ''}">Energy & Rewards</button><button type="button" data-ev-mode="comparison" aria-pressed="${evMode === 'comparison'}" class="${evMode === 'comparison' ? 'is-on' : ''}">Compare charging plans</button></div>`;
+}
 const EV_VIEWS = [['baseline', 'Normal charging'], ['optimized', 'Optimised']];
 
 const evKwh = (value) => `${n(Math.round(value * 10) / 10)} kWh`;
@@ -116,11 +120,17 @@ function evPage() {
   const foot = `<p class="studio-provenance"><span class="cg-source">${escapeHtml(plan.dataMode === 'simulated' ? 'Example data' : 'Historical dataset prediction')}</span> ${escapeHtml(plan.fleet.fixture)} · solver ${escapeHtml(plan.solver.id)} · ${escapeHtml(plan.status)} · Window energy is a projection, not measured recovery · no charger is controlled.</p>`;
   return `${picker}${evKpis(plan, alt)}<div class="ev-main">${evTimelineCard(plan, alt)}<div class="ev-side">${evCompareCard(plan, alt)}${evMissedCard(plan, alt)}</div></div>${foot}`;
 }
-function renderCharging() {
-  return studioShell('EV', 'Which simulated EVs charge when, and how much of it uses renewable energy at risk.', evPage);
+function renderEvComparison() {
+  return studioShell('EV', 'Normal vs optimised charging for the same simulated fleet.', () => `${evModeToggle()}${evPage()}`);
 }
 
 document.addEventListener('click', (event) => {
+  const mode = event.target.closest('[data-ev-mode]');
+  if (mode) {
+    evMode = mode.dataset.evMode === 'comparison' ? 'comparison' : 'current';
+    render();
+    return;
+  }
   const button = event.target.closest('[data-ev-view]');
   if (!button) return;
   evView = EV_VIEWS.some(([id]) => id === button.dataset.evView) ? button.dataset.evView : 'optimized';

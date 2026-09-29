@@ -29,11 +29,14 @@
 .impact-legend{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px 14px;margin:2px 0 0;padding:0;list-style:none;font-size:11px;color:var(--ink-2)}
 .impact-legend li{display:flex;align-items:center;gap:6px}
 .impact-legend small{color:var(--ink-3);font-size:10px}
+.impact-legend.is-row{justify-content:flex-start;margin:0}
 .impact-legend i,.impact-alloc-key i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.impact-legend i.is-ref{width:14px;height:0;border-radius:0;border-top:2px dashed var(--ink-2);opacity:.75}
+.impact-legend i.is-band{width:14px;border-radius:3px;background:var(--amber);opacity:.3}
 i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-amber{background:var(--amber)}i.is-grey{background:var(--line)}
 
 /* KPI cards */
-.impact-kpi{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:13px 16px;border-radius:var(--imp-radius);background:var(--surface);box-shadow:0 4px 0 var(--edge)}
+.impact-kpi{display:grid;grid-template-columns:auto minmax(min-content,1fr) minmax(0,auto);align-items:center;gap:12px;min-width:0;padding:13px 16px;border-radius:var(--imp-radius);background:var(--surface);box-shadow:0 4px 0 var(--edge)}
 .impact-layout .dash-tile{display:grid;place-items:center;margin:0;padding:0;box-shadow:none}
 .impact-layout .dash-tile svg{display:block}
 .impact-kpi .dash-tile{align-self:start}
@@ -42,14 +45,14 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 .impact-kpi-copy span{font-size:12px;font-weight:700;color:var(--ink-2);line-height:1.25}
 .impact-kpi-copy strong{font-size:28px;line-height:1;font-weight:800;letter-spacing:-.04em;color:var(--ink);white-space:nowrap}
 .impact-kpi-copy strong small{margin-left:5px;font-size:14px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
-.impact-kpi-copy em{font-size:10.5px;font-style:normal;color:var(--ink-3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.impact-kpi-micro{display:flex;flex-direction:column;align-items:flex-end;gap:3px;margin:0}
+.impact-kpi-copy em{width:0;min-width:100%;font-size:10.5px;font-style:normal;color:var(--ink-3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.impact-kpi-micro{display:flex;flex-direction:column;align-items:flex-end;gap:3px;min-width:0;margin:0}
 .impact-micro{width:56px;height:34px}
 .impact-micro rect{fill:var(--green-soft)}
 .impact-micro rect.on,.impact-kpi .impact-micro:not(:has(.on)) rect{fill:var(--green)}
 .impact-kpi.is-blue .impact-micro rect{fill:var(--imp-charge-soft)}
 .impact-kpi.is-blue .impact-micro rect.on,.impact-kpi.is-blue .impact-micro:not(:has(.on)) rect{fill:var(--imp-charge)}
-.impact-kpi-micro figcaption{font-size:9.5px;color:var(--ink-3);white-space:nowrap}
+.impact-kpi-micro figcaption{max-width:100%;font-size:9.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* energy flow hero */
 /* the canvas keeps the scene ratio and fits inside whatever height the card has, so callouts stay aligned */
@@ -98,6 +101,7 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 .impact-pending code{font-size:10.5px;color:var(--ink-2)}
 .impact-data-table summary{cursor:pointer;font-size:11px;font-weight:700;color:var(--ink-2)}
 .impact-data-table table{width:100%;margin-top:6px;border-collapse:collapse;font-size:11px;color:var(--ink-2)}
+.impact-method{margin:6px 0 0;font-size:10.5px;line-height:1.4;color:var(--ink-3)}
 .impact-data-table caption{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .impact-data-table th,.impact-data-table td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}
 .impact-data-table th:first-child,.impact-data-table td:first-child{text-align:left}
@@ -151,9 +155,10 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 .impact-defs{position:absolute;width:0;height:0;overflow:hidden}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .stop-green{stop-color:var(--green)}.stop-blue{stop-color:var(--imp-charge)}.stop-amber{stop-color:var(--amber)}
-.impact-spark{width:96px;height:40px;overflow:visible}
+.impact-spark{width:96px;max-width:100%;height:40px;overflow:visible}
 .impact-spark .line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
 .impact-spark.is-green .line{stroke:var(--green)}.impact-spark.is-blue .line{stroke:var(--imp-charge)}
+.impact-spark .sel{stroke:var(--surface);stroke-width:1.5}.impact-spark .sel.is-green{fill:var(--green)}.impact-spark .sel.is-blue{fill:var(--imp-charge)}
 .impact-kpi-scope{font-size:9.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .impact-delta{font-size:11px;font-weight:800;color:var(--ink-2);white-space:nowrap}
 .impact-delta small{font-weight:600;color:var(--ink-3)}
@@ -161,6 +166,11 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 
 .impact-area .line{fill:none;stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round}
 .impact-area.is-green .line{stroke:var(--green)}.impact-area.is-blue .line{stroke:var(--imp-charge)}.impact-area.is-amber .line{stroke:var(--amber)}
+.impact-area .band{fill:var(--amber);opacity:.16}
+.impact-area .ref{fill:none;stroke:var(--ink-2);stroke-width:1.4;stroke-dasharray:4 3;stroke-linejoin:round;opacity:.75}
+.impact-area .under{fill:var(--green);opacity:.85}
+.impact-area .under-line{fill:none;stroke:var(--green-deep);stroke-width:1.4;stroke-linejoin:round}
+.impact-area .under-label{fill:var(--green-deep);font-size:9.5px;font-weight:750}
 .impact-pt .hit{fill:transparent}
 .impact-pt .guide{stroke:var(--ink-3);stroke-dasharray:3 3;opacity:0}
 .impact-pt circle{fill:var(--surface);stroke:var(--forest);stroke-width:2;opacity:0}
@@ -225,7 +235,7 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 .is-intro .impact-event:nth-child(1){animation-delay:.36s}
 .is-intro .impact-event:nth-child(2){animation-delay:.44s}
 .is-drawing .impact-area .line,.is-drawing .impact-cum-line,.is-drawing .impact-spark .line{stroke-dasharray:1;animation:impact-draw 1.2s cubic-bezier(.45,.05,.25,1) .25s backwards}
-.is-drawing .impact-area .area,.is-drawing .impact-cum-area,.is-drawing .impact-spark .area,.is-drawing .impact-bar rect:not(.hit),.is-drawing .impact-micro rect{transform-box:fill-box;transform-origin:50% 100%;animation:impact-rise .9s cubic-bezier(.2,.8,.2,1) .25s backwards}
+.is-drawing .impact-area .area,.is-drawing .impact-area .band,.is-drawing .impact-area .under,.is-drawing .impact-cum-area,.is-drawing .impact-spark .area,.is-drawing .impact-bar rect:not(.hit),.is-drawing .impact-micro rect{transform-box:fill-box;transform-origin:50% 100%;animation:impact-rise .9s cubic-bezier(.2,.8,.2,1) .25s backwards}
 .is-drawing .impact-peak,.is-drawing .impact-cum-total{transform-box:fill-box;transform-origin:50% 100%;animation:impact-pop .45s cubic-bezier(.2,.9,.3,1.25) 1.2s backwards}
 @keyframes impact-art-in{from{opacity:0;scale:1.04}}
 @keyframes impact-float-in{from{opacity:0;translate:0 10px}}
@@ -236,3 +246,15 @@ i.is-green{background:var(--green)}i.is-blue{background:var(--imp-charge)}i.is-a
 /* The bottom row is sized by the event list; the cumulative chart fills whatever height that
    gives it instead of setting the row height from its own aspect ratio. */
 .impact-cumulative .impact-chart-wrap,.impact-cumulative .impact-skeleton{contain:size;flex:1 1 0;min-height:0}
+
+/* Selected forecast half-hour on the day chart (the Dashboard's half-hour). */
+.impact-sel{stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:3 3}
+.impact-sel-dot{stroke:var(--surface);stroke-width:2}
+.impact-sel-dot.is-green{fill:var(--green)}.impact-sel-dot.is-blue{fill:var(--imp-charge)}.impact-sel-dot.is-amber{fill:var(--amber)}
+.impact-where{display:flex;flex-direction:column;gap:12px}
+/* The fleet picker shares the title line, compact: its label is read out (the select is labelled
+   too) rather than shown, so it never runs past the card's edge. */
+.impact-where .impact-card-head>div{min-width:0}
+.impact-where .bridge-preset{flex:0 1 150px;min-width:0;margin-left:auto;font-size:11px}
+.impact-where .bridge-preset>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.impact-where .bridge-preset select{width:100%;max-width:150px;min-width:0}

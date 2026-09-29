@@ -1,0 +1,47 @@
+{
+ "model_version": "2.0.0-sources-experimental",
+ "parent_model_version": "2.0.0-daily-experimental",
+ "experimental": true,
+ "method": "physics_share",
+ "plain_language": "When the grid must waste renewable power, EirGrid cuts wind and solar roughly in proportion to how much each could produce. This model estimates that from the day-ahead wind and sunshine forecast, scaled by how much wind and solar capacity is installed, and uses it to split V2's predicted daily total.",
+ "formula": "p_wind = 1 / (1 + exp(-(intercept + slope * ln((wind_energy + 1) / (solar_energy + 1))))); solar_energy = solar_capacity_proxy_mw * mean regional forecast irradiance (kWh/m2/day); wind_energy = wind_capacity_proxy_mw * 24 * clip((v - cut_in) / (rated - cut_in), 0, 1) ** exponent, v = mean regional forecast 100 m wind speed (m/s)",
+ "intercept": -0.006300965543418819,
+ "slope": 0.6318734222411123,
+ "fitted_on": [
+  "2024-04-01",
+  "2025-12-31"
+ ],
+ "fixed_constants": {
+  "capacity_publication_months": 2,
+  "capacity_window_days": 365,
+  "wind_cut_in_ms": 3.0,
+  "wind_rated_ms": 12.0,
+  "wind_curve_exponent": 1.5
+ },
+ "capacity_rule": "Maximum IE availability over the 365 days ending on the last day of calendar month M-2 for an issue day in month M. EirGrid republishes the system workbook monthly, so month M-2 is public by then.",
+ "capacity_history_through_utc": "2026-08-31",
+ "requestable_date_min_utc": "2024-04-01",
+ "requestable_date_max_utc": "2026-09-28",
+ "validation": {
+  "status": "candidate_awaiting_fresh_confirmation",
+  "fresh_confirmation": {
+   "status": "pending",
+   "rows": 0,
+   "required_rows": 60
+  },
+  "provisional_2026_test": {
+   "note": "Provisional: 2026-01..08 was viewed while this method was designed, so these figures may be optimistic.",
+   "combined_source_mae_mwh": 1784.242847,
+   "baseline_combined_source_mae_mwh": 1820.634849,
+   "solar_active_solar_mae_mwh": 577.806436,
+   "baseline_solar_active_solar_mae_mwh": 633.057268,
+   "baseline": "training_monthly_share"
+  }
+ },
+ "limitations": [
+  "The 2026-01..08 test had been viewed in experiment 1 and in exploratory research, so it cannot certify this candidate on its own.",
+  "The parent's daily total error still dominates; allocation improves Wind/Solar error but cannot fix a wrong total.",
+  "The capacity proxy uses observed availability, not official installed capacity, and assumes EirGrid's monthly publication cadence holds.",
+  "The share is a daily average; it does not describe which half-hours were curtailed."
+ ]
+}
