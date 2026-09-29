@@ -1,91 +1,56 @@
-// Builds docs/demo/SaveThePlanet-pitch.pptx (issue #70).
-// Every figure comes from the backend's deterministic calculations or a cited source; see evidence-ledger.md.
-// Run: node docs/demo/build-deck.js   (needs pptxgenjs, react, react-dom, react-icons, sharp)
+// Builds docs/demo/SaveThePlanet-pitch.pptx and docs/demo/script.md (issue #70).
+// Charts are drawn from real data in docs/demo/data/; every other figure is listed in evidence-ledger.md.
+// Run: node docs/demo/build-deck.js   (needs pptxgenjs, which brings jszip)
 const path = require('path');
 const fs = require('fs');
 const pptxgen = require('pptxgenjs');
-const React = require('react');
-const { renderToStaticMarkup } = require('react-dom/server');
-const sharp = require('sharp');
-const Fi = require('react-icons/fi');
 
-const ROOT = path.resolve(__dirname, '..', '..');
 const OUT = path.join(__dirname, 'SaveThePlanet-pitch.pptx');
+const data = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, 'data', name), 'utf8'));
 
-// The app's own palette (frontend/dashboard-v2.css, business.css).
+// White slides, one ink, one green. Greens and amber pass the dataviz palette checks on white.
 const C = {
-  forest: '0B4339', forest2: '155748', forestMuted: 'AFD1C4',
-  green: '1FAE6C', greenDeep: '087C59', greenSoft: 'E0F7EE',
-  teal: '0F9D8A', tealSoft: 'D8F3EE', blue: '2F7BE0', blueSoft: 'E4EFFF',
-  amber: 'F4A223', amberSoft: 'FFF2DB', amberInk: '8A5A00',
-  ink: '142130', ink2: '506474', ink3: '748892', line: 'DBE9E9',
-  bg: 'F3F8F8', white: 'FFFFFF', clip: '15212D', clipInner: '1F2F3D',
+  ink: '17201C', ink2: '5B6661', muted: '8D9792', rule: 'DFE4E1', fill: 'F1F4F2',
+  green: '0E8A62', amber: 'D48F0F', grey: 'A3AEA9', dark: '2E3833', none: 'E9EDEB',
+  ramp: ['7CC4A1', '4FAA82', '268C64', '10704D', '075236'],
 };
 const FONT = 'Arial';
-const W = 13.333, H = 7.5, M = 0.6;
+const W = 13.333, LM = 0.9, RM = 0.9, CW = W - LM - RM;
 
-async function iconPng(Icon, color, size = 256) {
-  const svg = renderToStaticMarkup(React.createElement(Icon, { size, color: `#${color}`, strokeWidth: 2 }));
-  const buf = await sharp(Buffer.from(svg)).png().toBuffer();
-  return 'image/png;base64,' + buf.toString('base64');
+function T(slide, text, o) {
+  slide.addText(text, { fontFace: FONT, color: C.ink, margin: 0, isTextBox: true, valign: 'top', ...o });
 }
-
-const shadow = () => ({ type: 'outer', color: '0B2A24', blur: 8, offset: 2, angle: 90, opacity: 0.12 });
-
-function text(slide, str, opts) {
-  slide.addText(str, { fontFace: FONT, color: C.ink, margin: 0, isTextBox: true, valign: 'top', ...opts });
+function box(slide, x, y, w, h, color) {
+  slide.addShape('rect', { x, y, w, h, fill: { color }, line: { color, width: 0 } });
 }
-
-function tag(slide, label, color = C.forest, fill = C.greenSoft) {
-  const w = 0.45 + label.length * 0.118;
-  slide.addShape('roundRect', { x: M, y: 0.42, w, h: 0.34, fill: { color: fill }, line: { color: fill }, rectRadius: 0.17 });
-  text(slide, label, { x: M, y: 0.42, w, h: 0.34, fontSize: 11, bold: true, color, align: 'center', valign: 'middle', charSpacing: 1.5 });
+function rule(slide, x, y, w) {
+  slide.addShape('line', { x, y, w, h: 0, line: { color: C.rule, width: 0.75 } });
 }
-
-function headline(slide, str, sub) {
-  text(slide, str, { x: M, y: 0.92, w: W - 2 * M, h: 1.0, fontSize: 34, bold: true, color: C.ink, valign: 'top' });
-  if (sub) text(slide, sub, { x: M, y: 1.78, w: W - 2 * M, h: 0.45, fontSize: 17, color: C.ink2 });
+function footer(slide, n) {
+  T(slide, 'SaveThePlanet', { x: LM, y: 7.02, w: 3, h: 0.22, fontSize: 9, color: C.muted });
+  T(slide, String(n).padStart(2, '0'), { x: W - RM - 1, y: 7.02, w: 1, h: 0.22, fontSize: 9, color: C.muted, align: 'right' });
 }
-
-function footnote(slide, str, color = C.ink3) {
-  text(slide, str, { x: M, y: H - 0.52, w: W - 2 * M, h: 0.32, fontSize: 10, color, valign: 'bottom' });
+function headline(slide, text, sub) {
+  T(slide, text, { x: LM, y: 0.72, w: CW, h: 1.2, fontSize: 34, color: C.ink });
+  if (sub) T(slide, sub, { x: LM, y: 1.42, w: CW, h: 0.7, fontSize: 16, color: C.ink2 });
 }
-
-function card(slide, x, y, w, h, fill = C.white) {
-  slide.addShape('roundRect', { x, y, w, h, fill: { color: fill }, line: { color: fill === C.white ? C.line : fill, width: 0.75 }, rectRadius: 0.16, shadow: shadow() });
-}
-
-async function iconDot(slide, Icon, x, y, d, fg, bg) {
-  slide.addShape('ellipse', { x, y, w: d, h: d, fill: { color: bg }, line: { color: bg } });
-  const pad = d * 0.24;
-  slide.addImage({ data: await iconPng(Icon, fg), x: x + pad, y: y + pad, w: d - 2 * pad, h: d - 2 * pad });
-}
-
-// A 16:9 frame where the team drops its genuine screen recording (Insert > Video > This Device).
-async function clipFrame(slide, x, y, w, label) {
+// A flat 16:9 area for the team's screen recording (see README.md).
+function recording(slide, x, y, w, label) {
   const h = w * 9 / 16;
-  slide.addShape('roundRect', { x, y, w, h, fill: { color: C.clip }, line: { color: C.clip }, rectRadius: 0.14, shadow: shadow() });
-  slide.addShape('roundRect', { x: x + 0.1, y: y + 0.1, w: w - 0.2, h: h - 0.2, fill: { color: C.clipInner }, line: { color: C.clipInner }, rectRadius: 0.1 });
-  const d = Math.min(0.9, h * 0.28);
-  slide.addImage({ data: await iconPng(Fi.FiPlayCircle, 'FFFFFF'), x: x + w / 2 - d / 2, y: y + h / 2 - d / 2 - 0.1, w: d, h: d, transparency: 20 });
-  text(slide, label, { x: x + 0.3, y: y + 0.25, w: w - 0.6, h: 0.3, fontSize: 12, bold: true, color: C.white, charSpacing: 1 });
-  text(slide, 'Insert the recording here (Insert › Video › This Device), size it to this frame, then delete the frame.',
-    { x: x + 0.3, y: y + h - 0.62, w: w - 0.6, h: 0.4, fontSize: 10, color: 'A9B8C4' });
+  box(slide, x, y, w, h, C.fill);
+  T(slide, label, { x: x + 0.25, y: y + h - 0.45, w: w - 0.5, h: 0.25, fontSize: 11, color: C.muted });
+  return h;
 }
 
-// docs/demo/script.md is generated from script.json, so the notes and the script never drift apart.
 function writeScript(beats) {
-  const words = beats.reduce((a, b) => a + b.say.split(/\s+/).length, 0);
+  const words = (s) => s.split(/\s+/).length;
+  const total = beats.reduce((a, b) => a + words(b.say), 0);
   const lines = [
-    '# SaveThePlanet · 7-minute script (issue #70)',
-    '',
-    `Generated by \`build-deck.js\` from \`script.json\`: edit the JSON, then rebuild. ${words} spoken words across 7:00`
-      + ' (about 2 words a second, leaving room for the recordings to breathe). Rehearse to finish at 6:50.',
-    '',
-    '| Time | Slide | Words |',
-    '| --- | --- | ---: |',
-    ...beats.map((b, i) => `| ${b.time} | ${i + 1} · ${b.title} | ${b.say.split(/\s+/).length} |`),
-    '',
+    '# SaveThePlanet · 7-minute script (issue #70)', '',
+    `Generated by \`build-deck.js\` from \`script.json\`: edit the JSON, then rebuild. ${total} spoken words`
+      + ' across 7:00, leaving room for the recordings. Rehearse to finish by 6:55.', '',
+    '| Time | Slide | Words |', '| --- | --- | ---: |',
+    ...beats.map((b, i) => `| ${b.time} | ${i + 1} · ${b.title} | ${words(b.say)} |`), '',
   ];
   beats.forEach((b, i) => {
     lines.push(`## ${i + 1} · ${b.title} (${b.time})`, '', `**On screen:** ${b.screen}`, '', `> ${b.say}`, '', `*Caption:* ${b.caption}`, '');
@@ -95,355 +60,298 @@ function writeScript(beats) {
 }
 
 async function build() {
-  const pres = new pptxgen();
-  pres.layout = 'LAYOUT_WIDE';
-  pres.author = 'SaveThePlanet team';
-  pres.title = 'SaveThePlanet: predict the opportunity, prove the plan, share the value';
-
-  const landscape = await sharp(path.join(ROOT, 'frontend/assets/energy-flow-landscape.webp')).jpeg({ quality: 88 }).toBuffer();
-  const landscapeData = 'image/jpeg;base64,' + landscape.toString('base64');
-  const artW = W, artH = W * 763 / 2061;
-  const beats = require('./script.json');
-  const notes = beats.map((b, i) => [
-    `${b.time} · ${b.title}`,
-    `ON SCREEN: ${b.screen}`,
-    `SAY (${b.say.split(/\s+/).length} words):`,
-    b.say,
-    `CAPTION: ${b.caption}`,
-    b.evidence ? `EVIDENCE: ${b.evidence} in docs/demo/evidence-ledger.md` : '',
+  const beats = JSON.parse(fs.readFileSync(path.join(__dirname, 'script.json'), 'utf8'));
+  const notes = beats.map((b) => [
+    `${b.time} · ${b.title}`, `ON SCREEN: ${b.screen}`, `SAY (${b.say.split(/\s+/).length} words):`, b.say,
+    `CAPTION: ${b.caption}`, b.evidence ? `EVIDENCE: ${b.evidence} in docs/demo/evidence-ledger.md` : '',
   ].filter(Boolean).join('\n\n'));
   writeScript(beats);
 
-  // 1 · Hook ------------------------------------------------------------------
+  const pres = new pptxgen();
+  pres.layout = 'LAYOUT_WIDE';
+  pres.author = 'SaveThePlanet team';
+  pres.title = 'SaveThePlanet';
+  let n = 0;
+  const slide = () => { const s = pres.addSlide(); s.background = { color: 'FFFFFF' }; n += 1; return s; };
+
+  // 1 · 11.2% -------------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.white };
-    s.addImage({ data: landscapeData, x: 0, y: H - artH, w: artW, h: artH });
-    await iconDot(s, Fi.FiWind, M, 0.45, 0.42, C.white, C.forest);
-    text(s, 'SaveThePlanet', { x: M + 0.55, y: 0.45, w: 4, h: 0.42, fontSize: 16, bold: true, color: C.forest, valign: 'middle' });
-    text(s, '11.2%', { x: M - 0.05, y: 1.05, w: 5.2, h: 1.7, fontSize: 118, bold: true, color: C.forest, valign: 'middle' });
-    text(s, 'of Ireland’s wind and solar energy was dispatched down in the first half of 2026.',
-      { x: 5.85, y: 1.15, w: 6.9, h: 1.3, fontSize: 26, bold: true, color: C.ink, valign: 'top' });
-    text(s, 'Clean power, produced — and not used.', { x: 5.85, y: 2.62, w: 6.9, h: 0.45, fontSize: 20, color: C.greenDeep, bold: true });
-    text(s, 'Source: EirGrid statement on renewable integration and dispatch-down, 28 July 2026 (wind alone: 13.2%).',
-      { x: 5.85, y: 3.1, w: 6.9, h: 0.3, fontSize: 10, color: C.ink3 });
-    s.addNotes(notes[0]);
+    const s = slide();
+    T(s, 'SaveThePlanet', { x: LM, y: 0.62, w: 4, h: 0.3, fontSize: 14, bold: true });
+    T(s, '11.2%', { x: LM - 0.08, y: 1.25, w: 9, h: 2.9, fontSize: 200, bold: true });
+    T(s, 'of Ireland’s wind and solar power was turned away in the first half of 2026.',
+      { x: LM, y: 4.4, w: 9.6, h: 1.0, fontSize: 28, color: C.ink });
+    box(s, LM, 5.75, CW, 0.14, C.fill);
+    box(s, LM, 5.75, CW * 0.112, 0.14, C.green);
+    T(s, 'Source: EirGrid statement on renewable integration and dispatch-down, 28 July 2026 (“dispatched down”, January to June).',
+      { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
   }
 
-  // 2 · Problem + buyer ---------------------------------------------------------
+  // 2 · One real day ------------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'THE PROBLEM · WHO BUYS');
-    headline(s, 'Dispatched down isn’t the same as usable by an EV.');
-    const steps = [
-      [Fi.FiWind, 'Renewable energy dispatched down', 'across the whole Irish grid', 8.1, C.forest],
-      [Fi.FiClock, 'Forecast early enough to act', '30 minutes ahead, before it happens', 7.2, C.forest2],
-      [Fi.FiMapPin, 'Deliverable at one site', 'its chargers, grid connection and departure times', 6.25, C.teal],
-      [Fi.FiCheckCircle, 'Cheaper than good smart charging', 'only then is it worth offering', 5.4, C.green],
-    ];
-    let y = 2.2;
-    for (const [Icon, t, sub, w, fill] of steps) {
-      s.addShape('roundRect', { x: M, y, w, h: 0.92, fill: { color: fill }, line: { color: fill }, rectRadius: 0.14 });
-      s.addImage({ data: await iconPng(Icon, 'FFFFFF'), x: M + 0.28, y: y + 0.26, w: 0.4, h: 0.4 });
-      text(s, t, { x: M + 0.9, y: y + 0.13, w: w - 1.1, h: 0.36, fontSize: 17, bold: true, color: C.white });
-      text(s, sub, { x: M + 0.9, y: y + 0.5, w: w - 1.1, h: 0.3, fontSize: 12.5, color: 'DDF1EA' });
-      y += 1.08;
+    const s = slide();
+    const may = data('recorded-2026-05-10.json');
+    headline(s, 'On Sunday 10 May, Ireland turned away 6,917 MWh.',
+      'Recorded wind and solar curtailment, half-hour by half-hour. That’s the energy for about 345,000 EV charges.');
+    const x0 = 1.55, x1 = W - RM, slot = (x1 - x0) / 48, bw = slot * 0.66, top = 2.75, base = 6.3, max = 600;
+    const yOf = (mwh) => base - (mwh / max) * (base - top);
+    // Evening peak 17:00-19:00 Irish time = 16:00-18:00 UTC = half-hours 32-35.
+    box(s, x0 + 32 * slot, top - 0.05, 4 * slot, base - top + 0.05, C.fill);
+    T(s, 'Evening peak', { x: x0 + 30 * slot, y: top - 0.33, w: 8 * slot, h: 0.22, fontSize: 11, color: C.muted, align: 'center' });
+    for (const v of [200, 400, 600]) {
+      rule(s, x0, yOf(v), x1 - x0);
+      T(s, v === 600 ? '600 MWh' : String(v), { x: LM - 0.1, y: yOf(v) - 0.1, w: x0 - LM, h: 0.2, fontSize: 10, color: C.muted, align: 'left' });
     }
-    const cx = 9.15, cw = W - M - cx;
-    card(s, cx, 2.2, cw, 4.16);
-    await iconDot(s, Fi.FiBriefcase, cx + 0.35, 2.5, 0.62, C.forest, C.greenSoft);
-    text(s, 'Our first buyer', { x: cx + 0.35, y: 3.3, w: cw - 0.7, h: 0.35, fontSize: 13, bold: true, color: C.ink3, charSpacing: 1 });
-    text(s, 'Charging operators and fleet depots in Ireland', { x: cx + 0.35, y: 3.68, w: cw - 0.7, h: 1.0, fontSize: 21, bold: true, color: C.ink });
-    text(s, 'They pay a commission only on extra savings we create. Drivers join free.',
-      { x: cx + 0.35, y: 4.85, w: cw - 0.7, h: 1.2, fontSize: 15, color: C.ink2 });
-    s.addNotes(notes[1]);
-  }
-
-  // 3 · Innovation -------------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'INNOVATION');
-    headline(s, 'Not a report of yesterday’s waste. A decision for the next half-hour.');
-    const steps = [
-      [Fi.FiTrendingUp, 'Predict', 'The GridToEv model forecasts renewable energy at risk, 30 min ahead.'],
-      [Fi.FiShield, 'Prove', 'Check the site: chargers, connection, battery, departures.'],
-      [Fi.FiZap, 'Decide', 'Build the charging plan, or a discount offer for drivers.'],
-      [Fi.FiPieChart, 'Share', 'Settle every extra euro 50 / 25 / 25, to the cent.'],
-    ];
-    let y = 2.3;
-    for (let i = 0; i < steps.length; i++) {
-      const [Icon, t, sub] = steps[i];
-      await iconDot(s, Icon, M, y, 0.72, C.white, i === 3 ? C.green : C.forest);
-      text(s, t, { x: M + 0.95, y: y + 0.02, w: 4.3, h: 0.36, fontSize: 19, bold: true, color: C.ink });
-      text(s, sub, { x: M + 0.95, y: y + 0.4, w: 4.3, h: 0.5, fontSize: 13.5, color: C.ink2 });
-      y += 1.05;
-    }
-    await clipFrame(s, 6.1, 2.35, 6.63, 'CLIP 1 · DASHBOARD · 0:50–1:20');
-    s.addNotes(notes[2]);
-  }
-
-  // 4 · AI proof -----------------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'TECHNICAL · AI PROOF');
-    headline(s, 'A timed signal from a real model, scored against what really happened.');
-    await clipFrame(s, M, 2.2, 7.9, 'CLIP 2 · FORECAST PAGE · 1:20–2:10');
-    const x = 8.85, w = W - M - x;
-    const pts = [
-      [Fi.FiClock, '+30-minute forecasts', 'from the GridToEv model, issued before each half-hour'],
-      [Fi.FiActivity, 'Observed curtailment', 'EirGrid’s record beside each forecast: hits and misses show'],
-      [Fi.FiLock, 'No look-ahead', 'each half-hour planned only from forecasts issued before it'],
-    ];
-    let y = 2.2;
-    for (const [Icon, t, sub] of pts) {
-      card(s, x, y, w, 1.12);
-      await iconDot(s, Icon, x + 0.22, y + 0.26, 0.58, C.forest, C.greenSoft);
-      text(s, t, { x: x + 0.98, y: y + 0.17, w: w - 1.15, h: 0.36, fontSize: 15, bold: true });
-      text(s, sub, { x: x + 0.98, y: y + 0.53, w: w - 1.15, h: 0.5, fontSize: 12, color: C.ink2 });
-      y += 1.27;
-    }
-    s.addShape('roundRect', { x, y: y + 0.02, w, h: 0.42, fill: { color: C.amberSoft }, line: { color: C.amberSoft }, rectRadius: 0.21 });
-    text(s, 'Historical replay · not live grid control', { x, y: y + 0.02, w, h: 0.42, fontSize: 12, bold: true, color: C.amberInk, align: 'center', valign: 'middle' });
-    s.addNotes(notes[3]);
-  }
-
-  // 5 · Physics -----------------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'TECHNICAL · IT WORKS');
-    headline(s, 'Only what the site can deliver becomes a plan.');
-    await clipFrame(s, M, 2.2, 7.4, 'CLIP 3 · BATTERY → EV PAGES · 2:10–3:10');
-    const x = 8.35, w = W - M - x;
-    const facts = [
-      ['20 × 11 kW', 'chargers at the example site'],
-      ['180 kW', 'grid connection shared by all of them'],
-      ['16 cars', 'per 2-hour window: 22 kWh max per charger'],
-      ['700 kWh', 'battery, 85% round trip — hypothetical, not built'],
-    ];
-    let y = 2.2;
-    for (let i = 0; i < facts.length; i++) {
-      const [big, sub] = facts[i];
-      card(s, x, y, w, 0.94, i === 3 ? C.amberSoft : C.white);
-      text(s, big, { x: x + 0.3, y: y + 0.12, w: w - 0.5, h: 0.46, fontSize: 24, bold: true, color: i === 3 ? C.amberInk : C.forest });
-      text(s, sub, { x: x + 0.3, y: y + 0.56, w: w - 0.5, h: 0.3, fontSize: 12, color: C.ink2 });
-      y += 1.06;
-    }
-    s.addNotes(notes[4]);
-  }
-
-  // 6 · AI vs smart charging ------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'INNOVATION · AI VS SMART CHARGING');
-    headline(s, 'We only claim what beats competent smart charging.');
-    card(s, M, 2.1, 7.5, 4.3);
-    text(s, 'Cost per kWh at the charger', { x: M + 0.3, y: 2.3, w: 7, h: 0.35, fontSize: 14, bold: true, color: C.ink2 });
-    const labels = ['Smart charging · evening peak', 'Smart charging · evening, surplus live', 'Smart charging · morning off-peak', 'Our AI · stored night surplus, all-in'];
-    s.addChart(pres.charts.BAR, [
-      { name: 'Smart charging', labels, values: [0.34, 0.26, 0.205, 0] },
-      { name: 'Our AI', labels, values: [0, 0, 0, 0.1995] },
-    ], {
-      x: M + 0.15, y: 2.7, w: 7.2, h: 3.55, barDir: 'bar', barGrouping: 'stacked', barGapWidthPct: 45,
-      chartColors: ['8FA3B0', C.green], catAxisOrientation: 'maxMin',
-      catAxisLabelColor: C.ink, catAxisLabelFontSize: 12, catAxisLabelFontFace: FONT, catAxisLineShow: false,
-      valAxisHidden: true, valAxisMinVal: 0, valAxisMaxVal: 0.42, valGridLine: { style: 'none' }, catGridLine: { style: 'none' },
-      showValue: true, dataLabelPosition: 'inEnd', dataLabelColor: C.white, dataLabelFontSize: 13, dataLabelFontBold: true,
-      dataLabelFormatCode: '"€"0.00#;;;', showLegend: false,
-    });
-    const x = 8.4, w = W - M - x;
-    card(s, x, 2.1, w, 2.05, C.greenSoft);
-    text(s, 'Evening → offer', { x: x + 0.3, y: 2.3, w: w - 0.6, h: 0.35, fontSize: 16, bold: true, color: C.greenDeep });
-    text(s, '€0.06–0.14', { x: x + 0.3, y: 2.68, w: w - 0.6, h: 0.62, fontSize: 32, bold: true, color: C.forest });
-    text(s, 'saved per kWh versus smart charging in the same window', { x: x + 0.3, y: 3.35, w: w - 0.6, h: 0.6, fontSize: 12.5, color: C.ink2 });
-    card(s, x, 4.35, w, 2.05, C.amberSoft);
-    text(s, 'Morning → no offer', { x: x + 0.3, y: 4.55, w: w - 0.6, h: 0.35, fontSize: 16, bold: true, color: C.amberInk });
-    text(s, '€0.005', { x: x + 0.3, y: 4.93, w: w - 0.6, h: 0.62, fontSize: 32, bold: true, color: C.amberInk });
-    text(s, 'too little to cover session costs, so normal charging stays open. The rule working.', { x: x + 0.3, y: 5.6, w: w - 0.6, h: 0.7, fontSize: 12.5, color: C.ink2 });
-    footnote(s, 'Illustrative tariff: night €0.16, day €0.26, peak €0.34, surplus credit €0.08/kWh. AI all-in = €0.08 ÷ 0.92 ÷ 0.92 + €0.04 wear + €0.04 network + €0.025 session ≈ €0.20. Ex VAT.');
-    s.addNotes(notes[5]);
-  }
-
-  // 7 · Business model: 50/25/25 ------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'BUSINESS MODEL');
-    headline(s, 'Every extra euro is shared 50 / 25 / 25.', 'One 20 kWh session, €0.10/kWh cheaper than smart charging = a €2.00 pool of extra savings.');
-    const bx = M, bw = W - 2 * M, by = 2.5, bh = 1.05;
-    const parts = [['Driver discount', '€1.00', 0.5, C.green], ['Operator', '€0.50', 0.25, C.teal], ['SaveThePlanet', '€0.50', 0.25, C.blue]];
-    let x = bx;
-    for (const [label, eur, share, fill] of parts) {
-      const w = bw * share - (share === 0.25 && fill === C.blue ? 0 : 0.06);
-      s.addShape('roundRect', { x, y: by, w, h: bh, fill: { color: fill }, line: { color: fill }, rectRadius: 0.12 });
-      text(s, eur, { x: x + 0.3, y: by + 0.13, w: w - 0.4, h: 0.5, fontSize: 26, bold: true, color: C.white });
-      text(s, `${label} · ${Math.round(share * 100)}%`, { x: x + 0.3, y: by + 0.62, w: w - 0.4, h: 0.32, fontSize: 13, bold: true, color: 'EAF7F1' });
-      x += bw * share;
-    }
-    const clipW = 4.6, leftW = W - 2 * M - clipW - 0.35;
-    card(s, M, 3.9, leftW, 2.59);
-    text(s, 'What SaveThePlanet keeps', { x: M + 0.35, y: 4.1, w: 5.3, h: 0.35, fontSize: 15, bold: true, color: C.ink2 });
-    const rows = [['Commission (25%, gross)', '€0.50', C.ink], ['Our cost per session', '−€0.10', C.ink2]];
-    let y = 4.55;
-    const vx = M + leftW - 1.95;
-    for (const [l, v, col] of rows) {
-      text(s, l, { x: M + 0.35, y, w: 4.5, h: 0.35, fontSize: 15, color: col });
-      text(s, v, { x: vx, y, w: 1.6, h: 0.35, fontSize: 15, bold: true, color: col, align: 'right' });
-      y += 0.42;
-    }
-    s.addShape('line', { x: M + 0.35, y: 5.45, w: leftW - 0.7, h: 0, line: { color: C.line, width: 1 } });
-    text(s, 'Contribution per session', { x: M + 0.35, y: 5.72, w: 4.5, h: 0.5, fontSize: 16, bold: true, color: C.forest });
-    text(s, '€0.40', { x: vx - 0.4, y: 5.62, w: 2.0, h: 0.6, fontSize: 28, bold: true, color: C.greenDeep, align: 'right' });
-    await clipFrame(s, W - M - clipW, 3.9, clipW, 'CLIP 4 · EV PAGE · JOIN → RESERVE');
-    footnote(s, 'Commission is revenue, not profit: monthly overhead comes next. Worked example from issue #56, settled in whole cents by backend/offers.py.');
-    s.addNotes(notes[6]);
-  }
-
-  // 8 · Pilot month --------------------------------------------------------------------
-  {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'BUSINESS IMPACT');
-    headline(s, 'In a pilot month, all three sides come out ahead.', '400 sessions × 20 kWh × €0.10 = €800 of extra savings: about 13 an evening, within the 16 the site fits.');
-    const cols = [
-      { title: 'Drivers', big: '€400', unit: 'saved a month', fill: C.green, soft: C.greenSoft, rows: [['€1.00 off each 20 kWh charge', ''], ['Joining is free', ''], ['Normal price always available', '']], foot: 'No fees, prices shown up front' },
-      { title: 'Charging operator', big: '+€100', unit: 'extra profit a month', fill: C.teal, soft: C.tealSoft, rows: [['25% share', '€200'], ['Programme costs', '−€100']], foot: 'Breaks even at 200 sessions' },
-      { title: 'SaveThePlanet', big: '+€40', unit: 'operating profit a month', fill: C.blue, soft: C.blueSoft, rows: [['Commission', '€200'], ['Per-session costs', '−€40'], ['Overhead', '−€120']], foot: 'Breaks even at 300 sessions' },
-    ];
-    const gap = 0.35, cw = (W - 2 * M - 2 * gap) / 3;
-    for (let i = 0; i < 3; i++) {
-      const c = cols[i], x = M + i * (cw + gap), y = 2.55, h = 3.85;
-      card(s, x, y, cw, h);
-      s.addShape('ellipse', { x: x + 0.35, y: y + 0.36, w: 0.22, h: 0.22, fill: { color: c.fill }, line: { color: c.fill } });
-      text(s, c.title, { x: x + 0.7, y: y + 0.3, w: cw - 1, h: 0.34, fontSize: 16, bold: true });
-      text(s, c.big, { x: x + 0.35, y: y + 0.78, w: cw - 0.7, h: 0.8, fontSize: 44, bold: true, color: c.fill === C.green ? C.greenDeep : c.fill });
-      text(s, c.unit, { x: x + 0.35, y: y + 1.58, w: cw - 0.7, h: 0.3, fontSize: 13, color: C.ink2 });
-      let ry = y + 2.05;
-      for (const [l, v] of c.rows) {
-        text(s, l, { x: x + 0.35, y: ry, w: v ? cw - 1.9 : cw - 0.7, h: 0.3, fontSize: 13, color: C.ink2 });
-        if (v) text(s, v, { x: x + cw - 1.55, y: ry, w: 1.2, h: 0.3, fontSize: 13, bold: true, color: C.ink, align: 'right' });
-        ry += 0.36;
+    may.halfHours.forEach((hh, i) => {
+      const x = x0 + i * slot + (slot - bw) / 2;
+      if (hh.wind > 0.5) box(s, x, yOf(hh.wind), bw, base - yOf(hh.wind), C.green);
+      if (hh.solar > 0.5) {
+        const yTop = yOf(hh.wind + hh.solar), gap = 0.02;
+        box(s, x, yTop, bw, Math.max(0.01, yOf(hh.wind) - yTop - gap), C.amber);
       }
-      s.addShape('roundRect', { x: x + 0.25, y: y + h - 0.66, w: cw - 0.5, h: 0.42, fill: { color: c.soft }, line: { color: c.soft }, rectRadius: 0.21 });
-      text(s, c.foot, { x: x + 0.25, y: y + h - 0.66, w: cw - 0.5, h: 0.42, fontSize: 12, bold: true, color: C.ink, align: 'center', valign: 'middle' });
+    });
+    s.addShape('line', { x: x0, y: base, w: x1 - x0, h: 0, line: { color: C.ink2, width: 0.75 } });
+    // Ticks in Irish time: half-hour i starts at UTC i*30 min, Irish summer time is UTC+1.
+    for (const [i, label] of [[4, '03:00'], [10, '06:00'], [16, '09:00'], [22, '12:00'], [28, '15:00'], [34, '18:00'], [40, '21:00'], [46, '00:00']]) {
+      T(s, label, { x: x0 + i * slot - 0.4, y: base + 0.08, w: 0.8, h: 0.22, fontSize: 10, color: C.muted, align: 'center' });
     }
-    footnote(s, 'Illustrative pilot month (issue #56 assumptions); the Impact page’s “400 sessions” preset computes the same figures, tested to the cent. Projected, not realised revenue.');
-    s.addNotes(notes[7]);
+    const key = (x, color, text) => { box(s, x, top - 0.29, 0.13, 0.13, color); T(s, text, { x: x + 0.2, y: top - 0.33, w: 2.3, h: 0.22, fontSize: 12, color: C.ink }); };
+    key(x0, C.green, `Wind  ${Math.round(may.windMwh).toLocaleString('en-IE')} MWh`);
+    key(x0 + 2.2, C.amber, `Solar  ${Math.round(may.solarMwh).toLocaleString('en-IE')} MWh`);
+    T(s, 'Irish time. Source: EirGrid half-hourly dispatch-down workbooks (curtailment, Ireland), via the GridToEv archive. 345,000 = 6,917 MWh ÷ 20 kWh.',
+      { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
   }
 
-  // 9 · Environment --------------------------------------------------------------------
+  // 3 · Four questions -------------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'ENVIRONMENTAL IMPACT');
-    headline(s, 'The energy claim, counted carefully.', 'The same pilot month, from surplus stored overnight to EVs in the evening.');
-    const fx = M, fy = 2.6, fh = 2.6;
-    s.addShape('roundRect', { x: fx, y: fy, w: 2.6, h: fh, fill: { color: C.forest }, line: { color: C.forest }, rectRadius: 0.14 });
-    text(s, '≈9,450 kWh', { x: fx + 0.25, y: fy + 0.35, w: 2.2, h: 0.5, fontSize: 24, bold: true, color: C.white });
-    text(s, 'surplus bought while the forecast called it, and stored', { x: fx + 0.25, y: fy + 0.95, w: 2.15, h: 1.2, fontSize: 12.5, color: 'CFE6DD' });
-    await iconDot(s, Fi.FiArrowRight, fx + 2.8, fy + fh / 2 - 0.3, 0.6, C.forest, C.white);
-    const dx = fx + 3.6, dw = 3.9;
-    const hl = 0.55, hd = fh - hl - 0.1;
-    s.addShape('roundRect', { x: dx, y: fy, w: dw, h: hd, fill: { color: C.green }, line: { color: C.green }, rectRadius: 0.14 });
-    text(s, '8,000 kWh', { x: dx + 0.25, y: fy + 0.3, w: dw - 0.5, h: 0.55, fontSize: 28, bold: true, color: C.white });
-    text(s, 'delivered at the chargers: 400 × 20 kWh', { x: dx + 0.25, y: fy + 0.9, w: dw - 0.5, h: 0.4, fontSize: 13, color: 'EAF7F1' });
-    s.addShape('roundRect', { x: dx, y: fy + hd + 0.1, w: dw, h: hl, fill: { color: 'C9D5DC' }, line: { color: 'C9D5DC' }, rectRadius: 0.08 });
-    text(s, '≈1,450 kWh lost in storage (15%) — counted', { x: dx + 0.2, y: fy + hd + 0.1, w: dw - 0.3, h: hl, fontSize: 11, bold: true, color: C.ink, valign: 'middle' });
-    s.addShape('roundRect', { x: fx, y: 5.45, w: dx + dw - fx, h: 0.62, fill: { color: C.white }, line: { color: C.line }, rectRadius: 0.12 });
-    text(s, 'False alarms: energy bought when the surplus didn’t come is ordinary grid power — never offered, never counted.',
-      { x: fx + 0.25, y: 5.45, w: dx + dw - fx - 0.4, h: 0.62, fontSize: 12.5, color: C.ink2, valign: 'middle' });
-    const x = 8.3, w = W - M - x;
-    card(s, x, 2.6, w, 3.47, C.forest);
-    await iconDot(s, Fi.FiFeather, x + 0.35, 2.85, 0.6, C.forest, C.greenSoft);
-    text(s, '≈2 t CO₂', { x: x + 0.35, y: 3.6, w: w - 0.7, h: 0.8, fontSize: 44, bold: true, color: C.white });
-    text(s, 'a month per site · ≈24 t a year', { x: x + 0.35, y: 4.42, w: w - 0.7, h: 0.4, fontSize: 15, bold: true, color: 'CFE6DD' });
-    text(s, 'Estimated: 8,000 kWh × 0.25 kg CO₂/kWh, if that surplus would otherwise have been dispatched down. Not a verified saving.',
-      { x: x + 0.35, y: 4.95, w: w - 0.7, h: 1.0, fontSize: 12, color: 'CFE6DD' });
-    footnote(s, 'Round trip 92% × 92% (hypothetical battery). Flat grid factor 0.25 kg CO₂/kWh, the app’s stated method; not measured marginal displacement.');
-    s.addNotes(notes[8]);
+    const s = slide();
+    headline(s, 'Why not just charge cars with it?');
+    const qs = ['Will there be surplus in the next 30 minutes?', 'Can this site physically take it?',
+      'Is it cheaper than ordinary smart charging?', 'Who gets the saving?'];
+    qs.forEach((q, i) => {
+      const y = 2.05 + i * 0.82;
+      T(s, String(i + 1), { x: LM, y, w: 0.5, h: 0.5, fontSize: 26, color: C.muted });
+      T(s, q, { x: LM + 0.65, y, w: 10.5, h: 0.5, fontSize: 26, color: C.ink });
+    });
+    T(s, 'SaveThePlanet answers all four, every half-hour.', { x: LM, y: 5.6, w: CW, h: 0.5, fontSize: 26, color: C.green, bold: true });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
   }
 
-  // 10 · Scalability ------------------------------------------------------------------------
+  // 4 · Dashboard recording ------------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'SCALABILITY');
-    headline(s, 'Ireland first. Built to repeat, site by site.');
-    const stages = [
-      [Fi.FiMapPin, 'Pilot', '1 Irish operator site', 'Validate deliverability, real tariffs, bookings and settlement.'],
-      [Fi.FiGrid, 'Ireland', 'Comparable sites', 'Same software; each site capped by its own chargers and connection.'],
-      [Fi.FiGlobe, 'Europe', 'Grids with curtailment', 'Per country: grid data, a retrained forecast model, local tariffs, network checks.'],
-    ];
-    const gap = 0.55, cw = (W - 2 * M - 2 * gap) / 3;
-    for (let i = 0; i < 3; i++) {
-      const [Icon, t, sub, body] = stages[i], x = M + i * (cw + gap), y = 2.1;
-      card(s, x, y, cw, 2.2);
-      await iconDot(s, Icon, x + 0.3, y + 0.3, 0.6, C.white, i === 0 ? C.green : C.forest);
-      text(s, t, { x: x + 1.1, y: y + 0.28, w: cw - 1.3, h: 0.36, fontSize: 19, bold: true });
-      text(s, sub, { x: x + 1.1, y: y + 0.64, w: cw - 1.3, h: 0.3, fontSize: 12.5, bold: true, color: C.ink3 });
-      text(s, body, { x: x + 0.3, y: y + 1.2, w: cw - 0.6, h: 0.9, fontSize: 13, color: C.ink2 });
-      if (i < 2) s.addImage({ data: await iconPng(Fi.FiChevronRight, C.ink3), x: x + cw + 0.1, y: y + 0.85, w: 0.35, h: 0.35 });
-    }
-    card(s, M, 4.6, W - 2 * M, 1.85, C.forest);
-    text(s, '100 sites at pilot assumptions, a year', { x: M + 0.35, y: 4.78, w: 6, h: 0.3, fontSize: 12.5, bold: true, color: C.forestMuted, charSpacing: 1 });
-    const stats = [['€480k', 'saved by drivers'], ['€120k', 'new operator profit'], ['€48k', 'SaveThePlanet operating profit'], ['≈2,400 t', 'CO₂, estimated']];
-    const sw = (W - 2 * M - 0.7) / 4;
-    for (let i = 0; i < 4; i++) {
-      const x = M + 0.35 + i * sw;
-      text(s, stats[i][0], { x, y: 5.15, w: sw - 0.2, h: 0.62, fontSize: 32, bold: true, color: C.white });
-      text(s, stats[i][1], { x, y: 5.8, w: sw - 0.2, h: 0.35, fontSize: 13, color: 'CFE6DD' });
-    }
-    footnote(s, 'Illustrative and capacity-capped: 400 sessions a month per site (≤16 per window). Not a forecast or a sales pipeline; each site needs its own grid check.');
-    s.addNotes(notes[9]);
+    const s = slide();
+    headline(s, 'Our dashboard, replaying a real half-hour.');
+    recording(s, LM, 1.62, 9.4, 'Screen recording 1 · Dashboard · 20 s');
+    T(s, 'The forecast, what the site’s battery does with it, and which cars charge.',
+      { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.4, fontSize: 13, color: C.ink2 });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
   }
 
-  // 11 · Architecture + proof --------------------------------------------------------------------
+  // 5 · January through the model -------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.bg };
-    tag(s, 'TECHNICAL · EXECUTION');
-    headline(s, 'Real data in. Tested decisions out.');
-    const boxes = [
-      [Fi.FiDatabase, 'EirGrid data', 'observed curtailment'],
-      [Fi.FiCpu, 'GridToEv model', '+30-min forecasts'],
-      [Fi.FiSliders, 'Optimiser', 'feasibility: chargers, connection, battery, departures'],
-      [Fi.FiBookOpen, 'Settlement ledger', '50 / 25 / 25 in whole cents'],
-      [Fi.FiMonitor, 'Web app', '6 pages, from forecast to impact'],
-    ];
-    const gap = 0.32, bw = (W - 2 * M - 4 * gap) / 5;
-    for (let i = 0; i < 5; i++) {
-      const [Icon, t, sub] = boxes[i], x = M + i * (bw + gap), y = 2.2;
-      card(s, x, y, bw, 2.1, i === 1 ? C.forest : C.white);
-      await iconDot(s, Icon, x + 0.25, y + 0.25, 0.56, i === 1 ? C.forest : C.white, i === 1 ? C.greenSoft : C.forest);
-      text(s, t, { x: x + 0.25, y: y + 0.95, w: bw - 0.4, h: 0.36, fontSize: 15, bold: true, color: i === 1 ? C.white : C.ink });
-      text(s, sub, { x: x + 0.25, y: y + 1.33, w: bw - 0.4, h: 0.65, fontSize: 12, color: i === 1 ? 'CFE6DD' : C.ink2 });
-      if (i < 4) s.addImage({ data: await iconPng(Fi.FiChevronRight, C.ink3), x: x + bw + 0.02, y: y + 0.88, w: 0.28, h: 0.28 });
+    const s = slide();
+    const jan = data('forecast-2026-01-plus30.json');
+    headline(s, 'Every half-hour of January, forecast 30 minutes ahead.',
+      'Real GridToEv predictions, replayed. The darker the square, the more power the model expected to be turned away.');
+    const x0 = 1.55, x1 = 10.1, y0 = 2.55, y1 = 6.4, cols = 48, rows = jan.days.length;
+    const cw = (x1 - x0) / cols, ch = (y1 - y0) / rows, g = 0.022;
+    const bin = (v) => (v <= 0 ? C.none : v < 25 ? C.ramp[0] : v < 75 ? C.ramp[1] : v < 150 ? C.ramp[2] : v < 250 ? C.ramp[3] : C.ramp[4]);
+    jan.mwh.forEach((row, r) => row.forEach((v, c) => {
+      if (v === null) return;
+      box(s, x0 + c * cw, y0 + r * ch, cw - g, ch - g, bin(v));
+    }));
+    for (const [c, label] of [[0, '00:00'], [12, '06:00'], [24, '12:00'], [36, '18:00']]) {
+      T(s, label, { x: x0 + c * cw, y: y0 - 0.27, w: 0.8, h: 0.2, fontSize: 10, color: C.muted });
     }
-    const proofs = [['406', 'automated tests (340 backend, 66 frontend)'], ['Every change', 'runs CI before it merges'], ['Replayable', 'the same past days give the same answers']];
-    const pw = (W - 2 * M - 2 * 0.35) / 3;
-    for (let i = 0; i < 3; i++) {
-      const x = M + i * (pw + 0.35), y = 4.75;
-      card(s, x, y, pw, 1.55, C.greenSoft);
-      text(s, proofs[i][0], { x: x + 0.3, y: y + 0.22, w: pw - 0.6, h: 0.6, fontSize: 30, bold: true, color: C.forest });
-      text(s, proofs[i][1], { x: x + 0.3, y: y + 0.88, w: pw - 0.6, h: 0.5, fontSize: 13, color: C.ink2 });
-    }
-    s.addNotes(notes[10]);
+    jan.days.forEach((d, r) => {
+      const day = Number(d.slice(8));
+      if (![2, 9, 16, 23, 30].includes(day) && day !== 11) return;
+      T(s, day === 2 ? '2 Jan' : String(day), { x: LM, y: y0 + r * ch - 0.03, w: x0 - LM - 0.12, h: 0.18, fontSize: 10, color: day === 11 ? C.ink : C.muted, bold: day === 11, align: 'right' });
+    });
+    // Evening peak bracket under 17:00-19:00.
+    s.addShape('line', { x: x0 + 34 * cw, y: y1 + 0.08, w: 4 * cw - g, h: 0, line: { color: C.ink2, width: 1 } });
+    T(s, 'Evening peak', { x: x0 + 31 * cw, y: y1 + 0.13, w: 10 * cw, h: 0.2, fontSize: 10, color: C.muted, align: 'center' });
+    // Right column: the month in two numbers, then the key.
+    const rx = 10.45, rw = W - RM - rx;
+    const total = jan.mwh.flat().reduce((a, v) => a + (v || 0), 0);
+    const jan11 = jan.mwh[jan.days.indexOf('2026-01-11')].reduce((a, v) => a + (v || 0), 0);
+    T(s, `${Math.round(total).toLocaleString('en-IE')} MWh`, { x: rx, y: y0 - 0.05, w: rw, h: 0.4, fontSize: 22, bold: true });
+    T(s, 'expected at risk over the month', { x: rx, y: y0 + 0.36, w: rw, h: 0.4, fontSize: 12, color: C.ink2 });
+    T(s, `${Math.round(jan11).toLocaleString('en-IE')} MWh`, { x: rx, y: y0 + 1.0, w: rw, h: 0.4, fontSize: 22, bold: true });
+    T(s, 'on 11 January alone', { x: rx, y: y0 + 1.41, w: rw, h: 0.4, fontSize: 12, color: C.ink2 });
+    T(s, 'MWh per half-hour', { x: rx, y: y0 + 2.2, w: rw, h: 0.22, fontSize: 10, color: C.muted });
+    [['none', C.none], ['under 25', C.ramp[0]], ['25–75', C.ramp[1]], ['75–150', C.ramp[2]], ['150–250', C.ramp[3]], ['250+', C.ramp[4]]].forEach(([label, color], i) => {
+      const y = y0 + 2.5 + i * 0.22;
+      box(s, rx, y + 0.03, 0.2, 0.12, color);
+      T(s, label, { x: rx + 0.3, y, w: rw - 0.3, h: 0.2, fontSize: 10, color: C.ink2 });
+    });
+    T(s, 'GridToEv V1 model 1.1.0, +30-minute predictions for 1,434 half-hours, 2–31 January 2026 (blank: no prediction). Predictions, not recorded outcomes.',
+      { x: LM, y: 6.8, w: CW, h: 0.22, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
   }
 
-  // 12 · Close --------------------------------------------------------------------------------------
+  // 6 · Forecast recording ---------------------------------------------------------------------------
   {
-    const s = pres.addSlide(); s.background = { color: C.white };
-    s.addImage({ data: landscapeData, x: 0, y: H - artH, w: artW, h: artH });
-    await iconDot(s, Fi.FiWind, M, 0.45, 0.42, C.white, C.forest);
-    text(s, 'SaveThePlanet', { x: M + 0.55, y: 0.45, w: 4, h: 0.42, fontSize: 16, bold: true, color: C.forest, valign: 'middle' });
-    text(s, 'Predict the opportunity.\nProve the plan. Share the value.', { x: M, y: 1.05, w: 8.2, h: 1.5, fontSize: 38, bold: true, color: C.forest });
-    const chips = [['Drivers save', C.green], ['Operators earn', C.teal], ['Renewable energy reaches EVs', C.forest]];
-    let x = M;
-    for (const [t, fill] of chips) {
-      const w = 0.5 + t.length * 0.118;
-      s.addShape('roundRect', { x, y: 2.75, w, h: 0.5, fill: { color: fill }, line: { color: fill }, rectRadius: 0.25 });
-      text(s, t, { x, y: 2.75, w, h: 0.5, fontSize: 15, bold: true, color: C.white, align: 'center', valign: 'middle' });
-      x += w + 0.2;
-    }
-    text(s, 'Next: a pilot with one Irish charging operator.', { x: M, y: 3.42, w: 8, h: 0.4, fontSize: 16, bold: true, color: C.ink2 });
-    s.addNotes(notes[11]);
+    const s = slide();
+    headline(s, 'Forecast next to what actually happened.');
+    recording(s, LM, 1.62, 9.4, 'Screen recording 2 · Forecast page · 35 s');
+    T(s, 'A historical replay. No decision uses information from after its own time.',
+      { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.4, fontSize: 13, color: C.ink2 });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 7 · What the site can take -----------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'It only plans what the site can physically deliver.');
+    recording(s, LM, 1.62, 8.2, 'Screen recording 3 · Battery and EV pages · 35 s');
+    const rx = LM + 8.55, rw = W - RM - rx;
+    [['18 cars', 'each with its own arrival, deadline and charge needed'], ['10 chargers', '6 × 22 kW at a depot, 4 × 11 kW at a car park'], ['100 + 30 kW', 'site limits the plan never goes over']].forEach(([big, small], i) => {
+      const y = 1.62 + i * 1.3;
+      if (i) rule(s, rx, y - 0.16, rw);
+      T(s, big, { x: rx, y, w: rw, h: 0.5, fontSize: 28, bold: true });
+      T(s, small, { x: rx, y: y + 0.52, w: rw, h: 0.5, fontSize: 13, color: C.ink2 });
+    });
+    T(s, 'Simulated fleet: the EV page’s default.', { x: rx, y: 5.55, w: rw, h: 0.3, fontSize: 11, color: C.muted });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 8 · Better than smart charging ---------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'It only acts when it beats good smart charging.', 'Cost per kWh at a public hub’s charger, 17:00–19:00.');
+    const bx = 5.9, scale = 5.6 / 0.40;
+    [['Smart charging, evening peak', 0.34, C.grey], ['Smart charging, surplus already on the grid', 0.26, C.grey], ['SaveThePlanet: stored surplus, all costs in', 0.1995, C.green]].forEach(([label, v, color], i) => {
+      const y = 2.55 + i * 0.95;
+      T(s, label, { x: LM, y: y + 0.02, w: bx - LM - 0.3, h: 0.4, fontSize: 16, color: i === 2 ? C.ink : C.ink2, bold: i === 2 });
+      box(s, bx, y, v * scale, 0.42, color);
+      T(s, `€${v.toFixed(2)}`, { x: bx + v * scale + 0.15, y: y + 0.02, w: 1.2, h: 0.4, fontSize: 20, bold: true });
+    });
+    T(s, 'In the morning, smart charging can use night-rate power at €0.16, so no offer is made.',
+      { x: LM, y: 5.5, w: CW, h: 0.4, fontSize: 16, color: C.ink2 });
+    T(s, 'Illustrative tariff: night €0.16, day €0.26, peak €0.34, surplus credit €0.08 per kWh, ex VAT. All-in = €0.08 ÷ 0.92 ÷ 0.92 + €0.04 wear + €0.04 network + €0.025 session. The hub’s 2,000 kWh battery is hypothetical.',
+      { x: LM, y: 6.55, w: CW, h: 0.42, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 9 · Booking recording --------------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'Drivers book a cheaper charge in two taps.');
+    recording(s, LM, 1.62, 9.4, 'Screen recording 4 · EV page, SaveThePlanet Rewards · 20 s');
+    T(s, 'The price is fixed before they arrive. Anyone can still charge at the normal price without joining.',
+      { x: LM + 9.7, y: 1.62, w: CW - 9.7, h: 1.6, fontSize: 13, color: C.ink2 });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 10 · Who earns ------------------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'Everyone who takes part ends the month ahead.');
+    T(s, 'One 20 kWh charge that costs €2.00 less than smart charging', { x: LM, y: 1.62, w: CW, h: 0.3, fontSize: 13, color: C.muted });
+    const parts = [['Driver', '50%', '€1.00', C.green], ['Operator', '25%', '€0.50', C.grey], ['SaveThePlanet', '25%', '€0.50', C.dark]];
+    const starts = [0, 0.5, 0.75], gap = 0.05, by = 2.95;
+    parts.forEach(([who, pct, eur, color], i) => {
+      const x = LM + CW * starts[i], w = CW * (i === 0 ? 0.5 : 0.25) - (i < 2 ? gap : 0);
+      T(s, `${who} · ${pct}`, { x, y: 2.05, w: w, h: 0.3, fontSize: 13, color: C.ink2 });
+      T(s, eur, { x, y: 2.33, w: w, h: 0.5, fontSize: 26, bold: true });
+      box(s, x, by, w, 0.24, color);
+    });
+    T(s, 'A month at 400 charges, after each business pays its own costs', { x: LM, y: 3.95, w: CW, h: 0.3, fontSize: 13, color: C.muted });
+    [['€400', 'saved by drivers', '€1.00 off every charge'], ['+€100', 'operator profit', '€200 share − €100 costs'], ['+€40', 'our profit', '€200 − €40 − €120 costs']].forEach(([big, small, how], i) => {
+      const x = LM + CW * starts[i];
+      T(s, big, { x, y: 4.35, w: 3, h: 0.9, fontSize: 54, bold: true });
+      T(s, small, { x, y: 5.3, w: 2.8, h: 0.3, fontSize: 14, color: C.ink });
+      T(s, how, { x, y: 5.6, w: 2.8, h: 0.3, fontSize: 12, color: C.muted });
+    });
+    T(s, 'Illustrative pilot month (issue #56): 400 × 20 kWh × €0.10 = €800. Break-even: operator 200 charges, SaveThePlanet 300. Computed by backend/offers.py, tested to the cent.',
+      { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 11 · CO2 -------------------------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'About 2 tonnes of CO₂ a month, from one site.');
+    const stored = 8000 / (0.92 * 0.92), frac = 8000 / stored, by = 2.95;
+    T(s, '8,000 kWh into cars', { x: LM, y: 2.3, w: 6, h: 0.45, fontSize: 22, bold: true });
+    T(s, `${(Math.round((stored - 8000) / 50) * 50).toLocaleString('en-IE')} kWh lost in storage`, { x: LM + CW * frac - 3, y: 2.42, w: 3 + CW * (1 - frac), h: 0.3, fontSize: 13, color: C.ink2, align: 'right' });
+    box(s, LM, by, CW * frac - 0.05, 0.24, C.green);
+    box(s, LM + CW * frac, by, CW * (1 - frac), 0.24, C.grey);
+    T(s, `${(Math.round(stored / 50) * 50).toLocaleString('en-IE')} kWh of surplus stored in the month, 400 charges of 20 kWh`, { x: LM, y: 3.3, w: CW, h: 0.3, fontSize: 13, color: C.muted });
+    T(s, 'Power bought on a wrong forecast counts as ordinary grid power and is never offered.',
+      { x: LM, y: 4.3, w: CW, h: 0.4, fontSize: 18, color: C.ink });
+    T(s, 'Estimate: 8,000 kWh × 0.25 kg CO₂ per kWh of grid power replaced. Not a verified saving.',
+      { x: LM, y: 4.95, w: CW, h: 0.4, fontSize: 18, color: C.ink });
+    T(s, 'Round trip 92% × 92% (hypothetical battery). Flat grid factor 0.25 kg CO₂/kWh, the app’s stated method; not measured marginal displacement.',
+      { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 12 · Scale -------------------------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'Start with one Irish site. Then repeat it.');
+    const cols = [6.05, 8.25, 10.43], cw = 2.0;
+    ['1 site', '10 sites', '100 sites'].forEach((h, i) => T(s, h, { x: cols[i], y: 2.2, w: cw, h: 0.3, fontSize: 14, color: C.muted, align: 'right' }));
+    const rows = [['Drivers save, a year', ['€4,800', '€48,000', '€480,000']], ['Operators earn, a year', ['€1,200', '€12,000', '€120,000']], ['CO₂ avoided, a year (estimate)', ['24 t', '240 t', '2,400 t']]];
+    rows.forEach(([label, vals], r) => {
+      const y = 2.7 + r * 1.0;
+      rule(s, LM, y - 0.12, CW);
+      T(s, label, { x: LM, y: y + 0.12, w: 5, h: 0.4, fontSize: 18, color: C.ink2 });
+      vals.forEach((v, i) => T(s, v, { x: cols[i], y, w: cw, h: 0.6, fontSize: 30, bold: i === 2, color: i === 2 ? C.ink : C.ink2, align: 'right' }));
+    });
+    rule(s, LM, 5.58, CW);
+    T(s, 'Each country needs its own grid data, model training and tariffs. Other European grids turn away power too.',
+      { x: LM, y: 5.8, w: CW, h: 0.4, fontSize: 16, color: C.ink2 });
+    T(s, 'Illustrative: every site at the pilot month (400 charges), capped by its own chargers and connection. Not a forecast or a sales pipeline.',
+      { x: LM, y: 6.72, w: CW, h: 0.25, fontSize: 10, color: C.muted });
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 13 · Proof ---------------------------------------------------------------------------------------------
+  {
+    const s = slide();
+    headline(s, 'Built on real data. Checked by 420 tests.');
+    const steps = ['EirGrid data', 'GridToEv forecast', 'Site check', 'Settlement ledger', 'App'];
+    const sw = CW / steps.length;
+    steps.forEach((t, i) => {
+      const x = LM + i * sw;
+      rule(s, x, 2.55, sw - 0.25);
+      T(s, String(i + 1), { x, y: 2.72, w: 0.5, h: 0.3, fontSize: 13, color: C.muted });
+      T(s, t, { x, y: 3.05, w: sw - 0.3, h: 0.8, fontSize: 20, bold: true });
+    });
+    [['420', 'automated tests (349 backend, 71 frontend) run on every change'], ['To the cent', 'the splits and profits in this talk come straight from that code'], ['Same answer', 'every time a historical day is replayed']].forEach(([big, small], i) => {
+      const y = 4.35 + i * 0.72;
+      T(s, big, { x: LM, y, w: 2.6, h: 0.5, fontSize: 24, bold: true, color: i === 0 ? C.green : C.ink });
+      T(s, small, { x: LM + 2.8, y: y + 0.07, w: CW - 2.8, h: 0.45, fontSize: 16, color: C.ink2 });
+    });
+    footer(s, n);
+    s.addNotes(notes[n - 1]);
+  }
+
+  // 14 · Close ----------------------------------------------------------------------------------------------
+  {
+    const s = slide();
+    T(s, 'SaveThePlanet', { x: LM, y: 2.0, w: CW, h: 1.0, fontSize: 60, bold: true });
+    T(s, 'Ireland is turning clean power away.\nWe turn it into cheaper EV charging.', { x: LM, y: 3.25, w: 10.5, h: 1.1, fontSize: 28, color: C.ink2 });
+    T(s, 'Next: one pilot site with an Irish charging operator.', { x: LM, y: 4.75, w: CW, h: 0.5, fontSize: 20, color: C.green, bold: true });
+    s.addNotes(notes[n - 1]);
   }
 
   await pres.writeFile({ fileName: OUT });
-  console.log('wrote', OUT);
+  // pptxgenjs stores parts uncompressed; the heatmap alone is ~600 KB of XML, so deflate the package.
+  const JSZip = require('jszip');
+  const zip = await JSZip.loadAsync(fs.readFileSync(OUT));
+  fs.writeFileSync(OUT, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } }));
+  console.log('wrote', OUT, n, 'slides');
 }
 
 build().catch((e) => { console.error(e); process.exit(1); });
