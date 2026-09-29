@@ -67,6 +67,7 @@ function toggleDock(){
 }
 // Pages with their own phone layout; every other page keeps the scaled desktop canvas on phones.
 const PHONE_PAGES=['business'];
+const SCROLL_PAGES=['business'];
 function fitDesktop(){
   const shell=document.querySelector('.app-shell');
   if(!shell)return;
@@ -84,9 +85,11 @@ function fitDesktop(){
     return;
   }
   let scale=Math.min(1,innerWidth/1440,innerHeight/900);
+  // Scrolling pages (Impact) keep the 1440x900 canvas: their content scrolls instead of shrinking to fit.
+  const scrolls=SCROLL_PAGES.includes(main?.dataset.currentPage);
   for(let i=0;i<3;i++){
     shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
-    const needed=Math.max(900,main.scrollHeight);
+    const needed=scrolls?900:Math.max(900,main.scrollHeight);
     scale=Math.min(scale,innerHeight/needed);
   }
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
@@ -177,11 +180,14 @@ function render(){
   if(changed)pageEnteredAt=now;
   const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
+  const preservedInputs = typeof captureModelInputs === 'function' ? captureModelInputs() : [];
   const charts=chartsCollect(app);
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout,sources:renderSources}[page];
   // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
   const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
   let shell=app.querySelector(':scope>.app-shell');
+  // A re-render of the same page keeps its scroll position (live refreshes on scrolling pages).
+  const scrollTop=!changed&&shell?shell.querySelector(':scope>main')?.scrollTop||0:0;
   if(shell){
     const next=document.createElement('template');
     next.innerHTML=html;
@@ -192,10 +198,12 @@ function render(){
     shell=app.firstElementChild;
     applyDock(shell);
   }
+  if(preservedInputs.length) restoreModelInputs(preservedInputs);
   shell.classList.toggle('is-live',liveRender);
   shell.classList.toggle('is-about',page==='about');
   shell.classList.toggle('is-sources',page==='sources');
   const main=shell.querySelector(':scope>main');
+  if(scrollTop)main.scrollTop=scrollTop;
   if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
   // Once the entrance has played, drop it so finished animations don't keep content on separate
   // compositing layers (which renders text slightly differently from a fresh load).

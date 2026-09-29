@@ -61,7 +61,7 @@ test('a window without an offer says so and points to the next opportunity', () 
   withData(run, { joined: true, bookings: [] }, '2026-01-25', 'morning');
   const html = run('dwCard()');
   assert.match(html, /No discounted window right now/);
-  assert.match(html, /The saving would not cover the per-session costs\. Normal charging stays open at €0\.49\/kWh/);
+  assert.match(html, /Stored surplus is not cheaper than normal charging in this window\. Normal charging stays open at €0\.49\/kWh/);
   assert.match(html, /data-dw-day="2026-01-25" data-dw-pick="evening">Next opportunity: Sun, 25 Jan 17:00–19:00/);
 });
 

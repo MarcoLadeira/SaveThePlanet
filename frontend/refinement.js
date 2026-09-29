@@ -47,7 +47,6 @@ function renderSettings(){
   const interval=live?`MWh per ${n(live.intervalMinutes)}-minute interval`:'MWh';
   const targets=live?live.predictions.map(p=>`+${p.horizonMinutes} min`).join(' · '):'—';
   const methodology=s?.methodology?.length?s.methodology.map(line=>`<p class="settings-explain">${escapeHtml(line)}</p>`).join(''):'<p class="settings-explain">Methodology loads with the forecast.</p>';
-  const capacity=live?live.flexibleCapacityMw:modelState.capacity,total=s?s.totalDemandKwh:modelState.totalDemandKwh,flexible=s?s.flexibleDemandKwh:modelState.flexibleDemandKwh;
   // One About button (issue #48): opens the plain-English How-it-works page.
   const about=`<button type="button" class="about-open" data-page="about">${icon('leaf',17)}About · How SaveThePlanet works</button>`;
   return studioHeader('Settings','Model display and workspace preferences.',about)+`<div class="settings-layout">
@@ -70,9 +69,14 @@ function renderSettings(){
       </section>
     </div>
     <div class="settings-lower">
-      <section class="dash-card settings-section">${cardHead('orange','Charging inputs','Assumptions used by Charging and Impact')}
-        <div class="settings-facts"><div><span>Flexible capacity</span><strong>${n(capacity)} MW</strong></div><div><span>Total demand</span><strong>${n(total)} kWh</strong></div><div><span>Flexible demand</span><strong>${n(flexible)} kWh</strong></div>${s?`<div><span>Scenario ID</span><strong>${escapeHtml(s.id)}</strong></div>`:''}</div>
-        <button class="settings-link" type="button" data-page="charging">Edit charging inputs ${icon('arrow',17)}</button>
+      <section class="dash-card settings-section">${cardHead('orange','Forecast assumptions','Automatically updates the illustrative forecast scenario')}
+        <div class="settings-model-inputs">
+          <label for="model-capacity"><span>Flexible capacity <small>MW</small></span><input id="model-capacity" type="number" min="0.001" max="10000" step="any" required value="${modelState.capacity}" aria-label="Forecast flexible capacity in MW"></label>
+          <label for="scenario-total"><span>Total demand <small>kWh</small></span><input id="scenario-total" type="number" min="0" max="1000000000" step="any" required value="${modelState.totalDemandKwh}" aria-label="Forecast scenario total demand in kWh"></label>
+          <label for="scenario-flexible"><span>Flexible demand <small>kWh</small></span><input id="scenario-flexible" type="number" min="0" max="1000000000" step="any" required value="${modelState.flexibleDemandKwh}" aria-label="Forecast scenario flexible demand in kWh"></label>
+          <p id="scenario-validation" class="settings-model-error" role="alert"></p>
+          <p class="settings-model-note">Applies after 0.5 seconds. These are hypothetical forecast assumptions, <b>not</b> the actual EV fleet's charging capacity or measured demand. Use the EV fleet selector for charging plans.</p>
+        </div>
       </section>
       <section class="dash-card settings-section">${cardHead('green','Model connection','Whether the forecast model is connected and working')}
         ${healthGrid()}

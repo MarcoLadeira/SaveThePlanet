@@ -429,14 +429,16 @@ function cgBestCard() {
     }
     return `<section class="dash-card cg-card cg-best-card">${cgHead('green', 'clock', 'Best half-hours to charge', sub)}${body}</section>`;
 }
+function cgModeMenu() { return typeof evModeToggle === 'function' ? evModeToggle() : ''; }
 function renderCharging() {
+    if (typeof evMode !== 'undefined' && evMode === 'comparison') return renderEvComparison();
     const title = 'Charging EVs on renewable energy that would be wasted · historical data, not live control.';
     // While new assumptions are being calculated, keep the current figures on screen (dimmed, with
     // an "Updating" note) instead of replacing the whole page with a spinner; they then glide to the new values.
     if (modelState.loading && modelState.data) {
-        return `${studioHeader('Charging', title)}<p class="cg-updating" role="status"><span class="cg-updating-dot"></span>Updating the charging figures…</p><div class="cg-is-updating">${cgPage()}</div>`;
+        return `${studioHeader('Charging', title)}${cgModeMenu()}<p class="cg-updating" role="status"><span class="cg-updating-dot"></span>Updating the charging figures…</p><div class="cg-is-updating">${cgPage()}</div>`;
     }
-    return studioShell('Charging', title, cgPage);
+    return studioShell('Charging', title, () => `${cgModeMenu()}${cgPage()}`);
 }
 function cgPage() {
     {

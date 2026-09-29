@@ -484,18 +484,18 @@
    "provenance": "simulated",
    "region": "IE",
    "public": true,
-   "chargers": 20,
-   "chargerKw": 11,
-   "sitePowerKw": 180,
+   "chargers": 40,
+   "chargerKw": 22.0,
+   "sitePowerKw": 600.0,
    "hypotheticalConstraintZone": false,
-   "sessionCap": 16,
-   "maxSessionKwh": 22.0
+   "sessionCap": 40,
+   "maxSessionKwh": 44.0
   },
   "battery": {
    "name": "Hypothetical site battery",
    "provenance": "hypothetical",
-   "capacityKwh": 700.0,
-   "powerKw": 180.0,
+   "capacityKwh": 2000.0,
+   "powerKw": 500.0,
    "chargeEfficiency": 0.92,
    "dischargeEfficiency": 0.92,
    "wearEurPerKwh": 0.04,
@@ -515,8 +515,8 @@
    "platformFixedEurPerMonth": 120.0
   },
   "demand": {
-   "morning": 10,
-   "evening": 20,
+   "morning": 20,
+   "evening": 60,
    "provenance": "assumed"
   },
   "split": {
@@ -541,126 +541,126 @@
    "factor": null
   },
   "kpis": {
-   "aiExtraSavingsEur": 1132.43,
-   "driversSavedEur": 568.23,
-   "operatorProfitEur": 182.1,
-   "platformProfitEur": 121.8,
-   "platformGrossEur": 282.1,
-   "sessions": 403
+   "aiExtraSavingsEur": 2891.49,
+   "driversSavedEur": 1450.89,
+   "operatorProfitEur": 620.3,
+   "platformProfitEur": 497.4,
+   "platformGrossEur": 720.3,
+   "sessions": 1029
   },
   "month": {
-   "sessions": 403,
-   "kwh": 8060.0,
+   "sessions": 1029,
+   "kwh": 20580.0,
    "perSession": {
     "poolEur": 2.81,
     "driverEur": 1.41,
     "operatorEur": 0.7,
     "platformEur": 0.7
    },
-   "poolEur": 1132.43,
-   "driversEur": 568.23,
+   "poolEur": 2891.49,
+   "driversEur": 1450.89,
    "operator": {
-    "retainedEur": 282.1,
+    "retainedEur": 720.3,
     "fixedEur": 100.0,
-    "profitEur": 182.1,
+    "profitEur": 620.3,
     "breakEvenSessions": 143
    },
    "platform": {
-    "grossEur": 282.1,
-    "variableEur": 40.3,
+    "grossEur": 720.3,
+    "variableEur": 102.9,
     "fixedEur": 120.0,
-    "profitEur": 121.8,
+    "profitEur": 497.4,
     "unitContributionEur": 0.6,
     "breakEvenSessions": 200
    },
    "yearly": {
-    "poolEur": 13589.16,
-    "driversEur": 6818.76,
-    "operatorProfitEur": 2185.2,
-    "platformGrossEur": 3385.2,
-    "platformProfitEur": 1461.6
+    "poolEur": 34697.88,
+    "driversEur": 17410.68,
+    "operatorProfitEur": 7443.6,
+    "platformGrossEur": 8643.6,
+    "platformProfitEur": 5968.8
    }
   },
   "scenarios": {
    "expected": {
     "basis": "evaluation-week",
     "inputs": {
-     "sessions": 403,
+     "sessions": 1029,
      "kwhPerSession": 20.0,
      "savingEurPerKwh": 0.1405
     },
     "month": {
-     "sessions": 403,
-     "kwh": 8060.0,
+     "sessions": 1029,
+     "kwh": 20580.0,
      "perSession": {
       "poolEur": 2.81,
       "driverEur": 1.41,
       "operatorEur": 0.7,
       "platformEur": 0.7
      },
-     "poolEur": 1132.43,
-     "driversEur": 568.23,
+     "poolEur": 2891.49,
+     "driversEur": 1450.89,
      "operator": {
-      "retainedEur": 282.1,
+      "retainedEur": 720.3,
       "fixedEur": 100.0,
-      "profitEur": 182.1,
+      "profitEur": 620.3,
       "breakEvenSessions": 143
      },
      "platform": {
-      "grossEur": 282.1,
-      "variableEur": 40.3,
+      "grossEur": 720.3,
+      "variableEur": 102.9,
       "fixedEur": 120.0,
-      "profitEur": 121.8,
+      "profitEur": 497.4,
       "unitContributionEur": 0.6,
       "breakEvenSessions": 200
      },
      "yearly": {
-      "poolEur": 13589.16,
-      "driversEur": 6818.76,
-      "operatorProfitEur": 2185.2,
-      "platformGrossEur": 3385.2,
-      "platformProfitEur": 1461.6
+      "poolEur": 34697.88,
+      "driversEur": 17410.68,
+      "operatorProfitEur": 7443.6,
+      "platformGrossEur": 8643.6,
+      "platformProfitEur": 5968.8
      }
     }
    },
    "evaluationWeek": {
     "basis": "evaluation-week",
     "inputs": {
-     "sessions": 403,
+     "sessions": 1029,
      "kwhPerSession": 20.0,
      "savingEurPerKwh": 0.1405
     },
     "month": {
-     "sessions": 403,
-     "kwh": 8060.0,
+     "sessions": 1029,
+     "kwh": 20580.0,
      "perSession": {
       "poolEur": 2.81,
       "driverEur": 1.41,
       "operatorEur": 0.7,
       "platformEur": 0.7
      },
-     "poolEur": 1132.43,
-     "driversEur": 568.23,
+     "poolEur": 2891.49,
+     "driversEur": 1450.89,
      "operator": {
-      "retainedEur": 282.1,
+      "retainedEur": 720.3,
       "fixedEur": 100.0,
-      "profitEur": 182.1,
+      "profitEur": 620.3,
       "breakEvenSessions": 143
      },
      "platform": {
-      "grossEur": 282.1,
-      "variableEur": 40.3,
+      "grossEur": 720.3,
+      "variableEur": 102.9,
       "fixedEur": 120.0,
-      "profitEur": 121.8,
+      "profitEur": 497.4,
       "unitContributionEur": 0.6,
       "breakEvenSessions": 200
      },
      "yearly": {
-      "poolEur": 13589.16,
-      "driversEur": 6818.76,
-      "operatorProfitEur": 2185.2,
-      "platformGrossEur": 3385.2,
-      "platformProfitEur": 1461.6
+      "poolEur": 34697.88,
+      "driversEur": 17410.68,
+      "operatorProfitEur": 7443.6,
+      "platformGrossEur": 8643.6,
+      "platformProfitEur": 5968.8
      }
     }
    },
@@ -749,7 +749,7 @@
   },
   "calculator": {
    "defaults": {
-    "sessions": 403,
+    "sessions": 1029,
     "kwhPerSession": 20.0,
     "savingEurPerKwh": 0.1405,
     "operatorFixedEur": 100.0,
@@ -757,11 +757,11 @@
     "platformFixedEur": 120.0
    },
    "capacity": {
-    "sessionsPerWindow": 16,
+    "sessionsPerWindow": 40,
     "windowsPerDay": 2,
-    "siteMaxPerMonth": 960,
+    "siteMaxPerMonth": 2400,
     "eligibleWindowsPerMonth": 26,
-    "maxPerMonth": 416
+    "maxPerMonth": 1040
    }
   },
   "offers": [
@@ -779,10 +779,10 @@
     "aiCostEurPerKwh": null,
     "storedSurplusKwh": 0.0,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
+     "site": 40,
+     "batteryPower": 50,
      "storedEnergy": 0,
-     "demand": 20
+     "demand": 60
     },
     "next": {
      "date": "2026-01-25",
@@ -797,17 +797,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-25T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 662.4,
+    "storedSurplusKwh": 1840.0,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 30,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 84,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-25",
@@ -827,14 +827,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 662.4,
+    "storedSurplusKwh": 1840.0,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 30,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 84,
+     "demand": 60
     },
-    "sessions": 16,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -899,12 +899,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 16,
-     "kwh": 320.0,
-     "poolEur": 44.96,
-     "driverEur": 22.4,
-     "operatorEur": 11.36,
-     "platformEur": 11.2,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -915,17 +915,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-26T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 314.6,
+    "storedSurplusKwh": 970.4,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 14,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 44,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-26",
@@ -945,14 +945,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 314.6,
+    "storedSurplusKwh": 970.4,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 14,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 44,
+     "demand": 60
     },
-    "sessions": 14,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -1017,12 +1017,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 14,
-     "kwh": 280.0,
-     "poolEur": 39.34,
-     "driverEur": 19.6,
-     "operatorEur": 9.94,
-     "platformEur": 9.8,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -1033,17 +1033,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-27T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 507.0,
+    "storedSurplusKwh": 1480.9,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 23,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 68,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-27",
@@ -1063,14 +1063,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 507.0,
+    "storedSurplusKwh": 1480.9,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 23,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 68,
+     "demand": 60
     },
-    "sessions": 16,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -1135,12 +1135,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 16,
-     "kwh": 320.0,
-     "poolEur": 44.96,
-     "driverEur": 22.4,
-     "operatorEur": 11.36,
-     "platformEur": 11.2,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -1151,17 +1151,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-28T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 700.0,
+    "storedSurplusKwh": 2000.0,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 32,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 92,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-28",
@@ -1181,14 +1181,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 700.0,
+    "storedSurplusKwh": 2000.0,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 32,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 92,
+     "demand": 60
     },
-    "sessions": 16,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -1253,12 +1253,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 16,
-     "kwh": 320.0,
-     "poolEur": 44.96,
-     "driverEur": 22.4,
-     "operatorEur": 11.36,
-     "platformEur": 11.2,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -1269,17 +1269,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-29T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 352.2,
+    "storedSurplusKwh": 1130.4,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 16,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 52,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-29",
@@ -1299,14 +1299,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 352.2,
+    "storedSurplusKwh": 1130.4,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 16,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 52,
+     "demand": 60
     },
-    "sessions": 16,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -1371,12 +1371,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 16,
-     "kwh": 320.0,
-     "poolEur": 44.96,
-     "driverEur": 22.4,
-     "operatorEur": 11.36,
-     "platformEur": 11.2,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -1387,17 +1387,17 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-30T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 501.1,
+    "storedSurplusKwh": 1640.9,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 23,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 75,
+     "demand": 20
     },
     "next": {
      "date": "2026-01-30",
@@ -1417,14 +1417,14 @@
     "baselineEurPerKwh": 0.34,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 501.1,
+    "storedSurplusKwh": 1640.9,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 23,
-     "demand": 20
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 75,
+     "demand": 60
     },
-    "sessions": 16,
+    "sessions": 40,
     "kwhPerSession": 20.0,
     "source": "stored-surplus",
     "savingEurPerKwh": 0.14,
@@ -1489,12 +1489,12 @@
     ],
     "settled": {
      "baselineEurPerKwh": 0.34,
-     "sessions": 16,
-     "kwh": 320.0,
-     "poolEur": 44.96,
-     "driverEur": 22.4,
-     "operatorEur": 11.36,
-     "platformEur": 11.2,
+     "sessions": 40,
+     "kwh": 800.0,
+     "poolEur": 112.4,
+     "driverEur": 56.0,
+     "operatorEur": 28.4,
+     "platformEur": 28.0,
      "shortfallEur": 0.0
     }
    },
@@ -1505,28 +1505,28 @@
     "label": "07:00–09:00",
     "lockedAt": "2026-01-31T06:30:00Z",
     "status": "none",
-    "reason": "too-small",
-    "reasonText": "The saving would not cover the per-session costs.",
-    "baselineEurPerKwh": 0.205,
+    "reason": "not-cheaper",
+    "reasonText": "Stored surplus is not cheaper than normal charging in this window.",
+    "baselineEurPerKwh": 0.16,
     "surplusForecastInWindow": false,
     "aiCostEurPerKwh": 0.1995,
-    "storedSurplusKwh": 484.5,
+    "storedSurplusKwh": 1691.3,
     "capacity": {
-     "site": 16,
-     "batteryPower": 18,
-     "storedEnergy": 22,
-     "demand": 10
+     "site": 40,
+     "batteryPower": 50,
+     "storedEnergy": 77,
+     "demand": 20
     },
     "next": null
    }
   ],
   "ledger": {
-   "sessions": 94,
-   "kwh": 1880.0,
-   "poolEur": 264.14,
-   "driverEur": 131.6,
-   "operatorEur": 66.74,
-   "platformEur": 65.8,
+   "sessions": 240,
+   "kwh": 4800.0,
+   "poolEur": 674.4,
+   "driverEur": 336.0,
+   "operatorEur": 170.4,
+   "platformEur": 168.0,
    "shortfallEur": 0.0,
    "balanced": true,
    "nights": 7,
@@ -1544,24 +1544,24 @@
    "forecastHorizonMinutes": 30
   },
   "energy": {
-   "qualifyingKwh": 1880.0,
+   "qualifyingKwh": 4800.0,
    "sources": {
     "directSurplusKwh": 0.0,
-    "storedSurplusKwh": 1880.0,
+    "storedSurplusKwh": 4800.0,
     "conventionalKwh": 0.0
    },
    "battery": {
-    "gridChargedKwh": 2927.8,
-    "surplusChargedKwh": 2747.8,
-    "falseAlarmKwh": 180.0,
-    "chargeLossKwh": 234.2,
-    "dischargedKwh": 1960.0,
-    "dischargeLossKwh": 170.4,
+    "gridChargedKwh": 8009.5,
+    "surplusChargedKwh": 7509.5,
+    "falseAlarmKwh": 500.0,
+    "chargeLossKwh": 640.8,
+    "dischargedKwh": 5200.0,
+    "dischargeLossKwh": 452.2,
     "roundTripEfficiency": 0.8464,
-    "conventionalReleasedKwh": 80.0,
-    "unallocatedSurplusKwh": 484.5,
-    "unallocatedConventionalKwh": 78.6,
-    "storedSurplusUsedKwh": 2043.5
+    "conventionalReleasedKwh": 400.0,
+    "unallocatedSurplusKwh": 1691.3,
+    "unallocatedConventionalKwh": 25.2,
+    "storedSurplusUsedKwh": 5217.4
    },
    "calls": {
     "charged": 33,
@@ -1593,6 +1593,452 @@
    "Surplus credit is conditional: curtailment is system-wide and network deliverability for a real site is not verified.",
    "Without real settlement data these are projected revenue and simulated profit, never money earned.",
    "Public chargers stay open to everyone at the normal price: joining is optional and never a condition for charging."
-  ]
+  ],
+  "businessCase": {
+   "status": "illustrative",
+   "period": "month",
+   "daysPerMonth": 30,
+   "split": {
+    "driver": 50,
+    "operator": 25,
+    "platform": 25
+   },
+   "overhead": {
+    "provenance": "illustrative",
+    "coreEurPerMonth": 90.0,
+    "perSiteEurPerMonth": 30.0
+   },
+   "cases": [
+    {
+     "id": "today",
+     "label": "Today",
+     "note": "1 hub, current costs",
+     "sites": 1,
+     "sessions": 1029,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1405,
+     "eligibleWindows": 26,
+     "poolEur": 2891.49,
+     "driversEur": 1450.89,
+     "operatorProfitEur": 620.3,
+     "revenueEur": 720.3,
+     "variableCostsEur": 102.9,
+     "fixedCostsEur": 120.0,
+     "costsEur": 222.9,
+     "profitEur": 497.4,
+     "marginPct": 69.1,
+     "breakEvenSessions": 200,
+     "commissionPerSessionEur": 0.7,
+     "contributionPerSessionEur": 0.6,
+     "noSavingsProfitEur": -120.0,
+     "multiple": 1.0,
+     "company": {
+      "hubs": 1,
+      "profitEur": 497.4,
+      "profitYearEur": 5968.8,
+      "revenueYearEur": 8643.6
+     },
+     "changes": []
+    },
+    {
+     "id": "pilot",
+     "label": "Pilot",
+     "note": "3 hubs, leaner costs",
+     "sites": 3,
+     "sessions": 1029,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1705,
+     "eligibleWindows": 26,
+     "poolEur": 3508.89,
+     "driversEur": 1759.59,
+     "operatorProfitEur": 774.65,
+     "revenueEur": 874.65,
+     "variableCostsEur": 51.45,
+     "fixedCostsEur": 60.0,
+     "costsEur": 111.45,
+     "profitEur": 763.2,
+     "marginPct": 87.3,
+     "breakEvenSessions": 75,
+     "commissionPerSessionEur": 0.85,
+     "contributionPerSessionEur": 0.8,
+     "noSavingsProfitEur": -60.0,
+     "multiple": 1.53,
+     "company": {
+      "hubs": 3,
+      "profitEur": 2289.6,
+      "profitYearEur": 27475.2,
+      "revenueYearEur": 31487.4
+     },
+     "changes": [
+      {
+       "id": "network",
+       "case": "pilot",
+       "label": "Network charges on stored energy",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
+       "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
+      },
+      {
+       "id": "session",
+       "case": "pilot",
+       "label": "Operator session costs",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
+       "why": "App check-in and automatic settlement replace manual handling."
+      },
+      {
+       "id": "perSession",
+       "case": "pilot",
+       "label": "SaveThePlanet cost per session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
+       "why": "Batched payments and automated messages."
+      },
+      {
+       "id": "sites3",
+       "case": "pilot",
+       "label": "Partner hubs sharing the platform",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
+       "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
+      }
+     ]
+    },
+    {
+     "id": "growth",
+     "label": "Growth",
+     "note": "10 hubs",
+     "sites": 10,
+     "sessions": 1029,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1705,
+     "eligibleWindows": 26,
+     "poolEur": 3508.89,
+     "driversEur": 1759.59,
+     "operatorProfitEur": 774.65,
+     "revenueEur": 874.65,
+     "variableCostsEur": 51.45,
+     "fixedCostsEur": 39.0,
+     "costsEur": 90.45,
+     "profitEur": 784.2,
+     "marginPct": 89.7,
+     "breakEvenSessions": 49,
+     "commissionPerSessionEur": 0.85,
+     "contributionPerSessionEur": 0.8,
+     "noSavingsProfitEur": -39.0,
+     "multiple": 1.58,
+     "company": {
+      "hubs": 10,
+      "profitEur": 7842.0,
+      "profitYearEur": 94104.0,
+      "revenueYearEur": 104958.0
+     },
+     "changes": [
+      {
+       "id": "network",
+       "case": "pilot",
+       "label": "Network charges on stored energy",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
+       "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
+      },
+      {
+       "id": "session",
+       "case": "pilot",
+       "label": "Operator session costs",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
+       "why": "App check-in and automatic settlement replace manual handling."
+      },
+      {
+       "id": "perSession",
+       "case": "pilot",
+       "label": "SaveThePlanet cost per session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
+       "why": "Batched payments and automated messages."
+      },
+      {
+       "id": "sites3",
+       "case": "pilot",
+       "label": "Partner hubs sharing the platform",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
+       "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
+      },
+      {
+       "id": "sites10",
+       "case": "growth",
+       "label": "Partner hubs sharing the platform",
+       "from": "3 hubs · €60 overhead each",
+       "to": "10 hubs · €39 overhead each",
+       "why": "Ten hubs share the platform core; support stays EUR 30 per hub."
+      }
+     ]
+    },
+    {
+     "id": "scale",
+     "label": "Scale",
+     "note": "100 hubs",
+     "sites": 100,
+     "sessions": 1029,
+     "kwhPerSession": 20.0,
+     "savingEurPerKwh": 0.1705,
+     "eligibleWindows": 26,
+     "poolEur": 3508.89,
+     "driversEur": 1759.59,
+     "operatorProfitEur": 774.65,
+     "revenueEur": 874.65,
+     "variableCostsEur": 51.45,
+     "fixedCostsEur": 30.9,
+     "costsEur": 82.35,
+     "profitEur": 792.3,
+     "marginPct": 90.6,
+     "breakEvenSessions": 39,
+     "commissionPerSessionEur": 0.85,
+     "contributionPerSessionEur": 0.8,
+     "noSavingsProfitEur": -30.9,
+     "multiple": 1.59,
+     "company": {
+      "hubs": 100,
+      "profitEur": 79230.0,
+      "profitYearEur": 950760.0,
+      "revenueYearEur": 1049580.0
+     },
+     "changes": [
+      {
+       "id": "network",
+       "case": "pilot",
+       "label": "Network charges on stored energy",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
+       "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
+      },
+      {
+       "id": "session",
+       "case": "pilot",
+       "label": "Operator session costs",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
+       "why": "App check-in and automatic settlement replace manual handling."
+      },
+      {
+       "id": "perSession",
+       "case": "pilot",
+       "label": "SaveThePlanet cost per session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
+       "why": "Batched payments and automated messages."
+      },
+      {
+       "id": "sites3",
+       "case": "pilot",
+       "label": "Partner hubs sharing the platform",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
+       "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
+      },
+      {
+       "id": "sites10",
+       "case": "growth",
+       "label": "Partner hubs sharing the platform",
+       "from": "3 hubs · €60 overhead each",
+       "to": "10 hubs · €39 overhead each",
+       "why": "Ten hubs share the platform core; support stays EUR 30 per hub."
+      },
+      {
+       "id": "sites100",
+       "case": "scale",
+       "label": "Partner hubs sharing the platform",
+       "from": "10 hubs · €39 overhead each",
+       "to": "100 hubs · €30.9 overhead each",
+       "why": "A hundred hubs share the platform core; support stays EUR 30 per hub."
+      }
+     ]
+    }
+   ],
+   "steps": [
+    {
+     "id": "today",
+     "label": "Today",
+     "case": "today",
+     "profitEur": 497.4,
+     "deltaEur": 0.0
+    },
+    {
+     "id": "network",
+     "label": "Network charges on stored energy",
+     "case": "pilot",
+     "profitEur": 600.3,
+     "deltaEur": 102.9
+    },
+    {
+     "id": "session",
+     "label": "Operator session costs",
+     "case": "pilot",
+     "profitEur": 651.75,
+     "deltaEur": 51.45
+    },
+    {
+     "id": "perSession",
+     "label": "SaveThePlanet cost per session",
+     "case": "pilot",
+     "profitEur": 703.2,
+     "deltaEur": 51.45
+    },
+    {
+     "id": "sites3",
+     "label": "Partner hubs sharing the platform",
+     "case": "pilot",
+     "profitEur": 763.2,
+     "deltaEur": 60.0
+    },
+    {
+     "id": "sites10",
+     "label": "Partner hubs sharing the platform",
+     "case": "growth",
+     "profitEur": 784.2,
+     "deltaEur": 21.0
+    },
+    {
+     "id": "sites100",
+     "label": "Partner hubs sharing the platform",
+     "case": "scale",
+     "profitEur": 792.3,
+     "deltaEur": 8.1
+    }
+   ],
+   "target": {
+    "low": 3,
+    "high": 5
+   },
+   "notes": [
+    "Same month, same hub and the same 50/25/25 split in every case: drivers and operators keep their shares.",
+    "Sessions and savings are re-run on the same replayed nights for every case; prices and costs are illustrative.",
+    "Operating profit is after SaveThePlanet's per-session costs and platform overhead (EUR 90 core shared by all hubs + EUR 30 support per hub). Salaries beyond that, sales and customer acquisition are not modelled.",
+    "Company figures multiply one hub's replayed month by the number of hubs; each hub needs its own grid check."
+   ]
+  },
+  "operatorCase": {
+   "sessions": 1029,
+   "kwh": 20580.0,
+   "publicEurPerKwh": 0.49,
+   "basicEurPerKwh": 0.34,
+   "before": {
+    "label": "Basic smart charging",
+    "marginEur": 3087.0
+   },
+   "after": {
+    "label": "AI + Rewards",
+    "marginEur": 3707.3
+   },
+   "shareEur": 720.3,
+   "programmeCostsEur": 100.0,
+   "extraProfitEur": 620.3,
+   "breakEvenSessions": 143,
+   "utilisation": {
+    "sessionsPerOfferedWindow": 40.0,
+    "capacityPerWindow": 40,
+    "share": 1.0,
+    "upliftMeasured": false,
+    "note": "Sessions per discount window against what the site can deliver. Whether discounts bring extra drivers is not measured: without real bookings there is no uplift to report."
+   },
+   "model": "The operator supplies chargers and approved prices; SaveThePlanet supplies the AI and Rewards drivers; both share the verified extra savings."
+  },
+  "scale": {
+   "status": "illustrative",
+   "label": "Illustrative scaling scenario",
+   "sites": [
+    {
+     "sites": 1,
+     "sessions": 1029,
+     "kwh": 20580.0,
+     "driversEur": 1450.89,
+     "operatorProfitEur": 620.3,
+     "platformProfitEur": 497.4,
+     "platformRevenueEur": 720.3,
+     "overheadPerSiteEur": 120.0,
+     "co2Kg": 5145.0,
+     "curtailedShare": 0.002462,
+     "peakHalfHourShare": 0.0063,
+     "surplusLimited": false
+    },
+    {
+     "sites": 10,
+     "sessions": 10290,
+     "kwh": 205800.0,
+     "driversEur": 14508.9,
+     "operatorProfitEur": 6203.0,
+     "platformProfitEur": 5784.0,
+     "platformRevenueEur": 7203.0,
+     "overheadPerSiteEur": 39.0,
+     "co2Kg": 51450.0,
+     "curtailedShare": 0.024621,
+     "peakHalfHourShare": 0.0625,
+     "surplusLimited": false
+    },
+    {
+     "sites": 100,
+     "sessions": 102900,
+     "kwh": 2058000.0,
+     "driversEur": 145089.0,
+     "operatorProfitEur": 62030.0,
+     "platformProfitEur": 58650.0,
+     "platformRevenueEur": 72030.0,
+     "overheadPerSiteEur": 30.9,
+     "co2Kg": 514500.0,
+     "curtailedShare": 0.246212,
+     "peakHalfHourShare": 0.625,
+     "surplusLimited": false
+    }
+   ],
+   "caps": [
+    "Each site: its own chargers, connection and battery, the same windows and demand as the example.",
+    "All sites together: never more surplus in a half-hour than Ireland curtailed then."
+   ],
+   "verify": [
+    "Real bookings and no-shows",
+    "Grid deliverability to each site",
+    "A quoted battery per site"
+   ]
+  },
+  "environment": {
+   "status": "modelled",
+   "period": "month",
+   "scaleFromReplay": 4.2875,
+   "flows": {
+    "surplusInKwh": 32196.8,
+    "gridInKwh": 2143.8,
+    "rewardsOutKwh": 20580.0,
+    "normalOutKwh": 1715.0,
+    "lossKwh": 4685.9,
+    "storedKwh": 7359.6
+   },
+   "directSurplusKwh": 0.0,
+   "balanced": true,
+   "kpis": {
+    "surplusUsedKwh": 24314.7,
+    "evKwh": 20580.0,
+    "co2AvoidedKg": 5145.0
+   },
+   "replay": {
+    "curtailedKwh": 3050000.0,
+    "surplusDrawnKwh": 7509.5,
+    "curtailedShare": 0.002462
+   },
+   "intensityKgPerKwh": 0.25,
+   "baseline": "The same charges from the grid at an average 0.25 kg CO2 per kWh (basic smart charging).",
+   "method": [
+    "Rewards charging is served only from stored surplus: energy bought while curtailment was observed.",
+    "Grid energy bought on a false alarm is sold at the normal price and never counted as renewable.",
+    "Surplus during a window is not counted: normal charging would get it too (direct surplus 0 kWh).",
+    "The replay week is scaled to the month like the sessions; storage losses are shown, not hidden."
+   ],
+   "caveats": [
+    "Modelled, not verified: forecast curtailment is not recovered energy.",
+    "Network deliverability of surplus to the site is not confirmed.",
+    "A flat average intensity, not a marginal emission factor; the battery is hypothetical."
+   ]
+  }
  }
 }
