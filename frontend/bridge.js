@@ -128,24 +128,17 @@ const bridgeMwh = (valueKwh) => {
 // Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
 const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
 
-// Three destinations for the forecast energy the fleet can use: EV chargers, the grid battery, left unused.
+// The simulated grid battery: its level on the picture, then the level, room left and this half-hour's charge.
 function dashboardBattery() {
   const alt = planAlternative();
-  const head = cardHead('green', 'Battery', 'Where the forecast energy goes · simulated');
+  const head = cardHead('green', 'Battery', 'Simulated grid battery · level and room left');
   if (!alt) return `<section class="dash-card dash-battery">${head}${planPlaceholder('Energy bridge')}</section>`;
   const L = alt.optimized.ledger, S = L.storage;
   const label = S
     ? `Simulated grid battery: ${bridgeMwh(S.storedKwh)} stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
     : `${bridgeMwh(L.allocatedToChargersGridKwh)} routed to EV chargers`;
-  const tile = (tone, name, kwhValue) => `<div class="is-${tone}"><dt><i></i>${name}</dt><dd>${bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>')}</dd></div>`;
   return `<section class="dash-card dash-battery">${head}
     ${chartSlot('bridgeBattery', label, 'bridge-battery')}
-    ${chartSlot('bridgeUsed', `${n((L.usedWithStorageFraction ?? L.utilizationFraction ?? 0) * 100)}% of the usable forecast energy is captured`, 'bridge-used')}
-    <dl class="bridge-ledger">
-      ${tile('charger', 'EV chargers', L.allocatedToChargersGridKwh)}
-      ${S || L.allocatedToRealStorageKwh ? tile('storage', 'Grid battery', L.allocatedToRealStorageKwh) : ''}
-      ${tile('left', 'Left unused', L.unallocatedOpportunityKwh)}
-    </dl>
   </section>`;
 }
 
@@ -190,7 +183,7 @@ dashCharts.bridgeBattery = {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
     const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level" style="--level:${level}%"></div></div>
+    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${bridgePct(end)}</b></div></div>
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
       <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
@@ -203,21 +196,6 @@ function bridgeRoutingCopy({ routed, eligible }) {
     <div class="bridge-battery-copy"><div class="bridge-stat"><span>Routed to EV chargers</span><strong>${bridgeMwh(routed).replace(' MWh', '<small>MWh</small>')}</strong></div>
       <div class="bridge-charge"><span>Usable</span><b>${bridgeMwh(eligible)}</b></div></div>`;
 }
-
-// One bar that adds up to 100% of the usable forecast energy: EV chargers, grid battery, left unused, in the
-// tile colours below it. Drawn to scale, so the EVs' share stays a sliver rather than being rounded up.
-dashCharts.bridgeUsed = {
-  values() {
-    const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
-    return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
-  },
-  start: () => ({ used: 0, stored: 0 }),
-  draw: ({ used, stored = 0 }) => {
-    const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
-    return `<div class="bridge-used-head"><span>Energy split</span><b>${bridgePct(used + stored)} captured</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<i class="is-left" style="left:${total}%;width:${100 - total}%"></i></div>`;
-  },
-};
 
 // Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
 // move between sites), so the two simple bars show each site's share per car.

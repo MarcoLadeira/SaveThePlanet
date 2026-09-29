@@ -6,6 +6,7 @@
 | `script.md` | The same script as one document (795 words, 0:00–7:00), with captions for muted viewing. |
 | `evidence-ledger.md` | Every number on a slide: value, status (recorded / predicted / deterministic / illustrative / hypothetical / estimate) and source. |
 | `qa.md` | Short answers to the questions judges are likely to ask. |
+| `hydrogen.md` | A 15-second hydrogen and scalability insert for slide 12, and what it assumes (issue #76). |
 | `data/` | The real data behind the two charts: EirGrid's recorded curtailment for 10 May 2026, and the GridToEv model's +30-minute predictions for January 2026. |
 | `build-deck.js`, `script.json` | Source. Edit `script.json`, then run `node docs/demo/build-deck.js` (needs `pptxgenjs`). |
 

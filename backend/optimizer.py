@@ -12,6 +12,9 @@ Conservation, for one forecast half-hour, all at the grid-side boundary:
 
     eligible opportunity = allocated to EV chargers + allocated to real storage (0) + unallocated
     allocated to EV chargers = delivered into batteries + charging loss
+
+A ledger may also carry allocatedToHydrogenGridKwh (hydrogen.py, issue #76): energy offered to an
+electrolyser after the EVs. It then joins the first equation; ledgers without it are unchanged.
 """
 from datetime import datetime, timedelta
 import hashlib
@@ -393,12 +396,15 @@ def check_ledger(ledger, shares=None):
         value = ledger.get(key)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < -tol:
             problems.append(f'{key} must be a finite, non-negative number')
+    hydrogen = ledger.get('allocatedToHydrogenGridKwh', 0.0)  # optional: an electrolyser after the EVs (hydrogen.py)
+    if isinstance(hydrogen, bool) or not isinstance(hydrogen, (int, float)) or not math.isfinite(hydrogen) or hydrogen < -tol:
+        problems.append('allocatedToHydrogenGridKwh must be a finite, non-negative number')
     if problems:
         return problems
     L = ledger
-    if abs(L['eligibleOpportunityKwh'] - L['allocatedToChargersGridKwh'] - L['allocatedToRealStorageKwh']
+    if abs(L['eligibleOpportunityKwh'] - L['allocatedToChargersGridKwh'] - L['allocatedToRealStorageKwh'] - hydrogen
            - L['unallocatedOpportunityKwh']) > tol:
-        problems.append('eligible opportunity != allocated to chargers + storage + unallocated')
+        problems.append('eligible opportunity != allocated to chargers + storage + hydrogen + unallocated')
     if abs(L['allocatedToChargersGridKwh'] - L['batteryDeliveredKwh'] - L['chargingLossKwh']) > tol:
         problems.append('allocated to chargers != delivered into batteries + charging loss')
     if L['eligibleOpportunityKwh'] > L['predictedAtRiskKwh'] + tol:

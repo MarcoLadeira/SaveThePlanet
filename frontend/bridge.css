@@ -83,18 +83,6 @@
 .bridge-battery-copy em { display: flex; align-items: center; gap: 6px; color: var(--bridge-muted); font-size: 11px; font-style: normal; font-weight: 600; }
 .dash-battery i.is-battery { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--bridge-green); }
 .dash-battery i.is-loss { display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: var(--bridge-loss); }
-.bridge-used { flex: 0 0 auto; }
-.bridge-used-head { display: flex; justify-content: space-between; color: var(--bridge-muted); font-size: 11px; font-weight: 700; }
-.bridge-used-head b { color: var(--bridge-ink); font-size: 13px; }
-.bridge-used-track { position: relative; height: 10px; margin-top: 5px; border-radius: 99px; background: var(--bridge-track); }
-.bridge-used-track i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--bridge-green); }
-.bridge-used-track b { position: absolute; top: -3px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; background: var(--bridge-green); }
-.bridge-ledger { display: grid; gap: 2px; margin: 0; font-size: 12px; }
-.bridge-ledger div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 2px; border-bottom: 1px solid var(--bridge-line); }
-.bridge-ledger dt { color: var(--bridge-muted); font-weight: 600; }
-.bridge-ledger dd { margin: 0; font-weight: 800; white-space: nowrap; }
-.bridge-ledger .is-charger dd { color: var(--bridge-green); }
-.bridge-ledger .is-left dd { color: #e0691e; }
 .bridge-note { margin: 0; color: var(--bridge-muted); font-size: 10.5px; line-height: 1.35; }
 .bridge-note b { color: var(--bridge-ink); }
 .bridge-foot { margin: auto 0 0; color: var(--bridge-muted); font-size: 10px; }
@@ -181,10 +169,6 @@
 .bridge-soc i { position: absolute; top: 0; bottom: 0; left: 0; }
 .bridge-soc i.is-start { background: color-mix(in srgb, var(--bridge-storage) 45%, transparent); }
 .bridge-soc i.is-added { background: var(--bridge-storage); }
-.bridge-used-track i.is-storage { inset: 0 auto 0 auto; border-radius: 0 99px 99px 0; background: var(--bridge-storage); }
-.bridge-used-head i { display: inline-block; width: 8px; height: 8px; margin: 0 2px 0 6px; border-radius: 2px; background: var(--bridge-green); }
-.dash-battery i.is-storage, .bridge-used-head i.is-storage { background: var(--bridge-storage); }
-.bridge-ledger .is-storage dd { color: var(--bridge-storage); }
 .bridge-cabinet-art.is-yard img { padding: 14px 10px 4px; }
 
 /* Battery card, pitch layout: the battery art fills the card, one headline stat under it, then the split. */
@@ -200,21 +184,6 @@
 .bridge-charge { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .bridge-charge b { color: var(--bridge-storage); font-size: 18px; font-weight: 800; white-space: nowrap; }
 .bridge-layout .bridge-battery-copy .bridge-soc { grid-column: 1 / -1; height: 12px; margin: 0; }
-.bridge-layout .bridge-used-head { align-items: baseline; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
-.bridge-layout .bridge-used-head b { font-size: 18px; letter-spacing: 0; }
-.bridge-layout .bridge-used-track { height: 12px; margin-top: 8px; }
-.bridge-layout .bridge-ledger { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
-.bridge-layout .bridge-ledger div { flex-direction: column; justify-content: flex-start; gap: 6px; padding: 12px 14px; border: 1px solid var(--bridge-line); border-radius: 14px; background: color-mix(in srgb, var(--bridge-track) 35%, transparent); }
-.bridge-layout .bridge-ledger dt { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
-.bridge-layout .bridge-ledger dt i { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 3px; background: var(--bridge-green); }
-.bridge-layout .bridge-ledger .is-storage dt i { background: var(--bridge-storage); }
-.bridge-layout .bridge-ledger .is-left dt i { background: #e0691e; }
-.bridge-layout .bridge-ledger dd { color: var(--bridge-ink); font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
-.bridge-layout .bridge-ledger dd small { margin-left: 4px; color: var(--bridge-muted); font-size: 11px; font-weight: 700; letter-spacing: 0; }
-.bridge-layout .bridge-ledger .is-charger dd, .bridge-layout .bridge-ledger .is-storage dd, .bridge-layout .bridge-ledger .is-left dd { color: var(--bridge-ink); }
-.bridge-layout .bridge-used-track { overflow: hidden; }
-.bridge-layout .bridge-used-track i { border-radius: 0; }
-.bridge-layout .bridge-used-track b { top: 0; height: 100%; }
 
 /* Pitch polish: centred art on a floor glow, a battery-gauge charge bar, and a 100% split bar. */
 .bridge-layout .bridge-cabinet-art img, .bridge-layout .bridge-cabinet-art.is-yard img { object-position: center; padding: 0 0 8px; }
@@ -225,19 +194,20 @@
 .bridge-layout .bridge-soc i.is-start { left: 3px; border-radius: 3px 0 0 3px; background: color-mix(in srgb, var(--bridge-ink) 45%, transparent); }
 .bridge-layout .bridge-soc i.is-added { border-radius: 0 3px 3px 0; background: var(--bridge-ink); box-shadow: 0 0 10px color-mix(in srgb, var(--bridge-ink) 40%, transparent); }
 .bridge-layout .bridge-charge b { color: var(--bridge-ink); }
-.bridge-layout .bridge-used-head b { color: var(--bridge-ink); }
-.bridge-layout .bridge-used-track { height: 14px; background: var(--bridge-track); }
-.bridge-layout .bridge-used-track i.is-storage { border-radius: 0; }
-.bridge-layout .bridge-used-track i.is-left { position: absolute; top: 0; bottom: 0; border-radius: 0; background: #e0691e; opacity: .85; }
-.bridge-layout .bridge-used-head b { white-space: nowrap; text-transform: none; }
 
-/* Battery level on the picture: a green fill masked to the cabinets, rising to --level, with a bright waterline. */
-.bridge-level { position: absolute; inset: 0 0 8px; pointer-events: none; -webkit-mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat; mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat;
-  /* The front cabinets span roughly the bottom 4%-62% of the picture, so the waterline maps the level onto them. */
-  --wl: calc(4% + var(--level) * .58);
-  background: linear-gradient(to top, rgba(79, 217, 155, .34) 0, rgba(79, 217, 155, .2) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) var(--wl), transparent var(--wl));
-  mix-blend-mode: screen; transition: background .6s ease; }
+/* Battery level on the picture. The box is sized to exactly where the contained image is drawn (1159 x 518,
+   centred), so the level is measured against the cabinet cluster, not the letterboxed box around it. The
+   cluster spans about 3.5%-98% of the image height from the bottom. */
+.bridge-layout .bridge-cabinet-art { container-type: size; }
+.bridge-layout .bridge-cabinet-art img, .bridge-layout .bridge-cabinet-art.is-yard img { padding: 0; }
+.bridge-level-box { --wl: calc(3.5% + var(--level) * .945); position: absolute; left: 50%; top: 50%; width: min(100cqw, 100cqh * 1159 / 518); height: min(100cqh, 100cqw * 518 / 1159); transform: translate(-50%, -50%); pointer-events: none; }
+.bridge-level { position: absolute; inset: 0; -webkit-mask: url("./assets/dashboard-grid-battery.webp") center / 100% 100% no-repeat; mask: url("./assets/dashboard-grid-battery.webp") center / 100% 100% no-repeat;
+  background: linear-gradient(to top, rgba(79, 217, 155, .42) 0, rgba(79, 217, 155, .26) calc(var(--wl) - 1%), rgba(190, 255, 220, .95) calc(var(--wl) - 1%), rgba(190, 255, 220, .95) var(--wl), transparent var(--wl));
+  mix-blend-mode: screen; }
+.bridge-level-box::after { content: ""; position: absolute; left: 2%; right: 2%; bottom: var(--wl); border-top: 1.5px dashed color-mix(in srgb, #4fd99b 70%, transparent); }
+.bridge-level-tag { position: absolute; right: -2px; bottom: var(--wl); z-index: 1; transform: translateY(50%); padding: 3px 8px; border-radius: 99px; background: #4fd99b; color: #073324; font-size: 12px; font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
 .bridge-stat em { color: var(--bridge-muted); font-size: 12px; font-style: normal; font-weight: 700; }
 .bridge-added { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; margin: 0; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }
 .bridge-added i { width: 10px; height: 10px; border-radius: 3px; background: var(--bridge-ink); }
 .bridge-layout .bridge-charge b small { margin-left: 4px; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }
+.bridge-layout > .dash-battery { padding-bottom: 18px; }

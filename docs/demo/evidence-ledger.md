@@ -23,6 +23,9 @@ inputs, the same on every machine. Numbers read off the screen recordings are li
 | E15 | 11 | ≈2 t CO₂ a month per site | **Estimate**, not verified | 8,000 kWh × `business.GRID_KG_PER_KWH` (0.25). Assumes the stored surplus would otherwise have been dispatched down. |
 | E16 | 12 | Per site a year: drivers €4,800, operators €1,200, CO₂ 24 t; ×10 and ×100 | Illustrative, capacity-capped | E13 and E15 × 12 months × sites. Not a forecast or a pipeline. |
 | E17 | 13 | 420 automated tests (349 backend incl. 8 hosted-model checks, 71 frontend) | Measured | `python -m unittest discover -s backend/tests`; `node --test frontend/tests/*.test.js`; CI on every PR. |
+| E18 | 12 (insert) | EVs first, then the Dashboard's grid battery; once it reads 100%, the surplus goes to a hydrogen plant | Working prototype, tested | `backend/hydrogen.py` (`storage.charge`, the Dashboard's battery); `backend/tests/test_hydrogen.py`. See `hydrogen.md`. |
+| E19 | 12 (insert) | Electrolyser 1 MW, 55 kWh/kg (IEA 50–55), 10% minimum load; access 1.5 MW | **Hypothetical**, ESB-inspired | `hydrogen.PLANT`, `hydrogen.ACCESS`. ESB's planned 1 MW Aghada demonstration (due in 2026 per ESB) sets the size only: no agreement or connection. |
+| E20 | 12 (insert) | EV share by stage (planned about 1/3, 2/3, all); hydrogen and unused shares | Simulated on the replay | Read off the Impact page for the replay shown; the targets are planning hypotheses. |
 
 ## Read off the recordings (fill in when you record)
 

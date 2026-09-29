@@ -70,7 +70,7 @@ test('battery shows routed energy split into battery and loss', () => {
   assert.doesNotMatch(empty, /NaN|Infinity/);
 });
 
-test('grid battery: stored energy, charge bar from its starting level, and its share of the used bar', () => {
+test('grid battery: level, room left and the charge bar from its starting level', () => {
   const alt = alternative(30, { allocated: 65, eligible: 8000 });
   Object.assign(alt.optimized.ledger, {
     allocatedToRealStorageKwh: 2500, unallocatedOpportunityKwh: 5435,
@@ -83,7 +83,7 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   assert.match(html, /Battery level<\/span><strong>63%<small>full<\/small><\/strong><em>6\.25 of 10 MWh<\/em>/);
   assert.match(html, /Room left<\/span><b>3\.75<small>MWh<\/small><\/b>/);
   assert.match(html, /\+2\.25 MWh stored this half-hour · 40% → 63%/);  // whole percentages for the pitch
-  assert.match(html, /class="bridge-level" style="--level:62\.5%"/);
+  assert.match(html, /class="bridge-level-box" style="--level:62\.5%"><div class="bridge-level"><\/div><b class="bridge-level-tag">63%<\/b>/);
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);
@@ -91,17 +91,6 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const first = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values));
   assert.match(first, /is-added" style="left:40%;width:0%/);
   assert.doesNotMatch(first, /NaN|Infinity/);
-  const used = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(used, /<b>32% captured<\/b>/);  // (65 + 2500) / 8000
-  assert.match(used, /class="is-storage" style="left:0\.8125%;width:31\.25/);
-  assert.match(used, /class="is-left" style="left:32\.0625%;width:67\.9375%/);  // the bar adds up to 100%
-});
-
-test('used share is drawn to scale, never rounded up to 100%', () => {
-  const { dashCharts } = load(30, [alternative(30, { allocated: 52.04, eligible: 16479.7 })]);
-  const html = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(html, /<b><1% captured<\/b>/);
-  assert.match(html, /width:0\.315/);
 });
 
 test('flexible charging card: charged energy, power used and the equal share at each site', () => {
