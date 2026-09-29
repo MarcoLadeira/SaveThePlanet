@@ -70,7 +70,7 @@ test('waste through the day: 48 half-hours, the planned one, the best window and
   assert.match(html, /Waste through the day/);
   // Curtailment compared like for like: day-ahead (model 2), the half-hourly curtailment added up (model 1), recorded.
   assert.match(html, /Curtailment over the day, forecast three ways Day-ahead 8,963 ?MWh Half-hourly 250 ?MWh Recorded 7,011 ?MWh/);
-  assert.match(html, /Battery &amp; EV plan: 14:00–14:30 \(outlined\) · 44 MWh/);
+  assert.doesNotMatch(html, /Battery &amp; EV plan/, 'the planned half-hour is shown by its outlined bar only');
   const values = run('dashCharts.dayWaste.values()');
   assert.equal(values.v.length, 48);
   assert.equal(values.sel, 27, '14:00 is the 28th +30 min slot after 00:30');

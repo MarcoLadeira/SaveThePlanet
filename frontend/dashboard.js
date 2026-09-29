@@ -110,7 +110,7 @@ dashCharts.dayWaste = {
       if (state === 'none') return `<span class="dw-col is-missing"><span class="dw-tip"><b>${time}–${next}</b><small>No forecast in the dataset for this half-hour</small></span></span>`;
       const curtail = Math.min(c[i] || 0, x), constraint = Math.max(0, x - curtail);
       return `<span class="dw-col${i === sel ? ' is-plan' : ''}"><i class="dw-bar is-constraint" style="height:${h(constraint)}"></i><i class="dw-bar is-curtail" style="height:${h(curtail)}"></i>${i === sel ? '<em class="dw-plan">Plan</em>' : ''}
-        <span class="dw-tip"><b>${time}–${next}</b><span><i class="is-curtail"></i>Curtailment <strong>${mwh(curtail)} MWh</strong></span><span><i class="is-constraint"></i>Grid constraint <strong>${mwh(constraint)} MWh</strong></span><span>Chance of any <strong>${chance}%</strong></span>${i === sel ? '<small>The battery and EV cards plan this half-hour</small>' : ''}</span></span>`;
+        <span class="dw-tip"><b>${time}–${next}</b><span><i class="is-curtail"></i>Curtailment <strong>${mwh(curtail)} MWh</strong></span><span><i class="is-constraint"></i>Grid constraint <strong>${mwh(constraint)} MWh</strong></span><span>Chance of any <strong>${chance}%</strong></span>${i === sel ? '<small>Planned: the battery and EV cards on the right use this half-hour (curtailment + constraint)</small>' : ''}</span></span>`;
     }).join('');
     const [ws, wl] = win ? win.split('|').map(Number) : [0, 0];
     const band = win ? `<span class="dw-window" style="left:${(ws / v.length) * 100}%;width:${(wl / v.length) * 100}%" title="Best charging window: ${rows[ws]?.[0]}–${rows[ws + wl - 1]?.[3]}"></span>` : '';
@@ -165,7 +165,6 @@ function dashboardWaste(p) {
       <p>Curtailment over the day, forecast three ways</p>
       ${cell('Day-ahead', ahead, 'is-ahead', 'Model 2: one forecast for the whole day, made at midnight from the weather forecast')}${cell('Half-hourly', s.curtailmentMwh, 'is-now', 'Model 1: the curtailment part of the 48 half-hour forecasts above, each made 30 minutes ahead, added up')}${cell('Recorded', rec, 'is-rec', 'What EirGrid recorded')}
     </div>
-    <p class="day-plan-link" title="Both curtailment and grid constraints are renewable power that would be wasted, so the battery and EV plan uses their total (curtailment + grid constraint).">${icon('charge', 15)}<span>Battery &amp; EV plan: <b>${escapeHtml(targetWindow(p))}</b> (outlined) · <b>${n(Math.round(p.atRiskMwh))} MWh</b></span></p>
   </section>`;
 }
 
