@@ -20,6 +20,7 @@ from http.client import HTTPException
 from config import load_env
 import business
 import chat
+import dayview
 import explorer
 import sources
 import fleet as fleets
@@ -483,7 +484,7 @@ def keep_model_warm():
         business.start_prefetch()  # Impact page: ~8 day replays at prefetch priority
     except Exception:  # the pages fall back to labelled demo data and retry on their own
         pass
-    targets.start_index_build()  # ~30 day replays at prefetch priority, or loaded from disk
+    targets.start_index_build(then=dayview.warm)  # curtailment days (+ their headlines), then ~30 day replays at prefetch priority or from disk
     while True:
         time.sleep(KEEP_WARM_SECONDS)
         try:
@@ -803,6 +804,22 @@ class Handler(SimpleHTTPRequestHandler):
             diagnosis = diagnose(error)
             self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
 
+    def dashboard_day(self, query):
+        """Dashboard headline: the daily model (V2) for the day of the dashboard's half-hour."""
+        try:
+            day = date.fromisoformat(query.get('date', [''])[0]).isoformat()
+        except ValueError:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a date (YYYY-MM-DD).'}})
+            return
+        try:
+            self.send_json(200, dayview.headline(day))
+        # A KeyError (malformed model answer) is a LookupError too, so upstream failures are caught first.
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+        except LookupError as error:  # explorer.validate_day: outside the daily model's dataset
+            self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
+
     def sources(self, route):
         """Wind & Solar page (issue #65): recorded wind/solar curtailment plus the experimental split forecast."""
         query = {k: v[0] for k, v in parse_qs(route.query).items()}
@@ -888,6 +905,9 @@ class Handler(SimpleHTTPRequestHandler):
 
         if route.path == '/api/v1/about/example':
             self.send_json(200, worked_example())  # About page: the real formulas on fixed example inputs
+            return
+        if route.path == '/api/v1/dashboard/day':
+            self.dashboard_day(parse_qs(route.query))
             return
         if route.path.startswith('/api/v1/sources/'):
             self.sources(route)
