@@ -61,10 +61,9 @@ test('battery shows routed energy split into battery and loss', () => {
   const { dashCharts } = load();
   const values = dashCharts.bridgeBattery.values();
   assert.deepEqual({ ...values }, { routed: 65, eligible: 350, battery: 58.5, loss: 6.5, rise: 1 });
-  assert.match(dashCharts.bridgeBattery.draw(values), /0\.065<small>MWh<\/small><\/strong><span class="bridge-of">of 0\.35 MWh usable/);
+  assert.match(dashCharts.bridgeBattery.draw(values), /Routed to EV chargers<\/span><strong>0\.065<small>MWh<\/small><\/strong>/);
   const html = dashCharts.bridgeBattery.draw(values);
-  assert.match(html, /0\.059 MWh into EV batteries/);
-  assert.match(html, /0\.007 MWh lost charging/);
+  assert.match(html, /Usable<\/span><b>0\.35 MWh<\/b>/);
   assert.doesNotMatch(dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values)), /NaN|Infinity/);
   // Nothing routed: an empty battery, not a division by zero.
   const empty = dashCharts.bridgeBattery.draw({ routed: 0, eligible: 0, battery: 0, loss: 0, rise: 1 });
@@ -81,9 +80,8 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const { dashCharts } = load(30, [alt]);
   const values = dashCharts.bridgeBattery.values();
   const html = dashCharts.bridgeBattery.draw(values);
-  assert.match(html, /Stored in the grid battery<\/span><strong>2\.25<small>MWh/);
-  assert.match(html, /40% → 62\.5% full, charging at its 5 MW limit/);
-  assert.match(html, /0\.25 MWh lost charging it/);
+  assert.match(html, /Stored in battery<\/span><strong>2\.25<small>MWh/);
+  assert.match(html, /<b>40% → 62\.5%<\/b>/);
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);
