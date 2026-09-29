@@ -56,12 +56,12 @@ QUOTE_KWH = (10.0, 15.0, 20.0, 22.0)  # charge sizes the EV page offers, each pr
 MIN_SAVING_EUR_PER_KWH = 0.05  # the AI only stores energy that could clear at least this at the peak
 EPS = 1e-9
 
+# A large public charging hub (the depot is a separate scenario with its own 20 x 11 kW chargers).
 HUB = {'id': 'hub', 'name': 'Example charging hub', 'provenance': 'simulated', 'region': 'IE', 'public': True,
-       'chargers': business.FLEET['chargers'], 'chargerKw': business.FLEET['chargerKw'],
-       'sitePowerKw': business.FLEET['sitePowerKw'], 'hypotheticalConstraintZone': False}
+       'chargers': 40, 'chargerKw': 22.0, 'sitePowerKw': 600.0, 'hypotheticalConstraintZone': False}
 BATTERY = {
     'name': 'Hypothetical site battery', 'provenance': 'hypothetical',
-    'capacityKwh': 700.0, 'powerKw': 180.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
+    'capacityKwh': 2000.0, 'powerKw': 500.0, 'chargeEfficiency': 0.92, 'dischargeEfficiency': 0.92,
     'wearEurPerKwh': 0.04,
     'note': 'Not built and not claimed as real storage: an illustrative extension to show what stored surplus would cost.',
 }
@@ -72,7 +72,7 @@ PRICES = {
     'sessionEurPerKwh': 0.025,  # the operator's extra site and session costs for a programme session
 }
 # Drivers assumed to want each window at the example hub: demand is an assumption, not a measurement.
-DEMAND = {'morning': 10, 'evening': 20}
+DEMAND = {'morning': 20, 'evening': 60}
 COSTS = {'provenance': 'illustrative', 'operatorFixedEurPerMonth': 100.0,
          'platformVariableEurPerSession': 0.10, 'platformFixedEurPerMonth': 120.0}
 # SaveThePlanet's overhead: a platform core shared by every partner site, plus support for each site.
@@ -474,15 +474,15 @@ IMPROVEMENTS = (
      'App check-in and automatic settlement replace manual handling.'),
     ('perSession', 'pilot', 'SaveThePlanet cost per session', ('costs', 'platformVariableEurPerSession', 0.05),
      'Batched payments and automated messages.'),
-    ('sites3', 'pilot', 'Partner sites sharing the platform', ('sites', None, 3),
-     'A three-site pilot shares the EUR 90 platform core; each site keeps its own EUR 30 of support.'),
-    ('battery', 'scale', 'Site battery', ('battery', None, {'capacityKwh': 1000.0, 'powerKw': 250.0}),
-     'A larger hypothetical battery stores more of the surplus the forecast calls; same chargers and connection.'),
-    ('sites10', 'scale', 'Partner sites sharing the platform', ('sites', None, 10),
-     'Ten sites share the platform core; support stays EUR 30 per site.'),
+    ('sites3', 'pilot', 'Partner hubs sharing the platform', ('sites', None, 3),
+     'A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support.'),
+    ('sites10', 'growth', 'Partner hubs sharing the platform', ('sites', None, 10),
+     'Ten hubs share the platform core; support stays EUR 30 per hub.'),
+    ('sites100', 'scale', 'Partner hubs sharing the platform', ('sites', None, 100),
+     'A hundred hubs share the platform core; support stays EUR 30 per hub.'),
 )
-CASES = (('today', 'Today', 'Replayed week, current assumptions'), ('pilot', 'Pilot', 'Same hardware, 3 partner sites'),
-         ('scale', 'Scale', 'Larger battery, 10 partner sites'))
+CASES = (('today', 'Today', '1 hub, current costs'), ('pilot', 'Pilot', '3 hubs, leaner costs'),
+         ('growth', 'Growth', '10 hubs'), ('scale', 'Scale', '100 hubs'))
 
 
 def _params():
@@ -504,7 +504,7 @@ def _shown(params, change):
     group, key, _ = change
     if group == 'sites':
         n = params['sites']
-        return f'{n} site{"s" if n > 1 else ""} · EUR {overhead_per_site(n):g} overhead each'
+        return f'{n} hub{"s" if n > 1 else ""} · EUR {overhead_per_site(n):g} overhead each'
     if group == 'battery':
         return f'{params["battery"]["capacityKwh"]:,.0f} kWh · {params["battery"]["powerKw"]:g} kW'
     unit = '/session' if key == 'platformVariableEurPerSession' else '/kWh'
@@ -534,14 +534,19 @@ def _case(case_id, label, note, params, month, proj, changes, base_profit):
         'commissionPerSessionEur': month['perSession']['platformEur'], 'contributionPerSessionEur': p['unitContributionEur'],
         'noSavingsProfitEur': -p['fixedEur'],
         'multiple': round(profit / base_profit, 2) if base_profit > 0 else None,
+        # The company: every partner hub runs the same month; the shared overhead is already in each hub's costs.
+        'company': {'hubs': params['sites'], 'profitEur': eur(cents(profit) * params['sites']),
+                    'profitYearEur': eur(cents(profit) * params['sites'] * 12),
+                    'revenueYearEur': eur(cents(revenue) * params['sites'] * 12)},
         'changes': changes,
     }
 
 
 def business_case(nights, seasonal, tariff=business.TARIFF):
-    """Today's SaveThePlanet economics for one site and one month, and two improved cases that change only the
-    itemised assumptions (the 50/25/25 split, the period and the site stay the same). `steps` is the profit
-    after each change, in order, so each lever's effect is visible."""
+    """SaveThePlanet's economics per hub and month, today and as the company grows: leaner costs in a three-hub
+    pilot, then 10 and 100 hubs sharing the platform core. Only the itemised assumptions change; the 50/25/25
+    split, the month and the hub stay the same. `steps` is the per-hub profit after each change, in order, so
+    each lever's effect is visible; `company` multiplies a hub's month by the number of hubs."""
     factor = seasonal.get('factor') if seasonal.get('available') else None
     params = _params()
     month, proj = _run_case(nights, factor, tariff, params)
@@ -562,10 +567,11 @@ def business_case(nights, seasonal, tariff=business.TARIFF):
     return {
         'status': 'illustrative', 'period': 'month', 'daysPerMonth': DAYS_PER_MONTH, 'split': SPLIT,
         'overhead': OVERHEAD, 'cases': cases, 'steps': steps, 'target': {'low': 3, 'high': 5},
-        'notes': ['Same month, same comparable site and the same 50/25/25 split in every case: drivers and operators keep their shares.',
+        'notes': ['Same month, same hub and the same 50/25/25 split in every case: drivers and operators keep their shares.',
                   'Sessions and savings are re-run on the same replayed nights for every case; prices and costs are illustrative.',
-                  'Customer acquisition cost is not modelled: without real sign-ups there is no evidence for it.',
-                  'Operating profit is after SaveThePlanet\'s per-session costs and the overhead allocated to the site.'],
+                  'Operating profit is after SaveThePlanet\'s per-session costs and platform overhead (EUR 90 core shared by '
+                  'all hubs + EUR 30 support per hub). Salaries beyond that, sales and customer acquisition are not modelled.',
+                  'Company figures multiply one hub\'s replayed month by the number of hubs; each hub needs its own grid check.'],
     }
 
 
@@ -808,7 +814,7 @@ def calculate(sessions, kwhPerSession, savingEurPerKwh, operatorFixedEur, platfo
     counted = min(int(sessions), cap)
     month = monthly(counted, kwhPerSession, savingEurPerKwh, operatorFixedEur, platformVariableEur, platformFixedEur)
     if kwhPerSession > max_session_kwh():
-        limited_by, limit = 'session-kwh', f'An {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
+        limited_by, limit = 'session-kwh', f'A {HUB["chargerKw"]:g} kW charger delivers at most {max_session_kwh():g} kWh in a two-hour window.'
     elif counted < sessions and cap < site_cap:
         limited_by, limit = 'windows', (f'the replay found about {windows} windows a month worth offering, '
                                         f'at most {per_window} sessions of {kwhPerSession:g} kWh each.')
@@ -891,7 +897,7 @@ def act(section, member_id, action, offer_id=None, kwh=None):
                     raise ValueError(offer.get('reasonText') or 'No discount in this window.')
                 if isinstance(kwh, bool) or not isinstance(kwh, (int, float)) or not math.isfinite(kwh) \
                         or not 1 <= kwh <= max_session_kwh():
-                    raise ValueError(f'Choose 1 to {max_session_kwh():g} kWh: the most an {HUB["chargerKw"]:g} kW charger delivers in two hours.')
+                    raise ValueError(f'Choose 1 to {max_session_kwh():g} kWh: the most a {HUB["chargerKw"]:g} kW charger delivers in two hours.')
                 # One booking per window: booking again changes the kWh, it never adds a second fee.
                 member['bookings'][key] = {'offerId': key, 'date': offer['date'], 'window': offer['window'], 'label': offer['label'],
                                            'status': 'reserved', **quote(offer, round(float(kwh), 1))}
