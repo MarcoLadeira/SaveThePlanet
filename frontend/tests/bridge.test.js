@@ -61,10 +61,9 @@ test('battery shows routed energy split into battery and loss', () => {
   const { dashCharts } = load();
   const values = dashCharts.bridgeBattery.values();
   assert.deepEqual({ ...values }, { routed: 65, eligible: 350, battery: 58.5, loss: 6.5, rise: 1 });
-  assert.match(dashCharts.bridgeBattery.draw(values), /65<small>kWh<\/small><\/strong><span class="bridge-of">of 350 kWh eligible/);
+  assert.match(dashCharts.bridgeBattery.draw(values), /Routed to EV chargers<\/span><strong>0\.065<small>MWh<\/small><\/strong>/);
   const html = dashCharts.bridgeBattery.draw(values);
-  assert.match(html, /58\.5 kWh into EV batteries/);
-  assert.match(html, /6\.5 kWh charging loss/);
+  assert.match(html, /Usable<\/span><b>0\.35 MWh<\/b>/);
   assert.doesNotMatch(dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values)), /NaN|Infinity/);
   // Nothing routed: an empty battery, not a division by zero.
   const empty = dashCharts.bridgeBattery.draw({ routed: 0, eligible: 0, battery: 0, loss: 0, rise: 1 });
@@ -81,24 +80,27 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const { dashCharts } = load(30, [alt]);
   const values = dashCharts.bridgeBattery.values();
   const html = dashCharts.bridgeBattery.draw(values);
-  assert.match(html, /Stored in the grid battery<\/span><strong>2250<small>kWh/);
-  assert.match(html, /2500 kWh taken from the grid, held to its 5000 kW power limit/);
+  assert.match(html, /Battery level<\/span><strong>63%<small>full<\/small><\/strong><em>6\.25 of 10 MWh<\/em>/);
+  assert.match(html, /Room left<\/span><b>3\.75<small>MWh<\/small><\/b>/);
+  assert.match(html, /\+2\.25 MWh stored this half-hour · 40% → 63%/);  // whole percentages for the pitch
+  assert.match(html, /class="bridge-level" style="--level:62\.5%"/);
+  assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);
-  assert.match(html, /40% → 62\.5% full/);
   // It fills from the starting charge, never from empty or past full.
   const first = dashCharts.bridgeBattery.draw(dashCharts.bridgeBattery.start(values));
   assert.match(first, /is-added" style="left:40%;width:0%/);
   assert.doesNotMatch(first, /NaN|Infinity/);
   const used = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(used, /<b>32\.06%<\/b>/);  // (65 + 2500) / 8000
+  assert.match(used, /<b>32% captured<\/b>/);  // (65 + 2500) / 8000
   assert.match(used, /class="is-storage" style="left:0\.8125%;width:31\.25/);
+  assert.match(used, /class="is-left" style="left:32\.0625%;width:67\.9375%/);  // the bar adds up to 100%
 });
 
 test('used share is drawn to scale, never rounded up to 100%', () => {
   const { dashCharts } = load(30, [alternative(30, { allocated: 52.04, eligible: 16479.7 })]);
   const html = dashCharts.bridgeUsed.draw(dashCharts.bridgeUsed.values());
-  assert.match(html, /<b>0\.32%<\/b>/);
+  assert.match(html, /<b><1% captured<\/b>/);
   assert.match(html, /width:0\.315/);
 });
 
