@@ -490,6 +490,7 @@ def build_result(nights, meta, seasonal, fleet=FLEET, tariff=TARIFF, costs=COSTS
         'methodology': methodology(fleet, tariff, days),
         'limitations': LIMITATIONS,
         'discountWindows': discount_windows(nights, seasonal, scenario_id, tariff),
+        'hydrogen': hydrogen_scenario(nights, meta, scenario_id, tariff),
     }
 
 
@@ -498,6 +499,22 @@ def discount_windows(nights, seasonal, scenario_id, tariff=TARIFF):
     separate scenario: none of the figures above depend on it."""
     import offers  # offers builds on this module, so it is imported when first needed
     return offers.build(nights, seasonal, scenario_id, tariff)
+
+
+def hydrogen_scenario(nights, meta, scenario_id, tariff=TARIFF):
+    """The optional hydrogen scenario (hydrogen.py, issue #76) on the same replayed nights: EVs first, then a
+    hypothetical electrolyser. Separate like the discount windows: nothing above depends on it. It fails
+    closed (the block says it is unavailable) and HYDROGEN_SCENARIO=off leaves it out (None)."""
+    import hydrogen  # hydrogen builds on offers and this module
+    if not hydrogen.enabled():
+        return None
+    try:
+        block = hydrogen.build(nights, meta['dataMode'], tariff, scenario_id=scenario_id)
+    except (ValueError, KeyError, TypeError, ArithmeticError, RuntimeError) as error:
+        print(f'Hydrogen scenario unavailable ({type(error).__name__}: {error}).', flush=True)
+        return hydrogen.unavailable(error)
+    hydrogen.remember(scenario_id, nights, meta['dataMode'], tariff)
+    return block
 
 
 def methodology(fleet, tariff, days):

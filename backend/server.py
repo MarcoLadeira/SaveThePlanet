@@ -24,6 +24,7 @@ import dayview
 import explorer
 import sources
 import fleet as fleets
+import hydrogen
 import offers
 import optimizer
 import storage
@@ -745,6 +746,39 @@ class Handler(SimpleHTTPRequestHandler):
         known = ((result or {}).get('discountWindows') or {}).get('calculator', {}).get('capacity', {}).get('eligibleWindowsPerMonth')
         self.send_json(200, offers.calculate(**values, eligible_windows=known))
 
+    def business_hydrogen(self, query):
+        """Impact page: the hydrogen scenario again for the same replay, with the page's switch and assumptions
+        (?plant=on|off&kwhPerKg=&ratedKw=&accessKw=&minLoadPct=&offtakeKgPerDay=). Illustrative, never a delivery."""
+        overrides, errors = hydrogen.parse_query({key: value[0] for key, value in query.items()})
+        if errors:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
+            return
+        if not hydrogen.enabled():
+            self.send_json(404, {'error': {'code': 'HYDROGEN_OFF', 'message': 'The hydrogen scenario is switched off on this server.'}})
+            return
+        body = business.current()
+        if body['status'] == 'preparing':
+            self.send_json(202, {'status': 'preparing', 'progress': body.get('progress')}, {'Retry-After': '2'})
+            return
+        if body['status'] == 'failed':
+            self.send_json(500, {'error': {'code': 'IMPACT_FAILED', 'message': body['message']}})
+            return
+        if body['status'] != 'ready' or (body.get('hydrogen') or {}).get('status') != 'illustrative':
+            self.send_json(200, (body.get('hydrogen') if body['status'] == 'ready' and body.get('hydrogen') else
+                                 {'status': 'empty', 'message': body.get('message') or 'No replayed nights to allocate.'}))
+            return
+        try:
+            block = hydrogen.estimate(body['scenarioId'], overrides)
+        except ValueError as error:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': str(error)}})
+            return
+        except (KeyError, TypeError, ArithmeticError, RuntimeError) as error:
+            block = hydrogen.unavailable(error)
+        if block is None:  # the replay behind the page is no longer held: reload the page's result first
+            self.send_json(409, {'error': {'code': 'REPLAY_CHANGED', 'message': 'The replay changed. Reload the Impact page.'}})
+            return
+        self.send_json(200, block)
+
     def impact_day(self, query):
         """The Dashboard's fleet + grid battery plan for each half-hour of a replayed day (backend/dayplan.py),
         for the Battery and EV pages: ?date=YYYY-MM-DD&capacityMw=&preset= (a fleet preset id)."""
@@ -929,6 +963,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if route.path == '/api/v1/business/offers/estimate':
             self.offers_estimate(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/hydrogen':
+            self.business_hydrogen(parse_qs(route.query))
             return
 
         if route.path == '/api/v1/about/example':

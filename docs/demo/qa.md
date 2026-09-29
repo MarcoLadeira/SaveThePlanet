@@ -45,6 +45,9 @@ keeps its normal margin plus 25%. (E12)
 It's an estimate: kWh delivered from stored surplus × a flat 0.25 kg/kWh, assuming that surplus would
 otherwise have been turned away. It isn't measured marginal displacement, and we say so. (E15)
 
+**How does the business grow?**
+With the EV market. In the replayed week, today's EVs could use about 29% of the spare power our sites can reach; with more depots, workplaces and public chargers, 59%, then 84%. More EV charging means more Rewards sessions and more of the 50/25/25 split. What EVs can't take fills the grid battery, and once it's full the surplus goes towards hydrogen, so the power isn't wasted while EV demand catches up. (E18, E20)
+
 **How does this scale to Europe?**
 The software repeats; the inputs don't. Each country needs its grid operator's data, a retrained model, local
 tariffs and network rules, and each site is capped by its own hardware. We start with one Irish pilot. (E16)
@@ -53,5 +56,19 @@ tariffs and network rules, and each site is capped by its own hardware. We start
 Slide 10 is the illustrative pilot month (400 charges) so every figure reconciles. The Impact page's
 "Replay" view projects one historical week; its "400 sessions" preset shows the slide's figures. (E13)
 
+**Is ESB a partner? Do you send energy to Aghada?**
+No. The electrolyser is hypothetical and only sized like ESB's planned 1 MW demonstration at Aghada. There is no
+agreement, connection or delivery. ESB could pilot the optimisation; that is a proposal. (E19)
+
+**Why hydrogen, if the story is EVs?**
+EVs can't take every spare kilowatt-hour: surplus often comes when cars are away or already full. We give EVs
+what they can use, then the grid battery; once it's full, the surplus could go to an electrolyser instead of
+being turned away. As EV demand grows, EVs take more. Hydrogen stays a second, flexible market. (E18, E20)
+
+**How much hydrogen, and is it green?**
+The kilograms on the page are potential, not delivered: electricity in divided by 55 kWh per kg, so about 40% is
+lost in conversion. Its CO₂ benefit is not verified, and it is not priced: any fee would be separate from the
+50/25/25 split. (E19)
+
 **How do we know the maths is right?**
-420 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)
+475 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)

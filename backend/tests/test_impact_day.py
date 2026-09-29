@@ -239,3 +239,37 @@ class ImpactDayHttpTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PotentialFullChargeTests(unittest.TestCase):
+    """Potential full EV charges on the day plan (issue #80): energy at risk into 70 kWh batteries."""
+    setUpClass = classmethod(support.HttpTests.setUpClass.__func__)
+    tearDownClass = classmethod(support.HttpTests.tearDownClass.__func__)
+    get = support.HttpTests.get
+
+    def setUp(self):
+        reset_state(self)
+
+    def day(self, energies):
+        with patch('server.model_request', FakeModel(energies)):
+            status, body = self.get('/api/v1/impact/day?date=2026-01-10&capacityMw=100&preset=depot-and-retail')
+        self.assertEqual(status, 200)
+        return body
+
+    def test_each_half_hour_converts_energy_at_risk_once(self):
+        body = self.day([0.7] * 48)  # 700 kWh x 90% / 70 kWh = 9 full charges per half-hour
+        for i in body['intervals']:
+            self.assertAlmostEqual(i['potentialFullCharges'], 9)
+        self.assertEqual(body['evEquivalent']['referenceBatteryKwh'], 70)
+        self.assertEqual(body['evEquivalent']['chargingEfficiency'], .9)
+
+    def test_day_total_is_the_sum_of_distinct_half_hours(self):
+        energies = [0] * 20 + [0.35] * 10 + [1.4] * 18  # 0, 4.5 and 18 full charges per half-hour
+        body = self.day(energies)
+        self.assertAlmostEqual(body['totals']['potentialFullCharges'], sum(i['potentialFullCharges'] for i in body['intervals']), places=3)
+        self.assertAlmostEqual(body['totals']['potentialFullCharges'], 10 * 4.5 + 18 * 18, places=3)
+
+    def test_zero_energy_gives_zero_charges(self):
+        body = self.day([0] * 48)
+        self.assertEqual(body['totals']['potentialFullCharges'], 0)
+        self.assertTrue(all(i['potentialFullCharges'] == 0 for i in body['intervals']))

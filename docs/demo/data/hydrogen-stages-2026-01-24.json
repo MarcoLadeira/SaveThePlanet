@@ -1,0 +1,53 @@
+{
+ "what": "Where the eligible spare energy of the replay week could go, in three EV-market stages (backend/hydrogen.py).",
+ "source": "GridToEv V1 model 1.1.0, +30-minute predictions of energy at risk, 24-31 January 2026 (predictions, not outcomes).",
+ "assumptions": "Hypothetical 1.5 MW network access; EVs first, then the Dashboard grid battery (10 MWh, from 40%); once it is full the surplus goes to a hypothetical 1 MW electrolyser (55 kWh/kg). Simulated; no ESB agreement.",
+ "eligibleMwh": 194.6,
+ "stages": [
+  {
+   "id": "pilot",
+   "label": "Pilot",
+   "vehicles": 200,
+   "targetEvShare": 0.333333,
+   "shares": {
+    "evTotal": 0.2916,
+    "battery": 0.0343,
+    "hydrogen": 0.4811,
+    "unused": 0.193
+   },
+   "hydrogenMwh": 93.6,
+   "hydrogenKg": 1702,
+   "batteryFullAt": "2026-01-24T16:00:00Z"
+  },
+  {
+   "id": "growing",
+   "label": "Growing EV market",
+   "vehicles": 740,
+   "targetEvShare": 0.666667,
+   "shares": {
+    "evTotal": 0.587,
+    "battery": 0.0343,
+    "hydrogen": 0.293,
+    "unused": 0.0857
+   },
+   "hydrogenMwh": 57.0,
+   "hydrogenKg": 1037,
+   "batteryFullAt": "2026-01-24T16:30:00Z"
+  },
+  {
+   "id": "mature",
+   "label": "Mature EV market",
+   "vehicles": 1260,
+   "targetEvShare": 1.0,
+   "shares": {
+    "evTotal": 0.8433,
+    "battery": 0.0343,
+    "hydrogen": 0.0991,
+    "unused": 0.0233
+   },
+   "hydrogenMwh": 19.3,
+   "hydrogenKg": 350,
+   "batteryFullAt": "2026-01-25T05:30:00Z"
+  }
+ ]
+}

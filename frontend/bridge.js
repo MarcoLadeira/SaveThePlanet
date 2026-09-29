@@ -74,7 +74,7 @@ async function loadDayPlan() {
   } catch {
     if (request === dayPlan.request) Object.assign(dayPlan, { status: 'error', data: null, key });
   } finally {
-    if (request === dayPlan.request && ['impact', 'charging', 'overview'].includes(pageFromHash())) render();
+    if (request === dayPlan.request && ['overview', 'impact', 'charging'].includes(pageFromHash())) render();
   }
 }
 // The day-plan half-hour that is the selected forecast target (-1 when the target is not on the day).
@@ -128,24 +128,17 @@ const bridgeMwh = (valueKwh) => {
 // Whole percentages read better in a pitch; a non-zero share under 1% says so instead of showing 0%.
 const bridgePct = (fraction) => { const p = fraction * 100; return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`; };
 
-// Three destinations for the forecast energy the fleet can use: EV chargers, the grid battery, left unused.
+// The simulated grid battery: its level on the picture, then the level, room left and this half-hour's charge.
 function dashboardBattery() {
   const alt = planAlternative();
-  const head = cardHead('green', 'Battery', 'Where the forecast energy goes · simulated');
+  const head = cardHead('green', 'Battery', 'Simulated grid battery · level and room left');
   if (!alt) return `<section class="dash-card dash-battery">${head}${planPlaceholder('Energy bridge')}</section>`;
   const L = alt.optimized.ledger, S = L.storage;
   const label = S
     ? `Simulated grid battery: ${bridgeMwh(S.storedKwh)} stored, from ${n(S.startFraction * 100)}% to ${n(S.endFraction * 100)}% full`
     : `${bridgeMwh(L.allocatedToChargersGridKwh)} routed to EV chargers`;
-  const tile = (tone, name, kwhValue) => `<div class="is-${tone}"><dt><i></i>${name}</dt><dd>${bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>')}</dd></div>`;
   return `<section class="dash-card dash-battery">${head}
     ${chartSlot('bridgeBattery', label, 'bridge-battery')}
-    ${chartSlot('bridgeUsed', `${n((L.usedWithStorageFraction ?? L.utilizationFraction ?? 0) * 100)}% of the usable forecast energy is captured`, 'bridge-used')}
-    <dl class="bridge-ledger">
-      ${tile('charger', 'EV chargers', L.allocatedToChargersGridKwh)}
-      ${S || L.allocatedToRealStorageKwh ? tile('storage', 'Grid battery', L.allocatedToRealStorageKwh) : ''}
-      ${tile('left', 'Left unused', L.unallocatedOpportunityKwh)}
-    </dl>
   </section>`;
 }
 
@@ -154,24 +147,90 @@ function dashboardFlexible() {
   const head = cardHead('green', 'Flexible charging', 'Shared equally per site · simulated fleet');
   if (!alt) return `<section class="dash-card dash-flexible">${head}${planPlaceholder('Fleet plan')}</section>`;
   return `<section class="dash-card dash-fleet dash-flexible">${head}
-    <div class="fleet-body">${chartSlot('fleetDemand', `${n(alt.optimized.ledger.allocatedToChargersGridKwh)} kWh charged into the cars`, 'fleet-demand', 'group')}<span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
+    <div class="fleet-body">${chartSlot('evDayTotal', evDayLabel(), 'fleet-demand', 'group')}<span class="fleet-scene" aria-hidden="true"><img src="./charging-scene.webp?v=20260927a" alt="" width="799" height="516" decoding="async" draggable="false"></span></div>
     ${chartSlot('fleetPower', 'Charging power used', 'fleet-meter', 'group')}
     ${chartSlot('fleetSplit', 'Equal share per car at each site', 'fleet-stats', 'group')}
   </section>`;
 }
 
-function dashboardNextMove() {
-  const alt = planAlternative();
-  const head = cardHead('tricolour', 'Your next move', 'Suggested plan for the selected half-hour');
-  if (!alt) return `<section class="dash-card dash-plan">${head}${planPlaceholder('Plan')}</section>`;
-  return `<section class="dash-card dash-plan">${head}
-    ${chartSlot('planHeadline', 'Recommendation', 'plan-headline-slot', 'group')}
-    <p class="plan-units">Bars in kWh (1 MWh = 1,000 kWh): ${kwh(alt.optimized.ledger.unallocatedOpportunityKwh)} more is at risk than this fleet${alt.optimized.ledger.storage ? ' and the grid battery' : ''} can take.</p>
-    ${chartSlot('planBars', `Charging on arrival ${n(alt.baseline.window.claimedKwh)} kWh, equal share ${n(alt.optimized.window.claimedKwh)} kWh, into batteries ${n(alt.optimized.ledger.batteryDeliveredKwh)} kWh`, 'plan-chart')}
-    <p class="plan-caveat">Simulated fleet, no charger is controlled; network eligibility unverified.</p>
-    <button class="plan-cta" type="button" data-page="charging">Review EV charging ${icon('arrow', 20)}</button>
-  </section>`;
+// ---------- Potential full EV charges per day and per hour (issue #80) ----------
+// From the day plan (GET /api/v1/impact/day): each half-hour's potentialFullCharges = energy at risk x charging
+// efficiency / 70 kWh, computed on the server. Energy at risk is additive across the day's half-hours, so the
+// hours and the day are plain sums. These are energy equivalents, not cars actually charged.
+let evHalf = null; // 'am' | 'pm'; null follows the selected half-hour
+const EV_HOUR_FMT = () => new Intl.DateTimeFormat('en-IE', { timeZone: settings.timezone, hour: 'numeric', hourCycle: 'h23' });
+function evLocalHour(iso) { return Number(EV_HOUR_FMT().format(new Date(iso))) % 24; }
+function evHours() {
+  const hours = Array.from({ length: 24 }, (_, h) => ({ hour: h, charges: 0, halfHours: 0 }));
+  if (!dayPlanReady()) return hours;
+  for (const i of dayPlan.data.intervals) {
+    const row = hours[evLocalHour(i.targetAt)];
+    row.charges += i.potentialFullCharges || 0;
+    row.halfHours += 1;
+  }
+  return hours;
 }
+function evDayTotal() { return dayPlanReady() ? dayPlan.data.totals.potentialFullCharges || 0 : null; }
+function evSelectedHour() { const t = modelState.target || selectedPrediction()?.targetAt; return t ? evLocalHour(t) : null; }
+function evHourLabel(h) { return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`; }
+function evDayName() { return dayPlanReady() ? new Intl.DateTimeFormat('en-IE', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${dayPlan.data.date}T00:00:00Z`)).replace(',', '') : ''; }
+function evDayLabel() {
+  const total = evDayTotal();
+  return total === null ? 'Potential full EV charges per day: loading' : `About ${n(Math.round(total))} potential full EV charges on ${evDayName()}`;
+}
+
+dashCharts.evDayTotal = {
+  values: () => ({ total: evDayTotal() ?? 0, ready: String(dayPlanReady()), status: String(dayPlan.status), day: evDayName() }),
+  start: (t) => ({ ...t, total: 0 }),
+  draw({ total, ready, status, day }) {
+    if (ready !== 'true') {
+      const failed = status === 'error';
+      return `<p class="fleet-figure"><strong>—</strong><span>cars/day</span></p><p class="fleet-caption">${failed ? 'Day plan unavailable (needs the model)' : 'Loading the day…'}</p>`;
+    }
+    return `<p class="fleet-figure"><strong>${n(Math.round(total))}</strong><span>cars/day</span></p><p class="fleet-caption">potential full EV charges · ${escapeHtml(day)}</p>`;
+  },
+};
+
+dashCharts.evHours = {
+  values() {
+    const half = evHalf || ((evSelectedHour() ?? 0) < 12 ? 'am' : 'pm'), start = half === 'am' ? 0 : 12;
+    const rows = evHours().slice(start, start + 12);
+    return { half, v: rows.map((r) => r.charges), hours: rows.map((r) => r.hour), sel: String(evSelectedHour() ?? -1), ready: String(dayPlanReady()) };
+  },
+  start: (t) => ({ ...t, v: t.v.map(() => 0) }),
+  draw({ v, hours, sel, ready }) {
+    if (ready !== 'true') return '';
+    const max = Math.max(...v, 0.001), selected = Number(sel);
+    return hours.map((h, i) => {
+      const width = v[i] > 0 ? Math.max(2, (v[i] / max) * 100) : 0;
+      return `<div class="ev-hour${h === selected ? ' is-selected' : ''}"><span class="ev-hour-label">${evHourLabel(h)}</span>
+        <span class="ev-hour-track"><i style="width:${width.toFixed(1)}%"></i></span><b>${n(Math.round(v[i]))}<small> cars</small></b></div>`;
+    }).join('');
+  },
+};
+
+function dashboardEvHours() {
+  const half = evHalf || ((evSelectedHour() ?? 0) < 12 ? 'am' : 'pm');
+  const toggle = `<div class="ev-half" role="group" aria-label="Morning or afternoon">${[['am', 'AM'], ['pm', 'PM']].map(([id, label]) => `<button type="button" data-ev-half="${id}" aria-pressed="${half === id}" class="${half === id ? 'is-on' : ''}">${label}</button>`).join('')}</div>`;
+  const head = cardHead('tricolour', 'EV charges by hour', `Potential full EV charges${dayPlanReady() ? ` · ${escapeHtml(evDayName())}` : ''}`, toggle);
+  let body;
+  if (dayPlanReady()) {
+    const rows = evHours().slice(half === 'am' ? 0 : 12, half === 'am' ? 12 : 24), sum = rows.reduce((t, r) => t + r.charges, 0);
+    body = `${chartSlot('evHours', `${half.toUpperCase()}: ${rows.map((r) => `${evHourLabel(r.hour)} ${Math.round(r.charges)}`).join(', ')} potential full EV charges`, 'ev-hours', 'group')}
+      <p class="ev-hours-note"><b>${n(Math.round(sum))}</b> ${half === 'am' ? 'before noon' : 'after noon'} · 1 car = a ${n(dayPlan.data.evEquivalent?.referenceBatteryKwh || 70)} kWh battery charged 0–100% with energy at risk · not cars actually charged</p>`;
+  } else {
+    body = dayPlan.status === 'error' && dayPlan.key === dayPlanKey()
+      ? '<div class="bridge-empty" role="status"><strong>Hourly view unavailable</strong><span>The replayed day needs the forecast model. Other figures on the Dashboard are unaffected.</span></div>'
+      : '<div class="bridge-empty" role="status"><span class="studio-spinner"></span><span>Replaying the day hour by hour…</span></div>';
+  }
+  return `<section class="dash-card dash-plan dash-ev-hours">${head}${body}</section>`;
+}
+document.addEventListener('click', (event) => {
+  const b = event.target.closest('[data-ev-half]');
+  if (!b) return;
+  evHalf = b.dataset.evHalf === 'pm' ? 'pm' : 'am';
+  render();
+});
 
 // Charts drawn by the shared engine in charts3d.js, so they grow in and glide between plans.
 dashCharts.bridgeBattery = {
@@ -180,44 +239,43 @@ dashCharts.bridgeBattery = {
     const base = { routed: L.allocatedToChargersGridKwh, eligible: L.eligibleOpportunityKwh, battery: L.batteryDeliveredKwh, loss: L.chargingLossKwh, rise: 1 };
     if (!S) return base;
     return { ...base, grid: S.gridKwh, stored: S.storedKwh, start: S.startFraction, end: S.endFraction,
-             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy };
+             capacity: S.capacityKwh, power: S.maxPowerKw, limitedBy: S.limitedBy, surplus: bridgeSurplusKwh(L) };
   },
   // The battery fills from its starting charge.
-  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, surplus: 0, end: target.start }) }),
   // The battery's level after this half-hour, drawn on the cabinets themselves (a fill masked to the picture),
-  // then the same level as a number, the room left and what this half-hour added.
+  // then the same level as a number and the room left. A battery never goes past 100%: once it is full, what
+  // is left over is shown as surplus sent to the ESB hydrogen plants instead.
   draw(v) {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
+    const full = end >= 1 - 1e-9, surplus = Math.max(0, v.surplus || 0);
     const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level" style="--level:${level}%"></div></div>
+    const badge = full && surplus > 0 ? `<span class="bridge-h2-badge"><b>H₂</b>+${bridgeMwh(surplus)} → ESB hydrogen</span>` : '';
+    return `<div class="bridge-cabinet-art is-yard${full ? ' is-full' : ''}" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level-box" style="--level:${level}%"><div class="bridge-level"></div><b class="bridge-level-tag">${full ? 'FULL' : bridgePct(end)}</b>${badge}</div></div>
     <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
       <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
       <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
-      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p></div>`;
+      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p>
+      ${full ? `<p class="bridge-surplus"><b>H₂</b><span><strong>${bridgeMwh(surplus)}</strong> surplus to ESB hydrogen plants</span><small>simulated</small></p>` : ''}</div>`;
   },
 };
+
+// Energy the full battery cannot take: once it is full, whatever the EVs and battery left is surplus for the
+// ESB hydrogen plants (a simulated destination; the optimizer does not route to it). A reported level above
+// 100% counts too, since the battery itself can only hold its capacity.
+function bridgeSurplusKwh(L) {
+  const S = L.storage;
+  if (!S) return 0;
+  const over = Math.max(0, S.endFraction - 1) * S.capacityKwh;
+  return (S.limitedBy === 'full' || S.endFraction >= 1 ? L.unallocatedOpportunityKwh : 0) + over;
+}
 
 function bridgeRoutingCopy({ routed, eligible }) {
   return `<div class="bridge-cabinet-art" aria-hidden="true"><img src="./assets/dashboard-battery-cutout.png" alt="" decoding="async"></div>
     <div class="bridge-battery-copy"><div class="bridge-stat"><span>Routed to EV chargers</span><strong>${bridgeMwh(routed).replace(' MWh', '<small>MWh</small>')}</strong></div>
       <div class="bridge-charge"><span>Usable</span><b>${bridgeMwh(eligible)}</b></div></div>`;
 }
-
-// One bar that adds up to 100% of the usable forecast energy: EV chargers, grid battery, left unused, in the
-// tile colours below it. Drawn to scale, so the EVs' share stays a sliver rather than being rounded up.
-dashCharts.bridgeUsed = {
-  values() {
-    const L = planAlternative().optimized.ledger, eligible = L.eligibleOpportunityKwh;
-    return { used: L.utilizationFraction || 0, stored: eligible > 0 ? (L.allocatedToRealStorageKwh || 0) / eligible : 0 };
-  },
-  start: () => ({ used: 0, stored: 0 }),
-  draw: ({ used, stored = 0 }) => {
-    const ev = Math.min(100, used * 100), total = Math.min(100, (used + stored) * 100);
-    return `<div class="bridge-used-head"><span>Energy split</span><b>${bridgePct(used + stored)} captured</b></div>
-    <div class="bridge-used-track"><i style="width:${ev}%"></i>${stored > 0 ? `<i class="is-storage" style="left:${ev}%;width:${total - ev}%"></i>` : ''}<i class="is-left" style="left:${total}%;width:${100 - total}%"></i></div>`;
-  },
-};
 
 // Flexible charging card. Equal share happens per site (each has its own power limit and energy cannot
 // move between sites), so the two simple bars show each site's share per car.
