@@ -180,6 +180,7 @@ function render(){
   if(changed)pageEnteredAt=now;
   const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
+  const preservedInputs = typeof captureModelInputs === 'function' ? captureModelInputs() : [];
   const charts=chartsCollect(app);
   const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout,sources:renderSources}[page];
   // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
@@ -197,6 +198,7 @@ function render(){
     shell=app.firstElementChild;
     applyDock(shell);
   }
+  if(preservedInputs.length) restoreModelInputs(preservedInputs);
   shell.classList.toggle('is-live',liveRender);
   shell.classList.toggle('is-about',page==='about');
   shell.classList.toggle('is-sources',page==='sources');

@@ -142,11 +142,11 @@
 .bridge-battery-copy>.bridge-of{grid-column:1}
 .bridge-battery-copy>em{grid-column:1/-1}
 .bridge-layout>.dash-hero{position:relative;isolation:isolate}
-.bridge-layout>.dash-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0b4439ed 0%,#0b4439c9 45%,#0b4439f5 100%),url('./assets/energy-flow-landscape.png') left center/auto 100% no-repeat;pointer-events:none}
+.bridge-layout>.dash-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#0b4439ed 0%,#0b4439c9 45%,#0b4439f5 100%),url('./assets/energy-flow-landscape.webp') left center/auto 100% no-repeat;pointer-events:none}
 .dashboard-main[data-theme="dark"] .bridge-battery-copy{background:linear-gradient(180deg,#102f28e8,#102f28 55%);border-color:#2c4a40}
 @media(max-width:600px){.bridge-layout .bridge-battery{min-height:280px}}
 
-.bridge-layout>.dash-hero{background:linear-gradient(180deg,#0b4439f5 0%,#0b4439cf 40%,#0b4439df 100%),url("./assets/energy-flow-landscape.png") 8% center/auto 100% no-repeat}
+.bridge-layout>.dash-hero{background:linear-gradient(180deg,#0b4439f5 0%,#0b4439cf 40%,#0b4439df 100%),url("./assets/energy-flow-landscape.webp") 8% center/auto 100% no-repeat}
 
 /* Separate cutout cabinet and responsive inter-card energy connections. */
 .bridge-layout{position:relative}
@@ -176,7 +176,8 @@
 /* In the three-column grid this card is almost square, which trips fleet.css's "tall card" layout
    (car stacked under the number, shrunk). Keep the number left and the car right instead. */
 @container fleet (orientation: portrait) {
-  .bridge-layout .dash-flexible .fleet-body { flex-direction: row; align-items: center; }
+  /* fleet.css centres this layout; start from the left so the number stays clear of the car. */
+  .bridge-layout .dash-flexible .fleet-body { flex-direction: row; align-items: center; justify-content: flex-start; }
   .bridge-layout .dash-flexible .fleet-scene { position: absolute; right: -18px; bottom: -10px; width: 64cqw; height: auto; margin: 0; }
 }
 

@@ -385,9 +385,9 @@ function cgMixCard() {
     const renewable = L.allocatedToChargersGridKwh, grid = Math.max(0, o.gridKwh - renewable);
     return `<section class="dash-card cg-card cg-mix">${cgHead('green', 'pie', 'Renewable vs grid', `The fleet's charging · ${cgTarget()}`, presetPicker())}
         <div class="cg-mix-body">${chartSlot('cgDonut', `${pct(o.gridKwh ? renewable / o.gridKwh : null)} of the fleet's charging runs on renewable energy at risk`, 'cg-donut')}
-            <ul class="cg-mix-legend"><li><i class="is-renewable"></i><span>In this half-hour, on renewables</span><b>${n(renewable)} kWh</b></li><li><i class="is-grid"></i><span>Other half-hours, from the grid</span><b>${n(grid)} kWh</b></li></ul></div>
-        <div class="cg-ev"><strong>In EV terms</strong><p><b>${cars} of ${total}</b> simulated cars charge in this half-hour: <b>${n(L.batteryDeliveredKwh)} kWh</b> into their batteries ≈ <b>${n(Math.round(m.rangeKm))} km</b> <small>(${n(o.vehiclesMet)} of ${total} fully charged before they leave)</small></p>
-            ${S ? `<p>The grid battery takes <b>${n(S.gridKwh)} kWh</b> more that the cars cannot <small>(${n(S.startFraction * 100)}% → ${n(S.endFraction * 100)}% full)</small></p>` : ''}</div></section>`;
+            <ul class="cg-mix-legend"><li title="Charging in this half-hour, on renewable energy that would otherwise be wasted"><i class="is-renewable"></i><span>On renewables</span><b>${n(renewable)} kWh</b></li><li title="Charging in the fleet's other half-hours, from the grid"><i class="is-grid"></i><span>From the grid</span><b>${n(grid)} kWh</b></li></ul></div>
+        <div class="cg-ev"><strong>In EV terms</strong><p><b>${cars} of ${total}</b> cars charge now: <b>${n(L.batteryDeliveredKwh)} kWh</b> ≈ <b>${n(Math.round(m.rangeKm))} km</b> <small>· ${n(o.vehiclesMet)} of ${total} full on time</small></p>
+            ${S ? `<p>Grid battery takes <b>${n(S.gridKwh)} kWh</b> more <small>(${n(S.startFraction * 100)}% → ${n(S.endFraction * 100)}% full)</small></p>` : ''}</div></section>`;
 }
 function cgWeekPicker() {
     const monday = cgSelectedMonday();
@@ -436,9 +436,9 @@ function renderCharging() {
     // While new assumptions are being calculated, keep the current figures on screen (dimmed, with
     // an "Updating" note) instead of replacing the whole page with a spinner; they then glide to the new values.
     if (modelState.loading && modelState.data) {
-        return `${studioHeader('Charging', title)}${cgModeMenu()}<p class="cg-updating" role="status"><span class="cg-updating-dot"></span>Updating the charging figures…</p><div class="cg-is-updating">${cgPage()}</div>`;
+        return `${studioHeader('EV', title)}${cgModeMenu()}<p class="cg-updating" role="status"><span class="cg-updating-dot"></span>Updating the charging figures…</p><div class="cg-is-updating">${cgPage()}</div>`;
     }
-    return studioShell('Charging', title, () => `${cgModeMenu()}${cgPage()}`);
+    return studioShell('EV', title, () => `${cgModeMenu()}${cgPage()}`); // the page is "EV" in the navigation and in both views
 }
 function cgPage() {
     {
