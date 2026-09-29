@@ -1,8 +1,8 @@
 # Beyond EVs: hydrogen and scalability in the pitch (issue #76)
 
-A 15-second insert for slide 12 (Scale, 5:30–6:10). Say it over the Impact page, section 03, "Beyond EVs:
-green hydrogen", with the stage control clicked from **Pilot** to **Mature EV market**. To stay inside 7:00,
-it replaces the slide's last two sentences.
+The deck now carries this on slide 4 (a full battery sends its surplus towards ESB's hydrogen plants) and
+slide 12 ("We grow as the EV market grows"). If you demo the app instead of slide 12, say this over the Impact
+page, section 03, "Beyond EVs: green hydrogen", clicking the stage control from **Pilot** to **Mature EV market**.
 
 > EVs can't take every spare kilowatt-hour yet. So our AI sends what EVs can use to EVs first, then to the grid
 > battery on the dashboard. Once that battery reads a hundred percent, the surplus goes to a hydrogen plant,

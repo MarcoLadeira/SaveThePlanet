@@ -45,6 +45,9 @@ keeps its normal margin plus 25%. (E12)
 It's an estimate: kWh delivered from stored surplus × a flat 0.25 kg/kWh, assuming that surplus would
 otherwise have been turned away. It isn't measured marginal displacement, and we say so. (E15)
 
+**How does the business grow?**
+With the EV market. In the replayed week, today's EVs could use about 29% of the spare power our sites can reach; with more depots, workplaces and public chargers, 59%, then 84%. More EV charging means more Rewards sessions and more of the 50/25/25 split. What EVs can't take fills the grid battery, and once it's full the surplus goes towards hydrogen, so the power isn't wasted while EV demand catches up. (E18, E20)
+
 **How does this scale to Europe?**
 The software repeats; the inputs don't. Each country needs its grid operator's data, a retrained model, local
 tariffs and network rules, and each site is capped by its own hardware. We start with one Irish pilot. (E16)
@@ -68,4 +71,4 @@ lost in conversion. Its CO₂ benefit is not verified, and it is not priced: any
 50/25/25 split. (E19)
 
 **How do we know the maths is right?**
-420 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)
+457 automated tests, including settlement to the cent and the no-look-ahead rules, run on every change. (E17)
