@@ -18,7 +18,7 @@ function comparisonChart(kind='forecast'){
   const all=rows.map(series);
   const max=Math.max(1,...all.flatMap(pair=>pair.map(item=>item.value)));
   const bar=item=>`<div class="energy-lane"><div class="energy-lane-label"><span>${item.label}</span><strong>${n(item.value)} <small>MWh</small></strong></div><div class="energy-track" role="img" aria-label="${item.label}: ${n(item.value)} megawatt-hours"><div class="energy-track-fill is-${item.tone}" style="width:${Math.max(0,Math.min(100,item.value/max*100))}%"></div></div></div>`;
-  return `<div class="energy-chart" aria-label="Two separate model forecast targets"><div class="energy-chart-scale"><span>0</span><span>${n(max/2)}</span><span>${n(max)} MWh</span></div><div class="energy-chart-rows">${rows.map((p,i)=>`<div class="energy-target ${p.horizonMinutes===modelState.horizon?'is-selected':''}"><div class="energy-target-info"><span>+${p.horizonMinutes} MINUTES</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong><small>Separate half-hour forecast</small></div><div class="energy-target-lanes">${all[i].map(bar).join('')}</div></div>`).join('')}</div><div class="energy-chart-foot">Bar lengths use the same scale across both targets. Values are model predictions or scenario estimates.</div></div>`;
+  return `<div class="energy-chart" aria-label="Two forecasts of the same target half-hour"><div class="energy-chart-scale"><span>0</span><span>${n(max/2)}</span><span>${n(max)} MWh</span></div><div class="energy-chart-rows">${rows.map((p,i)=>`<div class="energy-target ${p.horizonMinutes===modelState.horizon?'is-selected':''}"><div class="energy-target-info"><span>+${p.horizonMinutes} MINUTES</span><strong>${escapeHtml(modelTime(p.targetAt))}</strong><small>Issued ${escapeHtml(modelTime(p.issuedAt))} · historical dataset</small></div><div class="energy-target-lanes">${all[i].map(bar).join('')}</div></div>`).join('')}</div><div class="energy-chart-foot">Both rows forecast the same half-hour from different issue times; bars share one scale. Historical dataset predictions or scenario estimates, not live forecasts.</div></div>`;
 }
 
 const healthLabels={up:'Model online',down:'Model unavailable',unknown:'Not checked yet'};
@@ -35,7 +35,7 @@ function healthGrid(){
     items.push(healthItem('Last checked',m.checkedAt?escapeHtml(modelTime(m.checkedAt,true)):'—'));
     items.push(healthItem('Service',`${m.target==='local'?'Local':'Hosted'} · key ${m.apiKeyConfigured?'set':'not set'} · ${n(m.timeoutSeconds)} s`));
   }
-  const mode={'historical-prediction':'Historical model prediction',simulated:'Simulated demo fallback'}[live?.dataMode]||(live?escapeHtml(live.dataMode):'—');
+  const mode={'historical-prediction':'Historical dataset prediction (not a live forecast)',simulated:'Simulated demo fallback'}[live?.dataMode]||(live?escapeHtml(live.dataMode):'—');
   items.push(healthItem('Data shown',mode));
   items.push(healthItem('Last updated',live?escapeHtml(modelTime(live.generatedAt,true)):'—'));
   return `<div class="settings-health">${items.join('')}</div>`;
@@ -47,10 +47,11 @@ function renderSettings(){
   const interval=live?`MWh per ${n(live.intervalMinutes)}-minute interval`:'MWh';
   const targets=live?live.predictions.map(p=>`+${p.horizonMinutes} min`).join(' · '):'—';
   const methodology=s?.methodology?.length?s.methodology.map(line=>`<p class="settings-explain">${escapeHtml(line)}</p>`).join(''):'<p class="settings-explain">Methodology loads with the forecast.</p>';
-  const capacity=live?live.flexibleCapacityMw:modelState.capacity,total=s?s.totalDemandKwh:modelState.totalDemandKwh,flexible=s?s.flexibleDemandKwh:modelState.flexibleDemandKwh;
-  return studioHeader('Settings','Model display and workspace preferences.')+`<div class="settings-layout">
+  // One About button (issue #48): opens the plain-English How-it-works page.
+  const about=`<button type="button" class="about-open" data-page="about">${icon('leaf',17)}About · How SaveThePlanet works</button>`;
+  return studioHeader('Settings','Model display and workspace preferences.',about)+`<div class="settings-layout">
     <div class="settings-upper">
-      <section class="dash-card settings-section">${cardHead('settings','green','General','Location, display and appearance')}
+      <section class="dash-card settings-section">${cardHead('green','General','Location, display and appearance')}
         <div class="settings-rows">
           <div class="settings-row"><span>Region</span><strong>${region}</strong></div>
           <label class="settings-row" for="settings-timezone"><span>Display timezone</span><select id="settings-timezone" data-setting="timezone"><option ${settings.timezone==='Europe/Dublin'?'selected':''}>Europe/Dublin</option><option ${settings.timezone==='Europe/London'?'selected':''}>Europe/London</option><option ${settings.timezone==='UTC'?'selected':''}>UTC</option></select></label>
@@ -58,7 +59,7 @@ function renderSettings(){
           ${settingSwitch('Dark appearance','theme','Use the same appearance on every page')}
         </div>
       </section>
-      <section class="dash-card settings-section">${cardHead('forecast','green','Forecast view','Choose the details shown across the app')}
+      <section class="dash-card settings-section">${cardHead('green','Forecast view','Choose the details shown across the app')}
         <div class="settings-rows">
           <div class="settings-row"><span>Forecast targets</span><strong>${targets}</strong></div>
           ${settingSwitch('Show uncertainty range','uncertainty','Display the model P10–P90 interval')}
@@ -68,15 +69,20 @@ function renderSettings(){
       </section>
     </div>
     <div class="settings-lower">
-      <section class="dash-card settings-section">${cardHead('battery','blue','Charging inputs','Values used by the backend for Charging and Impact')}
-        <div class="settings-facts"><div><span>Flexible capacity</span><strong>${n(capacity)} MW</strong></div><div><span>Total demand</span><strong>${n(total)} kWh</strong></div><div><span>Flexible demand</span><strong>${n(flexible)} kWh</strong></div>${s?`<div><span>Scenario ID</span><strong>${escapeHtml(s.id)}</strong></div>`:''}</div>
-        <button class="settings-link" type="button" data-page="charging">Edit charging inputs ${icon('arrow',17)}</button>
+      <section class="dash-card settings-section">${cardHead('orange','Forecast assumptions','Automatically updates the illustrative forecast scenario')}
+        <div class="settings-model-inputs">
+          <label for="model-capacity"><span>Flexible capacity <small>MW</small></span><input id="model-capacity" type="number" min="0.001" max="10000" step="any" required value="${modelState.capacity}" aria-label="Forecast flexible capacity in MW"></label>
+          <label for="scenario-total"><span>Total demand <small>kWh</small></span><input id="scenario-total" type="number" min="0" max="1000000000" step="any" required value="${modelState.totalDemandKwh}" aria-label="Forecast scenario total demand in kWh"></label>
+          <label for="scenario-flexible"><span>Flexible demand <small>kWh</small></span><input id="scenario-flexible" type="number" min="0" max="1000000000" step="any" required value="${modelState.flexibleDemandKwh}" aria-label="Forecast scenario flexible demand in kWh"></label>
+          <p id="scenario-validation" class="settings-model-error" role="alert"></p>
+          <p class="settings-model-note">Applies after 0.5 seconds. These are hypothetical forecast assumptions, <b>not</b> the actual EV fleet's charging capacity or measured demand. Use the EV fleet selector for charging plans.</p>
+        </div>
       </section>
-      <section class="dash-card settings-section">${cardHead('pulse','green','Model connection','Live status reported by the backend')}
+      <section class="dash-card settings-section">${cardHead('green','Model connection','Whether the forecast model is connected and working')}
         ${healthGrid()}
         <div class="settings-actions"><button class="settings-link" id="model-health-check" type="button" ${modelState.healthChecking?'disabled':''}>${modelState.healthChecking?'Checking…':'Check connection'} ${icon('pulse',17)}</button><button class="settings-link" id="model-retry" type="button" ${modelState.loading?'disabled':''}>Reload forecast ${icon('arrow',17)}</button></div>
       </section>
-      <section class="dash-card settings-section">${cardHead('leaf','green','About this workspace','How the backend calculates the figures')}
+      <section class="dash-card settings-section">${cardHead('green','About this workspace','How the figures on each page are calculated')}
         <div class="settings-methodology">${methodology}</div>
       </section>
     </div>
@@ -84,4 +90,3 @@ function renderSettings(){
   </div>`;
 }
 
-document.addEventListener('click',event=>{const horizon=event.target.closest('[data-horizon]');if(horizon){modelState.horizon=Number(horizon.dataset.horizon);render()}});

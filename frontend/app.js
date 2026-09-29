@@ -24,56 +24,200 @@ const navGlyphs={
   home:'<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13 14 2.4 25 13"/><path d="M5 11.2v13.2h6.6v-8.1h4.8v8.1H23V11.2"/></svg>',
   forecast:'<svg viewBox="0 0 28 28" fill="currentColor"><rect x="2.7" y="12.3" width="5.6" height="12.1" rx="1.2"/><rect x="11.2" y="3.2" width="5.6" height="21.2" rx="1.2"/><rect x="19.7" y="10.2" width="5.6" height="14.2" rx="1.2"/></svg>',
   car:'<svg viewBox="0 0 28 28" fill="currentColor"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="m5 12.6 2.5-5.2c.35-.75.95-1.2 1.8-1.2h9.4c.85 0 1.45.45 1.8 1.2l2.5 5.2M1.6 11.2h2.2m20.4 0h2.2" stroke-linecap="round"/><path fill-rule="evenodd" d="M4.3 12h19.4a2.7 2.7 0 0 1 2.7 2.7v5a2.7 2.7 0 0 1-2.7 2.7H4.3a2.7 2.7 0 0 1-2.7-2.7v-5A2.7 2.7 0 0 1 4.3 12Zm2.8 3.3a1.85 1.85 0 1 0 0 3.7 1.85 1.85 0 0 0 0-3.7Zm13.8 0a1.85 1.85 0 1 0 0 3.7 1.85 1.85 0 0 0 0-3.7Zm-9.3 1.2h4.8v1.6h-4.8Z"/><path d="M4.2 21.5h4.6v3.2a1 1 0 0 1-1 1H5.2a1 1 0 0 1-1-1Zm15 0h4.6v3.2a1 1 0 0 1-1 1h-2.6a1 1 0 0 1-1-1Z"/></svg>',
+  trend:'<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 19.8 10.4 13l4.6 4.6 9.2-9.2"/><path d="M17.8 8.4h6.4v6.4"/><path d="M3.6 24.6h20.8"/></svg>',
   leaf:'<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 23.2C3.9 16 4.5 10.5 7.8 7.5 11 4.6 16.5 4.2 23.6 4.4c.3 7.1-.2 12.6-3.1 15.8-3 3.3-8.5 3.8-15.7 3Z"/><path d="M2.4 25.6 17.8 10.2"/></svg>',
   settings:'<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M14 3.4 15 3.7 15.8 4.9 16.4 6.2 17 6.7 17.8 6.8 19.1 6.3 20.6 6 21.5 6.5 22 7.4 21.7 8.9 21.2 10.2 21.3 11 21.8 11.6 23.1 12.2 24.3 13 24.6 14 24.3 15 23.1 15.8 21.8 16.4 21.3 17 21.2 17.8 21.7 19.1 22 20.6 21.5 21.5 20.6 22 19.1 21.7 17.8 21.2 17 21.3 16.4 21.8 15.8 23.1 15 24.3 14 24.6 13 24.3 12.2 23.1 11.6 21.8 11 21.3 10.2 21.2 8.9 21.7 7.4 22 6.5 21.5 6 20.6 6.3 19.1 6.8 17.8 6.7 17 6.2 16.4 4.9 15.8 3.7 15 3.4 14 3.7 13 4.9 12.2 6.2 11.6 6.7 11 6.8 10.2 6.3 8.9 6 7.4 6.5 6.5 7.4 6 8.9 6.3 10.2 6.8 11 6.7 11.6 6.2 12.2 4.9 13 3.7Z"/><circle cx="14" cy="14" r="2.2"/></svg>'
 };
 function navItem(key,label,glyph,page){const active=page===key;return `<button class="nav-item ${active?'active':''}" type="button" data-page="${key}" ${active?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${navGlyphs[glyph]}</span><span>${label}</span></button>`}
-const navItems=[['overview','Dashboard','home'],['forecast','Forecast','forecast'],['charging','Charging','car'],['impact','Impact','leaf']];
+const navItems=[['overview','Dashboard','home'],['forecast','Forecast','forecast'],['impact','Battery','leaf'],['charging','EV','car'],['business','Impact','trend']];
 const defaults={timezone:'Europe/Dublin',uncertainty:true,cause:true,explanations:true};
 let settings={...defaults};
 try{settings={...defaults,...JSON.parse(localStorage.getItem('planner-preferences')||'{}')}}catch{}
 let dashboardTheme='light';
 try{dashboardTheme=localStorage.getItem('planner-theme')==='dark'?'dark':'light'}catch{}
+let navDocked=false;
+try{navDocked=localStorage.getItem('planner-nav-docked')==='1'}catch{}
 let saved=true;
-function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','settings'].includes(p)?p:'overview'}
+function pageFromHash(){const p=location.hash.slice(1).toLowerCase();return ['overview','forecast','charging','impact','business','settings','about','sources'].includes(p)?p:'overview'}
+// About opens from Settings and has no navigation item of its own, so Settings stays highlighted.
+function navPage(page){return page==='about'?'settings':page==='sources'?'forecast':page}
 function navigate(page){if(location.hash!==`#${page}`)location.hash=page;else render()}
-function sidebar(page){return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+function sidebar(page){page=navPage(page);return `<aside class="sidebar dash-sidebar"><div class="brand">${brand()}<span class="brand-name"><small>Renewable</small>Energy Planner<em>IRELAND</em></span></div><button class="nav-dock" type="button" data-nav-dock><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path class="dock-chevron" d="m16 10-2 2 2 2"/></svg></button><span class="nav-pill" aria-hidden="true"><i></i><i></i></span><nav class="nav" aria-label="Main navigation">${navItems.map(([key,label,glyph])=>navItem(key,label,glyph,page)).join('')}</nav><div class="sidebar-art" aria-hidden="true"></div><p class="sidebar-slogan">Powering<br>a cleaner,<br>brighter Ireland.<i></i></p><div class="sidebar-bottom">${navItem('settings','Settings','settings',page)}</div></aside>`}
+// Docking folds the sidebar to an icon rail; pages follow through --nav-w. Labels stay in the DOM
+// (faded out) so the buttons keep their accessible names, and tooltips stand in for them.
+function applyDock(shell){
+  shell.classList.toggle('is-docked',navDocked);
+  const button=shell.querySelector('[data-nav-dock]'),label=navDocked?'Expand navigation':'Dock navigation';
+  button.setAttribute('aria-label',label);button.title=label;button.setAttribute('aria-pressed',navDocked);
+  shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{if(navDocked)item.title=item.textContent.trim();else item.removeAttribute('title')});
+}
+const DOCK_MS=320;
+let dockTimer;
+function toggleDock(){
+  const shell=document.querySelector('.app-shell');
+  if(!shell)return;
+  navDocked=!navDocked;
+  try{localStorage.setItem('planner-nav-docked',navDocked?'1':'0')}catch{}
+  // The width only animates while toggling, never on first paint or a window resize.
+  shell.classList.add('is-docking');
+  applyDock(shell);
+  clearTimeout(dockTimer);
+  // Once the rail has settled, re-fit the canvas and let charts and the nav pill re-measure.
+  dockTimer=setTimeout(()=>{shell.classList.remove('is-docking');dispatchEvent(new Event('resize'))},DOCK_MS);
+}
+// Pages with their own phone layout; every other page keeps the scaled desktop canvas on phones.
+const PHONE_PAGES=['business'];
+const SCROLL_PAGES=['business'];
 function fitDesktop(){
   const shell=document.querySelector('.app-shell');
   if(!shell)return;
   const main=shell.querySelector('main');
+  // The layout viewport (clientWidth), not innerWidth: on phones innerWidth can grow to the width of a
+  // scaled canvas shown just before, which would keep this page scaled down after navigating back.
+  const vw=document.documentElement.clientWidth||innerWidth,vh=document.documentElement.clientHeight||innerHeight;
+  // About on a narrow screen is a normal full-width page (about.css), not a scaled-down desktop.
+  if(['about','sources'].includes(pageFromHash())&&vw<=760){shell.classList.remove('is-phone');shell.style.width=shell.style.height=shell.style.transform='';return}
+  const phone=vw<=700&&PHONE_PAGES.includes(main?.dataset.currentPage);
+  shell.classList.toggle('is-phone',phone);
+  if(phone){
+    shell.style.width=`${vw}px`;shell.style.height=`${vh}px`;shell.style.transform='none';
+    document.documentElement.style.setProperty('--volt-top','12px');
+    return;
+  }
   let scale=Math.min(1,innerWidth/1440,innerHeight/900);
+  // Scrolling pages (Impact) keep the 1440x900 canvas: their content scrolls instead of shrinking to fit.
+  const scrolls=SCROLL_PAGES.includes(main?.dataset.currentPage);
   for(let i=0;i<3;i++){
     shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
-    const needed=Math.max(900,main.scrollHeight);
+    const needed=scrolls?900:Math.max(900,main.scrollHeight);
     scale=Math.min(scale,innerHeight/needed);
   }
   shell.style.width=`${innerWidth/scale}px`;shell.style.height=`${innerHeight/scale}px`;
   shell.style.transform=`scale(${scale})`;shell.style.transformOrigin='top left';
-  const inset=innerWidth<=600?12:24;
-  document.documentElement.style.setProperty('--volt-top',`${inset}px`);
-  fitDashboardCards();
+  document.documentElement.style.setProperty('--volt-top',`${innerWidth<=600?12:24}px`);
+}
+// The sidebar stays mounted across renders; only <main> is swapped. Data loads re-render a page
+// moments after navigation, so rebuilding the sidebar used to reset the highlight to the top.
+function syncSidebar(shell,page){
+  shell.querySelectorAll('.dash-sidebar .nav-item').forEach(item=>{
+    const active=item.dataset.page===navPage(page);
+    item.classList.toggle('active',active);
+    if(active)item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');
+  });
+}
+// Active-page highlight: a pill that glides between items, starting from wherever it is on screen
+// (so a click mid-glide turns smoothly). It is two identical rounded layers, one tracking the top
+// edge and one the bottom edge, so it can stretch in flight while animating only transform and
+// opacity: the compositor keeps it smooth even while a heavy page is being built. Settings sits
+// in a separate group at the bottom of the sidebar, so moves to or from it cross-fade instead of
+// sweeping over the landscape.
+const PILL_MAX_STRETCH=20;
+function navSpot(aside,el){
+  const a=aside.getBoundingClientRect(),r=el.getBoundingClientRect(),scale=a.height/aside.offsetHeight||1;
+  return {y:(r.top-a.top)/scale,h:r.height/scale};
+}
+// mode: 'glide' after navigating, 'keep' for re-renders of the same page (an in-flight glide carries
+// on), 'snap' to re-measure without motion (first paint, window resize).
+function moveNavPill(page,mode){
+  const aside=document.querySelector('.dash-sidebar'),pill=aside?.querySelector('.nav-pill');
+  if(!pill)return;
+  if(mode==='keep'&&pill.dataset.pillPage===page)return;
+  pill.dataset.pillPage=page;
+  const [upper,lower]=pill.children,item=aside.querySelector(`.nav-item[data-page="${page}"]`);
+  const nav=navSpot(aside,aside.querySelector('.nav')),inNav=y=>y<nav.y+nav.h;
+  const group=item&&(item.closest('.nav')?'nav':'bottom');
+  // Where the pill is on screen now: a click mid-fade may find it still where it started.
+  const top=navSpot(aside,upper).y,low=navSpot(aside,lower),opacity=+getComputedStyle(pill).opacity;
+  const from=pill.dataset.pillPlaced?{top,bottom:low.y+low.h,group:inNav(top)?'nav':'bottom'}:null;
+  pill.getAnimations({subtree:true}).forEach(a=>a.cancel());
+  if(!item){pill.style.opacity='0';delete pill.dataset.pillPlaced;return}
+  const to=navSpot(aside,item),h=to.h;
+  for(const layer of pill.children)Object.assign(layer.style,{height:`${h}px`,transform:`translateY(${to.y}px)`});
+  pill.style.opacity='1';
+  pill.dataset.pillPlaced='1';
+  if(mode!=='glide'||!from||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const d=to.y-from.top;
+  if(Math.abs(d)<.5&&Math.abs(from.bottom-from.top-h)<.5)return;
+  if(from.group!==group){
+    const fade=(y0,y1)=>[
+      {transform:`translateY(${y0}px) scale(1)`,easing:'cubic-bezier(.4,0,1,1)'},
+      {transform:`translateY(${y0}px) scale(.94)`,offset:.42},
+      {transform:`translateY(${y1}px) scale(.94)`,offset:.48,easing:'cubic-bezier(.16,1,.3,1)'},
+      {transform:`translateY(${y1}px) scale(1)`}];
+    const timing={duration:460};
+    pill.animate([{opacity,easing:'cubic-bezier(.4,0,1,1)'},{opacity:0,offset:.42},{opacity:0,offset:.48,easing:'cubic-bezier(.33,1,.68,1)'},{opacity:1}],timing);
+    upper.animate(fade(from.top,to.y),timing);
+    lower.animate(fade(from.bottom-h,to.y),timing);
+    return;
+  }
+  // Liquid glide: the leading edge races ahead and the trailing edge catches up, so the pill
+  // stretches a little in flight and settles back to its size.
+  const ease=t=>1-(1-t)**3,lead=t=>ease(Math.min(1,t/.84)),lag=t=>ease(Math.max(0,(t-.08)/.92));
+  const tops=[],bottoms=[];
+  for(let i=0;i<=30;i++){
+    const t=i/30,topT=d>0?lag(t):lead(t),bottomT=d>0?lead(t):lag(t);
+    let top=from.top+(to.y-from.top)*topT,bottom=from.bottom+(to.y+h-from.bottom)*bottomT;
+    const extra=bottom-top-h,fix=extra>PILL_MAX_STRETCH?(extra-PILL_MAX_STRETCH)/2:extra<0?extra/2:0;
+    top+=fix;bottom-=fix;
+    tops.push({transform:`translateY(${top}px)`});bottoms.push({transform:`translateY(${bottom-h}px)`});
+  }
+  const timing={duration:Math.round(400+Math.min(Math.abs(d),320)*.45),easing:'linear'};
+  if(opacity<1)pill.animate([{opacity},{opacity:1}],{duration:200,easing:'ease-out'});
+  upper.animate(tops,timing);
+  lower.animate(bottoms,timing);
+}
+// Page entrance: new content rises in after navigation. A re-render of the same page while that is
+// still playing (a data load, say) continues it from the same point instead of restarting it.
+const PAGE_ENTRANCES=['page-in','dash-card-in'],PAGE_ENTER_MS=760;
+let lastPage='',pageEnteredAt=-Infinity;
+function resumeEntrance(main,elapsed){
+  main.getAnimations({subtree:true}).forEach(a=>{if(PAGE_ENTRANCES.includes(a.animationName))a.currentTime=elapsed});
 }
 function render(){
-  const page=pageFromHash();
+  const page=pageFromHash(),changed=lastPage!==''&&lastPage!==page;
+  lastPage=page;
+  const now=performance.now();
+  if(changed)pageEnteredAt=now;
+  const since=now-pageEnteredAt,entering=since<PAGE_ENTER_MS;
   const app=document.getElementById('app');
-  const inputs=captureModelInputs();
-  const previous=app.querySelector('.outlook-ready');
-  if(previous)previous.remove();
-  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,settings:renderSettings}[page];
-  app.innerHTML=`<div class="app-shell">${sidebar(page)}<main class="main dashboard-main" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main></div>`;
-  restoreModelInputs(inputs);
-  const replacement=app.querySelector('.outlook-ready');
-  if(previous && replacement)replacement.replaceWith(previous);
-  else if(previous)outlookTeardown();
-  document.title=`${page==='overview'?'Dashboard':page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
+  const preservedInputs = typeof captureModelInputs === 'function' ? captureModelInputs() : [];
+  const charts=chartsCollect(app);
+  const view={overview:renderDashboard,forecast:renderForecast,charging:renderCharging,impact:renderImpact,business:renderBusiness,settings:renderSettings,about:renderAbout,sources:renderSources}[page];
+  // Build the page while the previous one is still in the DOM: views read it (e.g. Impact's loop phases).
+  const html=`<main class="main dashboard-main${entering?' is-entering':''}" data-current-page="${page}" data-theme="${dashboardTheme}" data-cause="${settings.cause}" data-explanations="${settings.explanations}">${view()}</main>`;
+  let shell=app.querySelector(':scope>.app-shell');
+  // A re-render of the same page keeps its scroll position (live refreshes on scrolling pages).
+  const scrollTop=!changed&&shell?shell.querySelector(':scope>main')?.scrollTop||0:0;
+  if(shell){
+    const next=document.createElement('template');
+    next.innerHTML=html;
+    shell.querySelector(':scope>main').replaceWith(next.content);
+    syncSidebar(shell,page);
+  }else{
+    app.innerHTML=`<div class="app-shell">${sidebar(page)}${html}</div>`;
+    shell=app.firstElementChild;
+    applyDock(shell);
+  }
+  if(preservedInputs.length) restoreModelInputs(preservedInputs);
+  shell.classList.toggle('is-live',liveRender);
+  shell.classList.toggle('is-about',page==='about');
+  shell.classList.toggle('is-sources',page==='sources');
+  const main=shell.querySelector(':scope>main');
+  if(scrollTop)main.scrollTop=scrollTop;
+  if(entering&&!changed&&!liveRender)resumeEntrance(main,since);
+  // Once the entrance has played, drop it so finished animations don't keep content on separate
+  // compositing layers (which renders text slightly differently from a fresh load).
+  if(entering)setTimeout(()=>main.classList.remove('is-entering'),PAGE_ENTER_MS-since);
+  chartsRestore(app,charts);
+  document.title=`${{overview:'Dashboard',impact:'Battery',charging:'EV',business:'Impact',sources:'Wind & Solar'}[page]||page[0].toUpperCase()+page.slice(1)} · Renewable Energy Planner`;
   fitDesktop();
-  const outlook=app.querySelector('.outlook-ready');
-  if(outlook)outlookSync(outlook);
+  moveNavPill(page,changed?'glide':'keep');
+  chartsSync(app);
 }
 document.addEventListener('click',event=>{
   const horizon=event.target.closest('[data-horizon]');
-  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);render();return}
+  if(horizon){modelState.horizon=Number(horizon.dataset.horizon);renderLive();return}
+  if(event.target.closest('[data-nav-dock]')){toggleDock();return}
   const page=event.target.closest('[data-page]');
   if(page){navigate(page.dataset.page);return}
   if(event.target.closest('[data-dashboard-theme]')){dashboardTheme=dashboardTheme==='light'?'dark':'light';try{localStorage.setItem('planner-theme',dashboardTheme)}catch{}render();return}
@@ -84,4 +228,4 @@ document.addEventListener('click',event=>{
   if(action?.dataset.action==='reset'){settings={...defaults};saved=false;render()}
 });
 document.addEventListener('change',event=>{const el=event.target.closest('[data-setting]');if(!el)return;settings[el.dataset.setting]=el.value;saved=false;render()});
-addEventListener('hashchange',render);addEventListener('resize',fitDesktop);render();loadModelForecast();
+addEventListener('hashchange',render);addEventListener('resize',()=>{fitDesktop();moveNavPill(lastPage,'snap')});render();loadModelForecast();

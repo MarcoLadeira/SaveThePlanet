@@ -1,8 +1,8 @@
 // Volt: floating in-app assistant. Lives outside #app so re-renders never wipe it.
 // Every figure, badge and button is rendered from structured server fields; model text is shown as plain text only.
 const chatState = { open: false, busy: false, messages: [] };
-const chatPageNames = { overview: 'Dashboard', forecast: 'Forecast', charging: 'Charging', impact: 'Impact', settings: 'Settings' };
-const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Explain curtailment'];
+const chatPageNames = { overview: 'Dashboard', forecast: 'Forecast', charging: 'EV', impact: 'Battery', settings: 'Settings' };
+const chatStarters = ["What's at risk?", 'How much could charging absorb?', 'Why this charging window?', 'Explain curtailment'];
 
 function voltSourceBadge() {
   const d = modelState.data;
@@ -26,7 +26,7 @@ function voltCard(card) {
 
 function voltProvenance(p) {
   return `<div class="volt-source"><span class="volt-badge ${p.mode === 'simulated' ? 'is-sim' : ''}">${escapeHtml(p.label)}</span>
-    <span>${escapeHtml(p.region)} · issued ${escapeHtml(modelTime(p.issuedAt, true))}</span></div>`;
+    <span>${escapeHtml(p.region)} · target ${escapeHtml(modelTime(p.targetAt, true))} · not a live forecast</span></div>`;
 }
 
 function voltReply(m, latest) {
@@ -85,7 +85,8 @@ async function chatSend(text) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
       // Only safe selectors are sent; the server rebuilds every figure itself.
       body: JSON.stringify({ messages: history, page: pageFromHash(), horizon: modelState.horizon, capacityMw: modelState.capacity,
-        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh }),
+        totalDemandKwh: modelState.totalDemandKwh, flexibleDemandKwh: modelState.flexibleDemandKwh, target: modelState.target,
+        fleetPreset: modelState.fleetPreset }),  // Volt explains the same fleet plan as the Battery card
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error?.message || 'Volt could not answer.');

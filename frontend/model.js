@@ -7,12 +7,19 @@ const modelState = {
     capacity: 100,
     totalDemandKwh: 1000,
     flexibleDemandKwh: 500,
+    // Dataset target half-hour chosen by the server and pinned here, so live refreshes,
+    // Charging, Impact and Volt stay on it (see pinning.js). null asks for a new one.
+    target: null,
+    // How a new target is chosen: 'predicted' (model predicts >= 20 MWh) or 'unfiltered'.
+    selectionMode: (() => { try { return localStorage.getItem('target-selection') === 'unfiltered' ? 'unfiltered' : 'predicted'; } catch { return 'predicted'; } })(),
+    kwhPerCharge: 30,
+    chargerKw: 22,
     health: null,
     healthChecking: false,
 };
 let healthRequest = 0;
 let modelRequest = 0;
-let modelUpdateTimer;
+let modelUpdateTimer = 0;
 let modelInputsDirty = false;
 function escapeHtml(value) {
     return String(value).replace(
@@ -173,7 +180,7 @@ function modelView(page) {
     const rate = scenarioPercent(scenarioOutcome(p).recoveryRate);
     const side = forecast
         ? `<section class="card cause-card"><h2 class="card-title">Predicted energy breakdown</h2>${shares}<div class="section-line"></div><p class="metric-caption">Component shares describe predicted energy, not causal attribution.</p><h3>Model signals</h3><p class="metric-caption">Renewable output, system demand, grid headroom, SNSP pressure and market contribution are not supplied by this API.</p></section>`
-        : `<section class="card action-card"><h2 class="card-title">Potential charging opportunity</h2><p class="action-lead">${scenarioRecovery(p) > 0 ? `Up to ${modelNumber(scenarioRecovery(p))} MWh could be absorbed by flexible charging.` : "No recoverable surplus predicted for this interval."}</p><p class="action-description">Forecast target: ${escapeHtml(modelTime(p.targetAt, true))}. Assumes available flexible load of ${modelNumber(d.flexibleCapacityMw)} MW.</p><p class="metric-caption">Uses the shared charging demand and power limit. Driver commitments have not been evaluated.</p><button class="primary-button" data-page="charging">Review charging ${icon("arrow", 24)}</button><div class="action-bottom"><div class="action-divider"></div><div class="mini-stats"><div><span class="small-value">${rate}</span><div class="metric-caption">potential recovery rate</div></div><div><span class="small-value">${modelNumber(scenarioOutcome(p).remainingWasteMwh)} MWh</span><div class="metric-caption">remaining at risk</div></div></div></div></section>`;
+        : `<section class="card action-card"><h2 class="card-title">Potential charging opportunity</h2><p class="action-lead">${scenarioRecovery(p) > 0 ? `At most ${modelNumber(scenarioRecovery(p))} MWh could be used by flexible charging, if it is connected where and when the dispatch-down happens.` : "No recoverable surplus predicted for this interval."}</p><p class="action-description">Forecast target: ${escapeHtml(modelTime(p.targetAt, true))}. Assumes available flexible load of ${modelNumber(d.flexibleCapacityMw)} MW.</p><p class="metric-caption">Uses the shared charging demand and power limit. Driver commitments have not been evaluated.</p><button class="primary-button" data-page="charging">Review charging ${icon("arrow", 24)}</button><div class="action-bottom"><div class="action-divider"></div><div class="mini-stats"><div><span class="small-value">${rate}</span><div class="metric-caption">potential recovery rate</div></div><div><span class="small-value">${modelNumber(scenarioOutcome(p).remainingWasteMwh)} MWh</span><div class="metric-caption">remaining at risk</div></div></div></div></section>`;
     return (
         top +
         `<section class="card summary-card model-summary ${forecast ? "forecast-summary" : "overview"}"><h2 class="card-title">Selected ${p.horizonMinutes}-minute forecast</h2><div class="summary-metrics">${summary}</div></section>` +
@@ -181,14 +188,30 @@ function modelView(page) {
         `<div class="${forecast ? "forecast-grid model-forecast-grid" : "overview-grid model-overview-grid"}">${chartCard}${side}</div>`
     );
 }
-async function loadModelForecast() {
+let liveTimer = 0;
+let liveRender = false;
+function renderLive() {
+    const active = document.activeElement;
+    if (active?.closest("#app") && active.matches("input, select, textarea"))
+        return;
+    // The Forecast page shows its own model replays, not this shared forecast.
+    if (pageFromHash() === "forecast") return;
+    liveRender = true;
+    render();
+    liveRender = false;
+}
+async function loadModelForecast(live = false) {
+    if (live && modelInputsDirty) return; // an in-progress edit takes precedence over timed refresh
     clearTimeout(modelUpdateTimer);
-    modelUpdateTimer = undefined;
+    modelUpdateTimer = 0;
     modelInputsDirty = false;
     const request = ++modelRequest;
-    modelState.loading = true;
-    modelState.error = "";
-    render();
+    clearTimeout(liveTimer);
+    if (!live) {
+        modelState.loading = true;
+        modelState.error = "";
+        render();
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45000);
     try {
@@ -197,7 +220,11 @@ async function loadModelForecast() {
             capacityMw: String(modelState.capacity),
             totalDemandKwh: String(modelState.totalDemandKwh),
             flexibleDemandKwh: String(modelState.flexibleDemandKwh),
+            kwhPerCharge: String(modelState.kwhPerCharge),
+            chargerKw: String(modelState.chargerKw),
         });
+        if (modelState.target) query.set("target", modelState.target);
+        else query.set("selection", modelState.selectionMode);
         const response = await fetch(`/api/v1/scenario?${query}`, {
             signal: controller.signal,
         });
@@ -214,9 +241,13 @@ async function loadModelForecast() {
             body.scenario.outcomes.length !== 2
         )
             throw new Error("Backend returned an invalid forecast.");
-        if (request === modelRequest) modelState.data = body;
+        if (request === modelRequest) {
+            modelState.data = body;
+            modelState.error = "";
+            modelState.target = pinnedTargetAfter(modelState.target, body);
+        }
     } catch (error) {
-        if (request === modelRequest)
+        if (request === modelRequest && !(live && modelState.data))
             modelState.error =
                 error.name === "AbortError"
                     ? "The forecast request timed out. Please retry."
@@ -225,8 +256,17 @@ async function loadModelForecast() {
         clearTimeout(timeout);
         if (request === modelRequest) {
             modelState.loading = false;
-            render();
-            loadModelHealth(false);
+            if (live) renderLive();
+            else {
+                render();
+                loadModelHealth(false);
+            }
+            // The Dashboard's battery plan follows the pinned half-hour (bridge.js).
+            if (modelState.data && typeof loadFleetPlan === "function") loadFleetPlan();
+            liveTimer = setTimeout(
+                () => loadModelForecast(true),
+                isDemoData() ? 15000 : 60000,
+            );
         }
     }
 }
@@ -256,43 +296,43 @@ document.addEventListener("change", (event) => {
         render();
     }
 });
-// One debounced update for capacity and demand, shared by every product page.
+// Settings and legacy forms share one debounced automatic update. Inputs are forecast
+// what-if assumptions, not physical EV charging measurements or the Rewards ledger.
 const modelInputKeys = {
     "model-capacity": "capacity",
     "scenario-total": "totalDemandKwh",
     "scenario-flexible": "flexibleDemandKwh",
 };
 function updateModelInputs(immediate = false) {
-    const flexible = document.getElementById("scenario-flexible");
     const total = document.getElementById("scenario-total");
+    const flexible = document.getElementById("scenario-flexible");
     const validation = document.getElementById("scenario-validation");
-    if (flexible) flexible.setCustomValidity("");
-    const message = flexible && total && flexible.value !== "" && total.value !== ""
-        && Number(flexible.value) > Number(total.value)
-        ? "Flexible demand must not exceed total demand." : "";
+    const demandInvalid = flexible && total && flexible.value !== "" && total.value !== ""
+        && Number(flexible.value) > Number(total.value);
+    const message = demandInvalid ? "Flexible demand must not exceed total demand." : "";
     if (flexible) flexible.setCustomValidity(message);
     if (validation) validation.textContent = message;
-
     const changes = {};
     for (const [id, key] of Object.entries(modelInputKeys)) {
         const input = document.getElementById(id);
         if (!input) continue;
         if (input.value === "" || !input.validity.valid || !Number.isFinite(Number(input.value))) {
             clearTimeout(modelUpdateTimer);
-            modelUpdateTimer = undefined;
+            modelUpdateTimer = 0;
+            modelInputsDirty = false;
             return;
         }
         changes[key] = Number(input.value);
     }
+    if (!Object.keys(changes).length) return;
     const changed = Object.entries(changes).some(([key, value]) => modelState[key] !== value);
     if (!changed && !modelInputsDirty) return;
     Object.assign(modelState, changes);
     modelInputsDirty = true;
     clearTimeout(modelUpdateTimer);
     if (immediate) loadModelForecast();
-    else modelUpdateTimer = setTimeout(loadModelForecast, 500);
+    else modelUpdateTimer = setTimeout(() => loadModelForecast(), 500);
 }
-
 document.addEventListener("input", (event) => {
     if (Object.hasOwn(modelInputKeys, event.target.id)) updateModelInputs();
 });
@@ -304,28 +344,25 @@ document.addEventListener("submit", (event) => {
     event.preventDefault();
     updateModelInputs(true);
 });
-
-// Renders caused by network responses must not interrupt typing or clear drafts.
+// Re-renders should not erase in-progress scenario edits or drop keyboard focus.
 function captureModelInputs() {
     return Object.keys(modelInputKeys).map(id => {
         const input = document.getElementById(id);
-        return input ? { id, input, focused: input === document.activeElement,
-            validation: input.validity.customError ? input.validationMessage : "" } : null;
+        return input ? { id, input, focused: input === document.activeElement } : null;
     }).filter(Boolean);
 }
 function restoreModelInputs(inputs) {
     for (const saved of inputs) {
-        const input = document.getElementById(saved.id);
-        if (!input) continue;
-        input.replaceWith(saved.input);
+        const replacement = document.getElementById(saved.id);
+        if (!replacement) continue;
+        replacement.replaceWith(saved.input);
         if (saved.focused) saved.input.focus({ preventScroll: true });
-        if (saved.id === "scenario-flexible") {
-            const validation = document.getElementById("scenario-validation");
-            if (validation) validation.textContent = saved.validation;
-        }
     }
+    const total = document.getElementById("scenario-total");
+    const flexible = document.getElementById("scenario-flexible");
+    const validation = document.getElementById("scenario-validation");
+    if (flexible && total && validation) validation.textContent = flexible.validationMessage || "";
 }
-
 document.addEventListener("click", (event) => {
     if (event.target.closest("#model-retry")) loadModelForecast();
     if (event.target.closest("#model-health-check")) loadModelHealth(true);
@@ -335,5 +372,20 @@ function isDemoData() {
     return modelState.data?.dataMode === "simulated";
 }
 function dataSourceLabel() {
-    return isDemoData() ? "Simulated demo data" : "Historical prediction";
+    return isDemoData() ? "Simulated demo data" : "Historical dataset prediction";
 }
+
+// Pick another dataset target using the current selection mode.
+function newDashboardTarget() {
+    modelState.target = null;
+    loadModelForecast();
+}
+document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-new-target]")) newDashboardTarget();
+});
+document.addEventListener("change", (event) => {
+    if (event.target.id !== "target-selection") return;
+    modelState.selectionMode = event.target.value === "unfiltered" ? "unfiltered" : "predicted";
+    try { localStorage.setItem("target-selection", modelState.selectionMode); } catch {}
+    newDashboardTarget();
+});

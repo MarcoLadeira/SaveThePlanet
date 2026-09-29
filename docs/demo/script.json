@@ -1,0 +1,86 @@
+[
+  {
+    "time": "0:00–0:20", "title": "Hook: 11.2%",
+    "screen": "Slide 1. Let the number land for a beat before speaking.",
+    "say": "In the first half of this year, EirGrid dispatched down eleven point two percent of Ireland's wind and solar energy. Clean power, produced and not used. SaveThePlanet turns the part that can really be used into cheaper, cleaner EV charging.",
+    "caption": "11.2% of Ireland's wind and solar was dispatched down in H1 2026 (EirGrid).",
+    "evidence": "E1"
+  },
+  {
+    "time": "0:20–0:45", "title": "The problem and the buyer",
+    "screen": "Slide 2. The four bars narrow as you speak; land on the buyer card.",
+    "say": "But dispatched-down energy isn't free electricity waiting at a charger. It happens at a particular moment, often behind a network constraint. So the real question is narrower: which part can one charging site use, in the next half-hour, at a price that beats smart charging? The people who need that answer are our first customers: charging operators and fleet depots.",
+    "caption": "The question: which part can one site use, in the next half-hour, at a price that beats smart charging?",
+    "evidence": "E2"
+  },
+  {
+    "time": "0:45–1:20", "title": "Innovation: predict, prove, decide, share",
+    "screen": "Slide 3 with CLIP 1 (Dashboard, 30 s): the historical target chip, the forecast, the battery routing, the EV plan. Point at each as you name the step.",
+    "say": "Most tools report yesterday's waste. Ours makes a decision, in four steps. Predict: the GridToEv model forecasts renewable energy at risk thirty minutes ahead. Prove: we check the site: chargers, grid connection, battery, and when each car has to leave. Decide: we build the charging plan, or an offer for drivers. And share: every extra euro is settled in a ledger, to the cent. You can see all four on our dashboard.",
+    "caption": "Predict (+30 min forecast) → Prove (site limits) → Decide (plan or offer) → Share (50/25/25 ledger).",
+    "evidence": "E3"
+  },
+  {
+    "time": "1:20–2:10", "title": "AI proof: the forecast page",
+    "screen": "Slide 4 with CLIP 2 (Forecast page, 45 s): the frozen replay day, the +30 min forecast line, EirGrid's observed curtailment beside it, the model version and data period. Zoom on one hit and one miss.",
+    "say": "Here's the model at work. This is a historical replay: GridToEv's thirty-minute forecasts for a real past day, with EirGrid's observed curtailment drawn right beside them, so you can see where the forecast was right, and where it wasn't. Each half-hour is planned only from the forecast issued before it; the future never leaks into a decision. To be clear: this is replayed history, not live control of the grid. What it proves is that the signal arrives early enough to act on.",
+    "caption": "Real GridToEv +30 min forecasts vs EirGrid's observed curtailment. Historical replay, no look-ahead.",
+    "evidence": "E4, E5"
+  },
+  {
+    "time": "2:10–3:10", "title": "Physics: only what the site can deliver",
+    "screen": "Slide 5 with CLIP 3 (Battery page, then EV page, 55 s): same day as CLIP 2. Battery plan; EV page KPIs, 'When charging can run on renewables', 'Best half-hours to charge'.",
+    "say": "Now the hard part: physics. A forecast only matters if a site can use it. Our example site has twenty eleven-kilowatt chargers behind one hundred-and-eighty-kilowatt connection. In a two-hour window a charger can deliver at most twenty-two kilowatt-hours, so the site fits sixteen twenty-kilowatt-hour sessions, not an unlimited number. For the evening we model a battery that stores surplus overnight: seven hundred kilowatt-hours, eighty-five percent round trip, and hypothetical: we haven't built it. On the Battery and EV pages you see the result: the best half-hours to charge, and a plan that respects every one of those limits.",
+    "caption": "20 × 11 kW chargers, 180 kW connection: 16 sessions per 2-hour window. Battery is hypothetical.",
+    "evidence": "E6, E7, E8"
+  },
+  {
+    "time": "3:10–3:40", "title": "AI vs competent smart charging",
+    "screen": "Slide 6. Point at the green bar, then the two outcome cards.",
+    "say": "Does the AI add anything? We compare against competent smart charging, not a worst case. Stored night surplus reaches the charger at about twenty cents a kilowatt-hour, all costs in. In the evening that beats smart charging by six to fourteen cents. In the morning, off-peak power is already cheap, so we make no offer. That 'no' is the rule working.",
+    "caption": "AI all-in ≈ €0.20/kWh. Evening: saves €0.06–0.14/kWh vs smart charging → offer. Morning: €0.005 → no offer.",
+    "evidence": "E9, E10"
+  },
+  {
+    "time": "3:40–4:30", "title": "Business model: 50 / 25 / 25",
+    "screen": "Slide 7 with CLIP 4 (EV page Rewards card, 20 s): Join free (demo) → an evening window with an offer → 20 kWh → Reserve → the split line. Then point at the bar and the contribution card.",
+    "say": "That margin is the business. A driver joins SaveThePlanet Rewards for free, picks a discount window and reserves: that's the EV page. Now take one twenty-kilowatt-hour session that's ten cents a kilowatt-hour cheaper than smart charging: a two-euro pool of extra savings. Half, one euro, is the driver's discount. Fifty cents stays with the charging operator. Fifty cents is our commission. And that's revenue, not profit: after our ten-cent cost per session, we keep forty cents.",
+    "caption": "€2.00 pool → driver €1.00, operator €0.50, SaveThePlanet €0.50 commission (−€0.10 cost = €0.40).",
+    "evidence": "E11"
+  },
+  {
+    "time": "4:30–5:15", "title": "The pilot month: everyone comes out ahead",
+    "screen": "Slide 8. Reveal the three cards left to right. (Optional 5 s cut: Impact page, Who earns, click '400 sessions'.)",
+    "say": "Scale it to a pilot month: four hundred sessions, about thirteen an evening, inside the sixteen the site can take. That's eight hundred euro of extra savings. Drivers keep four hundred. The operator gets two hundred, pays a hundred in programme costs, and makes a hundred euro of new profit. We get two hundred, pay forty in session costs and a hundred and twenty in overhead: forty euro operating profit. The operator breaks even at two hundred sessions, we do at three hundred, and every figure is computed by our backend and tested to the cent.",
+    "caption": "Pilot month: drivers €400 saved · operator +€100 · SaveThePlanet +€40 operating profit (break-even 200 / 300 sessions).",
+    "evidence": "E12, E13"
+  },
+  {
+    "time": "5:15–6:00", "title": "Environment: counted carefully",
+    "screen": "Slide 9. Left to right: stored → delivered → losses; then the false-alarm line; then the CO₂ card.",
+    "say": "And the environment, counted carefully. That month, eight thousand kilowatt-hours reach the chargers from stored surplus. To get there, the battery takes in about nine and a half thousand: fifteen percent is lost in storage, and we count that loss. Energy bought on a forecast that turned out wrong is treated as ordinary grid power and never offered. At a flat zero point two five kilograms per kilowatt-hour, that's about two tonnes of CO₂ a month per site: an estimate, with the method on screen, not a verified saving.",
+    "caption": "8,000 kWh to EVs from ≈9,450 kWh stored (15% losses counted). ≈2 t CO₂/month per site, estimated.",
+    "evidence": "E14, E15"
+  },
+  {
+    "time": "6:00–6:35", "title": "Scalability",
+    "screen": "Slide 10. Walk the three stages, then the 100-site strip.",
+    "say": "How it grows. First, one Irish operator pilot, to validate deliverability, tariffs and real bookings. Then comparable sites across Ireland, each capped by its own chargers and connection. Then European grids with the same problem, each needing its own data, a retrained model and local tariffs. At a hundred sites on pilot assumptions, that's close to half a million euro a year saved by drivers, and an estimated two thousand four hundred tonnes of CO₂.",
+    "caption": "Pilot → Irish sites → European grids. 100 sites (illustrative): €480k/yr driver savings, ≈2,400 t CO₂/yr.",
+    "evidence": "E16"
+  },
+  {
+    "time": "6:35–6:50", "title": "Execution",
+    "screen": "Slide 11.",
+    "say": "Under the hood: EirGrid data and the GridToEv model feed a feasibility optimiser and a settlement ledger, checked by over four hundred automated tests, on a replay anyone can reproduce.",
+    "caption": "EirGrid data → GridToEv model → optimiser → ledger → app. 406 automated tests, reproducible replay.",
+    "evidence": "E17"
+  },
+  {
+    "time": "6:50–7:00", "title": "Close",
+    "screen": "Slide 12. Stop talking at 6:58; hold the slide.",
+    "say": "SaveThePlanet. Drivers save, operators earn, and Ireland's renewable energy finds its way into EVs. Thank you.",
+    "caption": "SaveThePlanet: drivers save, operators earn, renewable energy reaches EVs.",
+    "evidence": ""
+  }
+]

@@ -1,0 +1,337 @@
+{
+ "V1RawCurrentObservation": {
+  "properties": {
+   "entsoe_fossil_gas_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Fossil Gas Generation Mw",
+    "description": "ENTSO-E original source value: fossil gas generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_fossil_hard_coal_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Fossil Hard Coal Generation Mw",
+    "description": "ENTSO-E original source value: fossil hard coal generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_fossil_oil_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Fossil Oil Generation Mw",
+    "description": "ENTSO-E original source value: fossil oil generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_fossil_peat_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Fossil Peat Generation Mw",
+    "description": "ENTSO-E original source value: fossil peat generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_hydro_pumped_storage_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Hydro Pumped Storage Generation Mw",
+    "description": "ENTSO-E original source value: hydro pumped storage generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_hydro_run_of_river_and_poundage_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Hydro Run Of River And Poundage Generation Mw",
+    "description": "ENTSO-E original source value: hydro run of river and poundage generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_other_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Other Generation Mw",
+    "description": "ENTSO-E original source value: other generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_solar_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Solar Generation Mw",
+    "description": "ENTSO-E original source value: solar generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_wind_onshore_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Wind Onshore Generation Mw",
+    "description": "ENTSO-E original source value: wind onshore generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_actual_load_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Entsoe Actual Load Mw",
+    "description": "ENTSO-E original source value: actual electricity load (MW) for the completed issue half-hour. Not a future target."
+   },
+   "entsoe_price_eur_mwh": {
+    "type": "number",
+    "title": "Entsoe Price Eur Mwh",
+    "description": "ENTSO-E original source value: electricity price (EUR/MWh) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Generation Mw",
+    "description": "EirGrid original source value: Ireland generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_demand_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Demand Mw",
+    "description": "EirGrid original source value: Ireland demand (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_wind_availability_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Wind Availability Mw",
+    "description": "EirGrid original source value: Ireland wind availability (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_wind_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Wind Generation Mw",
+    "description": "EirGrid original source value: Ireland wind generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_solar_availability_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Solar Availability Mw",
+    "description": "EirGrid original source value: Ireland solar availability (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_solar_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Solar Generation Mw",
+    "description": "EirGrid original source value: Ireland solar generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_hydro_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Hydro Generation Mw",
+    "description": "EirGrid original source value: Ireland hydro generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ewic_flow_mw": {
+    "type": "number",
+    "title": "Eirgrid Ewic Flow Mw",
+    "description": "EirGrid original source value: East-West interconnector flow (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_greenlink_flow_mw": {
+    "type": "number",
+    "title": "Eirgrid Greenlink Flow Mw",
+    "description": "EirGrid original source value: Greenlink interconnector flow (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_wind_penetration_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Wind Penetration Ratio",
+    "description": "EirGrid original source value: Ireland wind penetration (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_ie_solar_penetration_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Solar Penetration Ratio",
+    "description": "EirGrid original source value: Ireland solar penetration (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Generation Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_demand_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Demand Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) demand (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_wind_availability_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Wind Availability Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) wind availability (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_wind_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Wind Generation Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) wind generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_solar_availability_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Solar Availability Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) solar availability (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_solar_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Solar Generation Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) solar generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_hydro_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Hydro Generation Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) hydro generation (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_interjurisdictional_flow_mw": {
+    "type": "number",
+    "title": "Eirgrid Interjurisdictional Flow Mw",
+    "description": "EirGrid original source value: interjurisdictional flow (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_wind_penetration_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Wind Penetration Ratio",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) wind penetration (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_solar_penetration_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Solar Penetration Ratio",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) solar penetration (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_oversupply_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Oversupply Mw",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) oversupply (MW) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_all_island_oversupply_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Oversupply Ratio",
+    "description": "EirGrid original source value: all-island (Ireland and Northern Ireland) oversupply (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "eirgrid_snsp_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid Snsp Ratio",
+    "description": "EirGrid original source value: system non-synchronous penetration (0\u00e2\u20ac\u201c1 fraction) for the completed issue half-hour. Not a future target."
+   },
+   "observed_dispatch_down_mwh": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Observed Dispatch Down Mwh",
+    "description": "Observed dispatch-down MWh in the completed issue half-hour, already published by issue time. This is a PAST input, not the future dispatch-down target."
+   },
+   "available_at_utc": {
+    "type": "string",
+    "format": "date-time",
+    "title": "Available At Utc",
+    "description": "Latest UTC publication/availability time across all current source values, including observed dispatch-down. Must be no later than issue_timestamp_utc; user-provided provenance cannot be independently verified."
+   }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+   "entsoe_fossil_gas_generation_mw",
+   "entsoe_fossil_hard_coal_generation_mw",
+   "entsoe_fossil_oil_generation_mw",
+   "entsoe_fossil_peat_generation_mw",
+   "entsoe_hydro_pumped_storage_generation_mw",
+   "entsoe_hydro_run_of_river_and_poundage_generation_mw",
+   "entsoe_other_generation_mw",
+   "entsoe_solar_generation_mw",
+   "entsoe_wind_onshore_generation_mw",
+   "entsoe_actual_load_mw",
+   "entsoe_price_eur_mwh",
+   "eirgrid_ie_generation_mw",
+   "eirgrid_ie_demand_mw",
+   "eirgrid_ie_wind_availability_mw",
+   "eirgrid_ie_wind_generation_mw",
+   "eirgrid_ie_solar_availability_mw",
+   "eirgrid_ie_solar_generation_mw",
+   "eirgrid_ie_hydro_generation_mw",
+   "eirgrid_ewic_flow_mw",
+   "eirgrid_greenlink_flow_mw",
+   "eirgrid_ie_wind_penetration_ratio",
+   "eirgrid_ie_solar_penetration_ratio",
+   "eirgrid_all_island_generation_mw",
+   "eirgrid_all_island_demand_mw",
+   "eirgrid_all_island_wind_availability_mw",
+   "eirgrid_all_island_wind_generation_mw",
+   "eirgrid_all_island_solar_availability_mw",
+   "eirgrid_all_island_solar_generation_mw",
+   "eirgrid_all_island_hydro_generation_mw",
+   "eirgrid_interjurisdictional_flow_mw",
+   "eirgrid_all_island_wind_penetration_ratio",
+   "eirgrid_all_island_solar_penetration_ratio",
+   "eirgrid_all_island_oversupply_mw",
+   "eirgrid_all_island_oversupply_ratio",
+   "eirgrid_snsp_ratio",
+   "observed_dispatch_down_mwh",
+   "available_at_utc"
+  ],
+  "title": "V1RawCurrentObservation"
+ },
+ "V1RawHistoryObservation": {
+  "properties": {
+   "timestamp_utc": {
+    "type": "string",
+    "format": "date-time",
+    "title": "Timestamp Utc",
+    "description": "Completed UTC half-hour observation timestamp; supply 48 consecutive rows in ascending order ending 30 minutes before issue."
+   },
+   "available_at_utc": {
+    "type": "string",
+    "format": "date-time",
+    "title": "Available At Utc",
+    "description": "Latest UTC availability time for this history row; must be no later than the request issue time."
+   },
+   "eirgrid_ie_wind_generation_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Wind Generation Mw",
+    "description": "EirGrid Ireland observed wind generation, MW."
+   },
+   "eirgrid_ie_demand_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid Ie Demand Mw",
+    "description": "EirGrid Ireland observed electricity demand, MW."
+   },
+   "entsoe_price_eur_mwh": {
+    "type": "number",
+    "title": "Entsoe Price Eur Mwh",
+    "description": "ENTSO-E electricity price, EUR/MWh; negative values are allowed."
+   },
+   "eirgrid_snsp_ratio": {
+    "type": "number",
+    "maximum": 1.0,
+    "minimum": 0.0,
+    "title": "Eirgrid Snsp Ratio",
+    "description": "EirGrid system non-synchronous penetration as a 0\u00e2\u20ac\u201c1 fraction, not percent."
+   },
+   "eirgrid_all_island_oversupply_mw": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Eirgrid All Island Oversupply Mw",
+    "description": "EirGrid all-island oversupply, MW."
+   },
+   "observed_dispatch_down_mwh": {
+    "type": "number",
+    "minimum": 0.0,
+    "title": "Observed Dispatch Down Mwh",
+    "description": "Past observed dispatch-down energy in this completed half-hour, MWh; not the future target."
+   }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+   "timestamp_utc",
+   "available_at_utc",
+   "eirgrid_ie_wind_generation_mw",
+   "eirgrid_ie_demand_mw",
+   "entsoe_price_eur_mwh",
+   "eirgrid_snsp_ratio",
+   "eirgrid_all_island_oversupply_mw",
+   "observed_dispatch_down_mwh"
+  ],
+  "title": "V1RawHistoryObservation"
+ }
+}

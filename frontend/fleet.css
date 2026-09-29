@@ -24,11 +24,6 @@
   height: 38px;
 }
 .dashboard-redesign .dash-fleet > .dash-card-head > .dash-tile { margin: 0; }
-.dashboard-redesign .dash-tile.is-sky {
-  background: linear-gradient(160deg, #d5ebff, #c2e0fd);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5);
-  color: #1466dc;
-}
 
 .fleet-body {
   position: relative;
@@ -71,11 +66,11 @@
 .fleet-scene {
   position: absolute;
   z-index: 0;
-  top: 50%;
+  --fleet-scene-h: clamp(92px, min(128cqh - 120px, 70.5cqw - 109px), 360px);
   right: -18px;
-  height: clamp(92px, min(48cqh, 35.8cqw), 320px);
+  bottom: calc(var(--fleet-scene-h) * -.1 - 8px);
+  height: var(--fleet-scene-h);
   aspect-ratio: 799 / 516;
-  transform: translateY(-50%);
   pointer-events: none;
   user-select: none;
 }
@@ -111,14 +106,13 @@
   margin-top: 8px;
   border-radius: 99px;
   background: var(--fleet-track);
-  animation: fleet-fill .9s cubic-bezier(.2, .8, .2, 1) .25s both;
 }
 .fleet-track i {
   position: absolute;
   inset: 0 auto 0 0;
   width: calc(8px + var(--fleet-fill) * (100% - 16px));
   border-radius: inherit;
-  background: linear-gradient(90deg, #5586fc, #56bff2 58%, #52ded6);
+  background: linear-gradient(90deg, #0f7a4c, #169b62 45%, #3fcf8e);
 }
 .fleet-track b {
   position: absolute;
@@ -143,9 +137,9 @@
 .fleet-stat {
   --stat-bg: #f1faf7;
   --stat-badge: #dcf8eb;
-  --stat-icon: #10bf6d;
+  --stat-icon: #169b62;
   --stat-track: #dde9ec;
-  --stat-fill: #0ec473;
+  --stat-fill: #169b62;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -155,12 +149,12 @@
   border-radius: 13px;
   background: var(--stat-bg);
 }
-.fleet-stat.is-blue {
-  --stat-bg: #eef6fe;
-  --stat-badge: #d5e9fe;
-  --stat-icon: #1466dc;
-  --stat-track: #d2e5f5;
-  --stat-fill: #46a6fb;
+.fleet-stat.is-orange {
+  --stat-bg: #fff3ea;
+  --stat-badge: #ffe2cc;
+  --stat-icon: #e0691e;
+  --stat-track: #f6e0cf;
+  --stat-fill: #ff883e;
 }
 .fleet-stat-icon {
   display: grid;
@@ -200,7 +194,6 @@
   overflow: hidden;
   border-radius: 99px;
   background: var(--stat-track);
-  animation: fleet-fill .9s cubic-bezier(.2, .8, .2, 1) .3s both;
 }
 .fleet-stat-bar i {
   display: block;
@@ -220,7 +213,7 @@
   }
   .fleet-scene {
     position: relative;
-    top: auto;
+    bottom: auto;
     right: auto;
     align-self: flex-end;
     width: min(calc(100% + 18px), (100cqh - 260px) * 1.55);
@@ -234,10 +227,6 @@
   --fleet-ink: #eef9f2;
   --fleet-muted: #a9c4b7;
   --fleet-track: #2c4a40;
-}
-.dashboard-main[data-current-page="overview"][data-theme="dark"] .dash-tile.is-sky {
-  background: linear-gradient(150deg, #27496b, #1d3b5a);
-  color: #9fcfff;
 }
 .dashboard-main[data-current-page="overview"][data-theme="dark"] .fleet-scene::before {
   content: "";
@@ -254,13 +243,12 @@
   --stat-track: #2d4d43;
   --stat-fill: #2bd48a;
 }
-.dashboard-main[data-current-page="overview"][data-theme="dark"] .fleet-stat.is-blue {
-  --stat-bg: #1c3440;
-  --stat-badge: #244a66;
-  --stat-icon: #9fcfff;
-  --stat-track: #2b4657;
-  --stat-fill: #5ab2ff;
+.dashboard-main[data-current-page="overview"][data-theme="dark"] .fleet-stat.is-orange {
+  --stat-bg: #3a2a1d;
+  --stat-badge: #5a3a22;
+  --stat-icon: #ffb27a;
+  --stat-track: #4a3524;
+  --stat-fill: #ff883e;
 }
 
-@keyframes fleet-fill { from { --fleet-fill: 0; } }
 @keyframes fleet-scene-in { from { opacity: 0; transform: translate(10px, 6px); } }

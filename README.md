@@ -2,6 +2,12 @@
 
 > Working repository. The final product name has intentionally **not** been chosen yet.
 
+## Pitch deck
+
+**[Download the 7-minute PowerPoint](docs/demo/SaveThePlanet-pitch.pptx?raw=true)** (speaker notes on every slide)
+· [Script](docs/demo/script.md) · [Judge Q&A](docs/demo/qa.md) · [Evidence for every number](docs/demo/evidence-ledger.md)
+· [Recording and export plan](docs/demo/README.md)
+
 ## Mission
 
 Build an AI-powered system that identifies renewable electricity likely to be lost through **curtailment and grid constraints**, quantifies the recoverable energy, and turns that insight into an actionable EV-charging opportunity.
