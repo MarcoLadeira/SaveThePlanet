@@ -33,6 +33,48 @@ class SelectionTests(unittest.TestCase):
         targets._index.clear()  # no prediction index: plain uniform sampling
         self.addCleanup(targets._index.clear)
 
+    def test_a_recorded_curtailment_day_is_picked_first_then_a_half_hour_inside_it(self):
+        targets._curtailment_days[:] = ['2026-01-11', '2026-01-27']
+        self.addCleanup(targets._curtailment_days.clear)
+        days = collections.Counter()
+        for seed in range(60):
+            result = targets.pick(100, lambda c, t: forecast(t, 50.0), rng=random.Random(seed))
+            day = result['targetAt'][:10]
+            self.assertIn(day, ('2026-01-11', '2026-01-27'))
+            self.assertEqual(result['selection']['day'], day)
+            days[day] += 1
+        self.assertGreater(min(days.values()), 15, days)  # both days come up
+        record = result['selection']
+        self.assertTrue(record['usesObservedOutcomes'])  # the day choice looks at EirGrid's record, and says so
+        self.assertEqual(record['curtailmentDays'], 2)
+        self.assertIn('EirGrid recorded curtailment', record['note'])
+
+    def test_within_the_day_the_strongest_predictions_come_first_when_none_reach_the_threshold(self):
+        targets._curtailment_days[:] = ['2026-01-11']
+        self.addCleanup(targets._curtailment_days.clear)
+        for t in POPULATION:
+            targets._index[t] = {'probability': 0.9, 'mwh': 2.0}
+        targets._index['2026-01-11T15:00:00Z'] = {'probability': 0.9, 'mwh': 8.0}
+        tried = []
+        targets.pick(100, lambda c, t: (tried.append(t), forecast(t, targets._index[t]['mwh']))[1], rng=random.Random(0))
+        self.assertEqual(tried[0], '2026-01-11T15:00:00Z')
+        self.assertTrue(all(t.startswith('2026-01-11') for t in tried))
+
+    def test_unknown_curtailment_days_fall_back_to_the_whole_dataset_without_the_network(self):
+        with patch('explorer.call', side_effect=AssertionError('picking must never wait on the network')):
+            result = targets.pick(100, lambda c, t: forecast(t, 50.0), rng=random.Random(3))
+        self.assertIsNone(result['selection']['day'])
+        self.assertFalse(result['selection']['usesObservedOutcomes'])
+
+    def test_curtailment_days_are_the_dataset_days_with_at_least_100_mwh_recorded(self):
+        info = {'dataset': {'from': '2024-04-01', 'to': '2026-08-30'}}
+        recorded = {d: {'curtailmentMwh': v} for d, v in
+                    (('2026-01-02', 1526.0), ('2026-01-03', 0.0), ('2026-01-21', 1.0), ('2026-01-11', None))}
+        with patch('explorer.daily_info', return_value=info),                 patch('explorer._daily_actuals', side_effect=lambda days: {d: recorded.get(d, {'curtailmentMwh': 0.0}) for d in days}):
+            self.addCleanup(targets._curtailment_days.clear)
+            self.assertEqual(targets.build_curtailment_days(), ['2026-01-02'])
+        self.assertEqual(targets.curtailment_days(), ['2026-01-02'])
+
     def test_targets_need_both_horizon_rows(self):
         times = ['2026-01-14T14:00:00Z', '2026-01-14T14:30:00Z', '2026-01-14T16:00:00Z', '2026-01-14T16:30:00Z']
         # 15:00 (issued 14:30 / 14:00) and 17:00 (16:30 / 16:00) qualify; 14:30 and 16:30 lack a +60 issue time.
