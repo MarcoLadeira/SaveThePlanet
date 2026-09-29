@@ -11,7 +11,7 @@
     "time": "0:20–0:45",
     "title": "One real day",
     "screen": "Slide 2. Point at the midday block, then at where it stops, by the evening peak.",
-    "say": "Here's one real day, Sunday the tenth of May. Nearly seven thousand megawatt-hours of wind and solar, turned away. That's the energy for about three hundred and forty-five thousand EV charges. And look at the timing. It runs right through the middle of the day and stops at half five, just as the evening peak begins.",
+    "say": "Here's one real day, Sunday the tenth of May. Nearly seven thousand megawatt-hours of wind and solar, turned away: enough for about three hundred and forty-five thousand EV charges. It runs through the middle of the day and stops at half five, just as the evening peak begins.",
     "caption": "10 May 2026: 6,917 MWh of wind and solar curtailed in Ireland, from about 08:00 to 17:30.",
     "evidence": "E2"
   },
@@ -19,7 +19,7 @@
     "time": "0:45–1:05",
     "title": "Why not just charge cars with it?",
     "screen": "Slide 3.",
-    "say": "So why not just charge cars with it? Because four things have to line up. There has to be surplus in the next half-hour. The site has to be able to take it. It has to be cheaper than ordinary smart charging. And someone has to decide who gets the saving.",
+    "say": "So why not just charge cars with it? Four things have to line up: surplus in the next half-hour, a site that can take it, a price below ordinary smart charging, and a fair way to share the saving.",
     "caption": "Four checks: surplus soon, the site can take it, cheaper than smart charging, the saving shared.",
     "evidence": "E3"
   },
@@ -27,7 +27,7 @@
     "time": "1:05–1:25",
     "title": "The dashboard",
     "screen": "Slide 4 with recording 1 (Dashboard, 20 s): the forecast, the EV plan and the battery level. If the battery shows FULL, point at the 'surplus to ESB hydrogen plants' line.",
-    "say": "SaveThePlanet makes those four checks every half-hour. This is our dashboard, replaying a real half-hour: the forecast, which cars get charged, and the grid battery filling up. Once the battery is full, the surplus goes towards ESB's hydrogen plants instead of being turned away.",
+    "say": "SaveThePlanet makes those four checks every half-hour. This is our dashboard replaying a real half-hour: the forecast, which cars charge, and the grid battery filling up. Once it's full, the surplus goes towards ESB's hydrogen plants instead of being turned away.",
     "caption": "Every half-hour: the forecast, the cars, the battery. A full battery sends its surplus towards hydrogen (simulated).",
     "evidence": "E3, E4, E18"
   },
@@ -35,7 +35,7 @@
     "time": "1:25–1:45",
     "title": "January through the model",
     "screen": "Slide 5. Point at 11 January, then at the evening columns.",
-    "say": "The forecast comes from the GridToEv model. Each square here is one half-hour of January, as the model saw it thirty minutes ahead. The darker the square, the more power it expected to be turned away. There's no timetable to it, which is why it has to be predicted.",
+    "say": "Each square is one half-hour of January, as the GridToEv model saw it thirty minutes ahead. The darker the square, the more power it expected to be turned away. There's no timetable, so it has to be predicted.",
     "caption": "Real GridToEv predictions for 1,434 half-hours of January 2026, made 30 minutes ahead.",
     "evidence": "E5"
   },
@@ -56,15 +56,15 @@
     "evidence": "E7, E8"
   },
   {
-    "time": "3:05–3:45",
+    "time": "3:05–3:40",
     "title": "Better than smart charging",
     "screen": "Slide 8. Point at the green bar last.",
-    "say": "Is the AI worth it? For evening drivers, our example public hub stores surplus overnight in a battery. It's hypothetical; we haven't built it. That stored power reaches the charger for about twenty cents a kilowatt-hour, all costs in. In the evening peak, smart charging pays thirty-four cents, or twenty-six if surplus is already on the grid. In the morning it can use sixteen-cent night power, so we don't make an offer at all.",
+    "say": "Is the AI worth it? Our example public hub stores surplus overnight in a battery. It's hypothetical; we haven't built it. That power reaches the charger for about twenty cents a kilowatt-hour, all costs in. Smart charging pays thirty-four cents at the evening peak, or twenty-six with surplus on the grid. In the morning, night power is cheaper, so we make no offer.",
     "caption": "Stored surplus ≈ €0.20/kWh all-in, against smart charging at €0.34 or €0.26 in the evening. Mornings: €0.16, no offer.",
     "evidence": "E9, E10, E11"
   },
   {
-    "time": "3:45–4:05",
+    "time": "3:40–4:00",
     "title": "Booking",
     "screen": "Slide 9 with recording 4 (EV page, SaveThePlanet Rewards, 20 s): Join free (demo), an evening with an offer, 20 kWh, Reserve, the split line.",
     "say": "For a driver it's two taps: join for free, pick an evening window, reserve. The price is fixed before they arrive, and anyone can still charge at the normal price without joining.",
@@ -72,23 +72,23 @@
     "evidence": ""
   },
   {
-    "time": "4:05–4:50",
+    "time": "4:00–4:40",
     "title": "Who earns",
     "screen": "Slide 10. The bar first, then the three monthly numbers, left to right.",
-    "say": "In the evening we save between six and fourteen cents a kilowatt-hour. Call it ten. On a twenty kilowatt-hour charge that's two euro of extra saving. The driver gets one euro off, the operator keeps fifty cents, and we keep fifty cents. That's revenue, not profit. Over a month of four hundred charges, drivers save four hundred euro. After paying its own costs the operator makes a hundred euro, and we make forty. The operator breaks even at two hundred charges a month, and we break even at three hundred.",
+    "say": "In the evening we save between six and fourteen cents a kilowatt-hour. Call it ten. On a twenty kilowatt-hour charge that's two euro: one euro off for the driver, fifty cents for the operator, fifty cents for us. That's revenue, not profit. Over a month of four hundred charges, drivers save four hundred euro, and after costs the operator makes a hundred and we make forty. We break even at three hundred charges, the operator at two hundred.",
     "caption": "A €2.00 saving per charge: €1.00 driver, €0.50 operator, €0.50 SaveThePlanet. 400 charges a month: €400, +€100, +€40.",
     "evidence": "E12, E13"
   },
   {
-    "time": "4:50–5:30",
+    "time": "4:40–5:15",
     "title": "CO₂",
     "screen": "Slide 11.",
-    "say": "For the climate, those four hundred charges put eight thousand kilowatt-hours of stored surplus into cars. About fifteen percent is lost in the battery, and we count that loss. Power bought on a forecast that turned out wrong is treated as ordinary grid power and never offered. At a quarter of a kilo of CO₂ for each kilowatt-hour of grid power it replaces, that's about two tonnes a month from one site. It's an estimate, and we show exactly how we got it.",
+    "say": "For the climate, those four hundred charges put eight thousand kilowatt-hours of stored surplus into cars. We count the fifteen percent lost in the battery, and power bought on a wrong forecast counts as ordinary grid power. At a quarter of a kilo of CO₂ per kilowatt-hour of grid power replaced, that's about two tonnes a month from one site: an estimate, and we show how we got it.",
     "caption": "8,000 kWh into cars from about 9,450 kWh stored. About 2 t CO₂ a month per site (estimate).",
     "evidence": "E14, E15"
   },
   {
-    "time": "5:30–6:10",
+    "time": "5:15–5:55",
     "title": "Growing with EVs",
     "screen": "Slide 12. Read the green part of each bar from top to bottom, then point at the violet.",
     "say": "And our business grows as the EV market grows. In this replayed week, today's EVs could use about thirty percent of the spare power we can reach. As more depots, workplaces and public chargers join, that rises to nearly sixty, then over eighty percent. What cars can't use fills the battery, and once it's full, the surplus goes towards ESB's hydrogen plants instead of being wasted. We'd start with one Irish site, then repeat it.",
@@ -96,17 +96,17 @@
     "evidence": "E16, E18, E19, E20"
   },
   {
-    "time": "6:10–6:40",
+    "time": "5:55–6:15",
     "title": "Proof",
     "screen": "Slide 13.",
-    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and seventy-five automated tests run on every change. The splits and profits you've just seen come straight from that code, and replaying the same day always gives the same answer.",
+    "say": "Under the hood, EirGrid's data feeds the GridToEv model, a site check and a settlement ledger that works in whole cents. Four hundred and seventy-five automated tests run on every change, and replaying the same day always gives the same answer.",
     "caption": "EirGrid data, GridToEv forecast, site check, settlement ledger, app. 475 tests on every change.",
     "evidence": "E17"
   },
   {
-    "time": "6:40–7:00",
+    "time": "6:15–6:35",
     "title": "Close",
-    "screen": "Slide 14. Finish by 6:55.",
+    "screen": "Slide 14. You should finish around 6:35, well inside 7:00.",
     "say": "Ireland is turning clean power away. SaveThePlanet turns it into cheaper charging for drivers, new income for charging operators, and surplus for hydrogen. Next, we want one operator to pilot it with us. Thank you.",
     "caption": "SaveThePlanet: cheaper EV charging, and surplus for hydrogen, from power Ireland would otherwise turn away.",
     "evidence": ""
