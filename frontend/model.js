@@ -19,6 +19,8 @@ const modelState = {
 };
 let healthRequest = 0;
 let modelRequest = 0;
+let modelUpdateTimer = 0;
+let modelInputsDirty = false;
 function escapeHtml(value) {
     return String(value).replace(
         /[&<>"']/g,
@@ -199,6 +201,10 @@ function renderLive() {
     liveRender = false;
 }
 async function loadModelForecast(live = false) {
+    if (live && modelInputsDirty) return; // an in-progress edit takes precedence over timed refresh
+    clearTimeout(modelUpdateTimer);
+    modelUpdateTimer = 0;
+    modelInputsDirty = false;
     const request = ++modelRequest;
     clearTimeout(liveTimer);
     if (!live) {
@@ -290,15 +296,74 @@ document.addEventListener("change", (event) => {
         render();
     }
 });
-document.addEventListener("submit", (event) => {
-    if (event.target.id !== "model-capacity-form") return;
-    event.preventDefault();
-    const capacity = Number(document.getElementById("model-capacity").value);
-    if (!Number.isFinite(capacity) || capacity < 0.001 || capacity > 10000)
-        return;
-    modelState.capacity = capacity;
-    loadModelForecast();
+// Settings and legacy forms share one debounced automatic update. Inputs are forecast
+// what-if assumptions, not physical EV charging measurements or the Rewards ledger.
+const modelInputKeys = {
+    "model-capacity": "capacity",
+    "scenario-total": "totalDemandKwh",
+    "scenario-flexible": "flexibleDemandKwh",
+};
+function updateModelInputs(immediate = false) {
+    const total = document.getElementById("scenario-total");
+    const flexible = document.getElementById("scenario-flexible");
+    const validation = document.getElementById("scenario-validation");
+    const demandInvalid = flexible && total && flexible.value !== "" && total.value !== ""
+        && Number(flexible.value) > Number(total.value);
+    const message = demandInvalid ? "Flexible demand must not exceed total demand." : "";
+    if (flexible) flexible.setCustomValidity(message);
+    if (validation) validation.textContent = message;
+    const changes = {};
+    for (const [id, key] of Object.entries(modelInputKeys)) {
+        const input = document.getElementById(id);
+        if (!input) continue;
+        if (input.value === "" || !input.validity.valid || !Number.isFinite(Number(input.value))) {
+            clearTimeout(modelUpdateTimer);
+            modelUpdateTimer = 0;
+            // A previously edited value may not have been sent; retry once inputs are valid.
+            // Preserve the dirty flag so restoring the same value still updates the server.
+            return;
+        }
+        changes[key] = Number(input.value);
+    }
+    if (!Object.keys(changes).length) return;
+    const changed = Object.entries(changes).some(([key, value]) => modelState[key] !== value);
+    if (!changed && !modelInputsDirty) return;
+    Object.assign(modelState, changes);
+    modelInputsDirty = true;
+    clearTimeout(modelUpdateTimer);
+    if (immediate) loadModelForecast();
+    else modelUpdateTimer = setTimeout(() => loadModelForecast(), 500);
+}
+document.addEventListener("input", (event) => {
+    if (Object.hasOwn(modelInputKeys, event.target.id)) updateModelInputs();
 });
+document.addEventListener("change", (event) => {
+    if (Object.hasOwn(modelInputKeys, event.target.id)) updateModelInputs();
+});
+document.addEventListener("submit", (event) => {
+    if (!["model-capacity-form", "charging-scenario-form"].includes(event.target.id)) return;
+    event.preventDefault();
+    updateModelInputs(true);
+});
+// Re-renders should not erase in-progress scenario edits or drop keyboard focus.
+function captureModelInputs() {
+    return Object.keys(modelInputKeys).map(id => {
+        const input = document.getElementById(id);
+        return input ? { id, input, focused: input === document.activeElement } : null;
+    }).filter(Boolean);
+}
+function restoreModelInputs(inputs) {
+    for (const saved of inputs) {
+        const replacement = document.getElementById(saved.id);
+        if (!replacement) continue;
+        replacement.replaceWith(saved.input);
+        if (saved.focused) saved.input.focus({ preventScroll: true });
+    }
+    const total = document.getElementById("scenario-total");
+    const flexible = document.getElementById("scenario-flexible");
+    const validation = document.getElementById("scenario-validation");
+    if (flexible && total && validation) validation.textContent = flexible.validationMessage || "";
+}
 document.addEventListener("click", (event) => {
     if (event.target.closest("#model-retry")) loadModelForecast();
     if (event.target.closest("#model-health-check")) loadModelHealth(true);
