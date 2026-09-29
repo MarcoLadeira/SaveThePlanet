@@ -4,7 +4,9 @@
 // Every figure comes from the energy bridge (POST /api/v1/charging/optimize, loaded by bridge.js into
 // modelState.plan for the pinned half-hour and the chosen fleet); nothing is recomputed here.
 
-const evKwh = (value) => `${n(Math.round(value * 10) / 10)} kWh`;
+// Energy on this page is shown in MWh (the optimizer works in kWh): 65 kWh reads as 0.065 MWh.
+const evMwhNum = (kwh) => new Intl.NumberFormat('en-IE', { maximumFractionDigits: 3 }).format(kwh / 1000);
+const evMwh = (kwh) => `${evMwhNum(kwh)} MWh`;
 const evPlain = (text) => String(text).replace(/ \(hypothetical\)/g, '');
 
 // ---------- KPI row ----------
@@ -18,9 +20,9 @@ function evKpis(plan, alt) {
     : '<span class="cg-pill is-flat">→ 0%</span>';
   return `<section class="cg-kpis" aria-label="Optimised plan for the selected half-hour">
     ${evKpi('green', 'car', 'Cars fully charged', `${n(o.vehiclesMet)}`, `of ${n(total)}`, `<span class="cg-pill is-share">${n(b.vehiclesMet)}</span>`, 'if they charge on arrival')}
-    ${evKpi('green', 'leaf', 'Charged on renewable energy', n(Math.round(o.window.chargedKwh * 10) / 10), 'kWh', gain, `vs ${n(Math.round(b.window.chargedKwh * 10) / 10)} on arrival`)}
-    ${evKpi('orange', 'charge', 'Into EV batteries', n(Math.round(L.batteryDeliveredKwh * 10) / 10), 'kWh', `<span class="cg-pill is-share">≈ ${n(Math.round(planImpact(L).rangeKm))} km</span>`, 'of driving')}
-    ${evKpi('purple', 'battery', 'Charge still missing', n(Math.round(o.unmetKwh * 10) / 10), 'kWh', `<span class="cg-pill ${o.vehiclesMissed ? 'is-down' : 'is-share'}">${n(o.vehiclesMissed)}</span>`, o.vehiclesMissed === 1 ? 'car leaves short' : 'cars leave short')}
+    ${evKpi('green', 'leaf', 'Charged on renewable energy', evMwhNum(o.window.chargedKwh), 'MWh', gain, `vs ${evMwhNum(b.window.chargedKwh)} on arrival`)}
+    ${evKpi('orange', 'charge', 'Into EV batteries', evMwhNum(L.batteryDeliveredKwh), 'MWh', `<span class="cg-pill is-share">≈ ${n(Math.round(planImpact(L).rangeKm))} km</span>`, 'of driving')}
+    ${evKpi('purple', 'battery', 'Charge still missing', evMwhNum(o.unmetKwh), 'MWh', `<span class="cg-pill ${o.vehiclesMissed ? 'is-down' : 'is-share'}">${n(o.vehiclesMissed)}</span>`, o.vehiclesMissed === 1 ? 'car leaves short' : 'cars leave short')}
   </section>`;
 }
 
@@ -79,15 +81,13 @@ function evTimelineCard() {
       : '<div class="cg-skeleton" role="status"><i></i><span>Replaying the day…</span></div>'}</section>`;
   }
   const peak = Math.max(...d.cars), peakAt = d.times[d.cars.indexOf(peak)], total = dayPlan.data.totals.potentialFullCharges ?? d.cars.reduce((a, b) => a + b, 0);
-  const ref = dayPlan.data.evEquivalent?.referenceBatteryKwh || 70;
   return `<section class="dash-card cg-card ev-timeline">${head}
     <div class="ev-day-stats">
       <div class="ev-day-stat"><strong>${n(Math.round(total))}</strong><span>cars could charge<br>across the day</span></div>
       <div class="ev-day-stat is-peak"><strong>${n(Math.round(peak))}</strong><span>cars in the best half-hour<br>at <b>${escapeHtml(modelTime(peakAt))}</b></span></div>
     </div>
     <ul class="cg-legend ev-day-legend"><li><i class="ev-key-pred"></i>Predicted (+30 min) → cars that can charge</li>${evSelectedSlot(d.times) >= 0 ? '<li><i class="ev-key-sel"></i>Your half-hour</li>' : ''}</ul>
-    <div class="ev-day-plot" data-ev-day-plot>${chartSlot('evDay', `Potential full EV charges in each half-hour of ${day}, from the +30 minute forecast. Most: ${Math.round(peak)} at ${modelTime(peakAt)}.`, 'ev-day-chart')}<div class="ev-day-tip" hidden></div></div>
-    <p class="ev-day-note">1 car = one ${n(ref)} kWh battery charged from empty to full with the forecast energy at risk (after 10% charging loss). An estimate, not cars actually charged.</p></section>`;
+    <div class="ev-day-plot" data-ev-day-plot>${chartSlot('evDay', `Potential full EV charges in each half-hour of ${day}, from the +30 minute forecast. Most: ${Math.round(peak)} at ${modelTime(peakAt)}.`, 'ev-day-chart')}<div class="ev-day-tip" hidden></div></div></section>`;
 }
 // Hover: the half-hour under the pointer, its forecast and cars.
 document.addEventListener('pointermove', (event) => {
@@ -111,7 +111,7 @@ document.addEventListener('pointerleave', (event) => {
 
 // ---------- charge on arrival vs smart plan ----------
 function evCompareCard(plan, alt) {
-  const b = alt.baseline, o = alt.optimized, imp = alt.improvement, cars = o.vehicles.length, extra = evKwh(imp.claimedKwh);
+  const b = alt.baseline, o = alt.optimized, imp = alt.improvement, cars = o.vehicles.length, extra = evMwh(imp.claimedKwh);
   const lost = b.vehiclesMet - o.vehiclesMet, carWord = (k) => (k === 1 ? 'car' : 'cars');
   let verdict, tone = 'is-good';
   if (imp.improved && lost <= 0) verdict = `The smart plan charges <b>${extra} more on renewable energy</b> (+${n(Math.round(imp.claimedPercent * 10) / 10)}%)${lost < 0 ? ` and gets ${n(-lost)} more ${carWord(-lost)} ready` : ', and every car is still ready on time'}.`;
@@ -127,9 +127,9 @@ function evCompareCard(plan, alt) {
   return `<section class="dash-card cg-card ev-compare">${cgHead('green', 'swap', 'Charge on arrival vs smart plan', 'Same cars, chargers and leaving times · simulated')}
     <p class="ev-verdict ${tone}">${verdict}</p>
     <table class="ev-table"><thead><tr><th></th><th scope="col">Charge on arrival</th><th scope="col">Smart plan</th></tr></thead><tbody>
-      ${row('Charged on renewable energy', b.window.chargedKwh, o.window.chargedKwh, evKwh, true)}
+      ${row('Charged on renewable energy', b.window.chargedKwh, o.window.chargedKwh, evMwh, true)}
       ${row('Cars ready on time', b.vehiclesMet, o.vehiclesMet, (v) => `${n(Math.round(v))} of ${n(cars)}`, true)}
-      ${row('Charge still missing', b.unmetKwh, o.unmetKwh, evKwh, false)}
+      ${row('Charge still missing', b.unmetKwh, o.unmetKwh, evMwh, false)}
     </tbody></table>
     <p class="ev-limit"><b>What limits it:</b> ${limits.length ? escapeHtml(limits.join(' ')) : 'nothing, the plan used everything it could.'}</p></section>`;
 }
