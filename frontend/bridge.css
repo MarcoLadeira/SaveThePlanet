@@ -230,3 +230,14 @@
 .bridge-layout .bridge-used-track i.is-storage { border-radius: 0; }
 .bridge-layout .bridge-used-track i.is-left { position: absolute; top: 0; bottom: 0; border-radius: 0; background: #e0691e; opacity: .85; }
 .bridge-layout .bridge-used-head b { white-space: nowrap; text-transform: none; }
+
+/* Battery level on the picture: a green fill masked to the cabinets, rising to --level, with a bright waterline. */
+.bridge-level { position: absolute; inset: 0 0 8px; pointer-events: none; -webkit-mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat; mask: url("./assets/dashboard-grid-battery.webp") center / contain no-repeat;
+  /* The front cabinets span roughly the bottom 4%-62% of the picture, so the waterline maps the level onto them. */
+  --wl: calc(4% + var(--level) * .58);
+  background: linear-gradient(to top, rgba(79, 217, 155, .34) 0, rgba(79, 217, 155, .2) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) calc(var(--wl) - 1.2%), rgba(190, 255, 220, .95) var(--wl), transparent var(--wl));
+  mix-blend-mode: screen; transition: background .6s ease; }
+.bridge-stat em { color: var(--bridge-muted); font-size: 12px; font-style: normal; font-weight: 700; }
+.bridge-added { grid-column: 1 / -1; display: flex; align-items: center; gap: 7px; margin: 0; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }
+.bridge-added i { width: 10px; height: 10px; border-radius: 3px; background: var(--bridge-ink); }
+.bridge-layout .bridge-charge b small { margin-left: 4px; color: var(--bridge-muted); font-size: 12px; font-weight: 700; }

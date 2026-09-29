@@ -80,8 +80,10 @@ test('grid battery: stored energy, charge bar from its starting level, and its s
   const { dashCharts } = load(30, [alt]);
   const values = dashCharts.bridgeBattery.values();
   const html = dashCharts.bridgeBattery.draw(values);
-  assert.match(html, /Stored in battery<\/span><strong>2\.25<small>MWh/);
-  assert.match(html, /<b>40% → 63%<\/b>/);  // whole percentages for the pitch
+  assert.match(html, /Battery level<\/span><strong>63%<small>full<\/small><\/strong><em>6\.25 of 10 MWh<\/em>/);
+  assert.match(html, /Room left<\/span><b>3\.75<small>MWh<\/small><\/b>/);
+  assert.match(html, /\+2\.25 MWh stored this half-hour · 40% → 63%/);  // whole percentages for the pitch
+  assert.match(html, /class="bridge-level" style="--level:62\.5%"/);
   assert.doesNotMatch(html, /kWh/);
   assert.match(html, /is-start" style="width:40%/);
   assert.match(html, /is-added" style="left:40%;width:22\.5/);

@@ -184,13 +184,17 @@ dashCharts.bridgeBattery = {
   },
   // The battery fills from its starting charge.
   start: (target) => ({ ...target, rise: 0, ...(target.end === undefined ? {} : { grid: 0, stored: 0, end: target.start }) }),
+  // The battery's level after this half-hour, drawn on the cabinets themselves (a fill masked to the picture),
+  // then the same level as a number, the room left and what this half-hour added.
   draw(v) {
     if (v.end === undefined) return bridgeRoutingCopy(v);
     const start = Math.max(0, Math.min(1, v.start)), end = Math.max(start, Math.min(1, v.end));
-    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"></div>
-    <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Stored in battery</span><strong>${bridgeMwh(v.stored).replace(' MWh', '<small>MWh</small>')}</strong></div>
-      <div class="bridge-charge"><span>Charge</span><b>${bridgePct(v.start)} → ${bridgePct(v.end)}</b></div>
-      <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div></div>`;
+    const level = +(end * 100).toFixed(3), big = (kwhValue) => bridgeMwh(kwhValue).replace(' MWh', '<small>MWh</small>');
+    return `<div class="bridge-cabinet-art is-yard" aria-hidden="true"><img src="./assets/dashboard-grid-battery.webp" alt="" decoding="async"><div class="bridge-level" style="--level:${level}%"></div></div>
+    <div class="bridge-battery-copy is-grid"><div class="bridge-stat"><span>Battery level</span><strong>${bridgePct(end)}<small>full</small></strong><em>${bridgeMwh(end * v.capacity).replace(' MWh', '')} of ${bridgeMwh(v.capacity)}</em></div>
+      <div class="bridge-charge"><span>Room left</span><b>${big((1 - end) * v.capacity)}</b></div>
+      <div class="bridge-soc"><i class="is-start" style="width:${+(start * 100).toFixed(3)}%"></i><i class="is-added" style="left:${+(start * 100).toFixed(3)}%;width:${+((end - start) * 100).toFixed(3)}%"></i></div>
+      <p class="bridge-added"><i></i>+${bridgeMwh(v.stored)} stored this half-hour · ${bridgePct(start)} → ${bridgePct(end)}</p></div>`;
   },
 };
 
