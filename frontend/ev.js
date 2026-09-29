@@ -4,10 +4,10 @@
 // Every figure comes from the energy bridge (POST /api/v1/charging/optimize, loaded by bridge.js into
 // modelState.plan for the pinned half-hour and the chosen fleet); nothing is recomputed here.
 
-let evMode = 'current'; // Energy & Rewards (charging.js) stays the default view.
+let evMode = 'comparison'; // The EV page opens on Compare charging plans; Energy & Rewards (charging.js) is one click away.
 let evView = 'optimized';
 function evModeToggle() {
-  return `<div class="ev-toggle ev-mode-toggle" role="group" aria-label="EV page view"><button type="button" data-ev-mode="current" aria-pressed="${evMode === 'current'}" class="${evMode === 'current' ? 'is-on' : ''}">Energy & Rewards</button><button type="button" data-ev-mode="comparison" aria-pressed="${evMode === 'comparison'}" class="${evMode === 'comparison' ? 'is-on' : ''}">Compare charging plans</button></div>`;
+  return `<div class="ev-toggle ev-mode-toggle" role="group" aria-label="EV page view"><button type="button" data-ev-mode="comparison" aria-pressed="${evMode === 'comparison'}" class="${evMode === 'comparison' ? 'is-on' : ''}">Compare charging plans</button><button type="button" data-ev-mode="current" aria-pressed="${evMode === 'current'}" class="${evMode === 'current' ? 'is-on' : ''}">Energy & Rewards</button></div>`;
 }
 // Plain names: the backend's baseline charges each car on arrival; the optimised plan shares the renewable window.
 const EV_VIEWS = [['baseline', 'Charge on arrival'], ['optimized', 'Smart plan']];
