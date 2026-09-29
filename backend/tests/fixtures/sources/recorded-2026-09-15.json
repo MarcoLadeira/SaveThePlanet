@@ -1,0 +1,13 @@
+{
+ "status": "pending",
+ "target_date_utc": "2026-09-15",
+ "source_latest_timestamp_utc": "2026-08-31T22:30:00+00:00",
+ "wind_curtailment_mwh": null,
+ "solar_curtailment_mwh": null,
+ "total_curtailment_mwh": null,
+ "wind_share_percent": null,
+ "solar_share_percent": null,
+ "complete_half_hour_count": 0,
+ "summary": "EirGrid has not yet published a complete day of figures for 2026-09-15. Try again after the archive is refreshed.",
+ "half_hours": []
+}

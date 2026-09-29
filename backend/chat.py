@@ -14,6 +14,8 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from scenario import GRID_INTENSITY_T_PER_MWH
+
 GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
 PAGES = ('overview', 'forecast', 'charging', 'impact', 'settings')
 INTENTS = ('at_risk', 'recovery', 'fleet_plan', 'impact', 'breakdown', 'uncertainty', 'concept', 'navigation', 'off_topic')
@@ -38,8 +40,8 @@ FOLLOW_UP = {'at_risk': 'How much could EV charging recover?', 'recovery': "Why 
 FLEET_FOLLOW_UPS = ('Which deadline is limiting us?', "Why can't all the energy be used?", 'Why this charging window?')
 STANDARD_TEXT = {
     'at_risk': 'Predicted renewable energy that could be dispatched down in each forecast interval.',
-    'recovery': 'Energy flexible EV charging could absorb with your charging inputs. The two targets are alternatives; do not add them.',
-    'impact': 'Projected outcome if flexible charging runs at the selected target. Nothing here has been measured.',
+    'recovery': 'Energy the simulated EV fleet and grid battery could capture in this half-hour, as on the Dashboard. The two forecasts are alternatives; do not add them.',
+    'impact': 'Projected outcome of the Dashboard plan for the selected half-hour. Nothing here has been measured.',
     'breakdown': 'How the predicted dispatch-down splits between curtailment and grid constraints. These are predicted components, not proven causes.',
     'uncertainty': 'The model\'s lower (P10) and upper (P90) estimates around its central forecast for each interval.',
     'fleet_plan': 'The fleet plan for this half-hour is not available right now. The Charging page shows it once it loads.',
@@ -172,6 +174,10 @@ def build_facts(forecast, scenario, horizon, plan=None):
             potentialRecoveryMwh=r1(o.get('potentialRecoveryMwh')), remainingAtRiskMwh=r1(o.get('remainingWasteMwh')),
             recoveryRatePct=pct(o.get('recoveryRate')), cleanChargingSharePct=pct(o.get('cleanChargingShare')),
         ))
+    fleet = fleet_facts(plan, horizon)
+    if fleet:  # the pages show the plan, not the demand scenario: never give Volt both to quote
+        for target in targets:
+            target.update(potentialRecoveryMwh=None, remainingAtRiskMwh=None, recoveryRatePct=None, cleanChargingSharePct=None)
     simulated = forecast['dataMode'] == 'simulated'
     stale = bool(forecast.get('stale'))
     selection = forecast.get('selection') or {}
@@ -184,10 +190,11 @@ def build_facts(forecast, scenario, horizon, plan=None):
         selectionNote=None if simulated else selection.get('note'),
         modelVersion=forecast['modelVersion'], targetAt=forecast['predictions'][0]['targetAt'],
         intervalMinutes=forecast['intervalMinutes'], selectedHorizonMinutes=horizon,
-        flexibleCapacityMw=forecast['flexibleCapacityMw'], totalDemandMwh=r1(scenario['totalDemandMwh']),
-        flexibleDemandMwh=r1(scenario['flexibleDemandMwh']),
+        flexibleCapacityMw=forecast['flexibleCapacityMw'],
+        totalDemandMwh=None if fleet else r1(scenario['totalDemandMwh']),
+        flexibleDemandMwh=None if fleet else r1(scenario['flexibleDemandMwh']),
         recommendedHorizonMinutes=scenario['recommendedHorizonMinutes'], targets=targets,
-        fleetPlan=fleet_facts(plan, horizon),
+        fleetPlan=fleet,
     )
 
 
@@ -211,6 +218,9 @@ def fleet_facts(plan, horizon):
         batteryKwh=r1(ledger['batteryDeliveredKwh']), lossKwh=r1(ledger['chargingLossKwh']),
         utilizationPct=None if ledger['utilizationFraction'] is None else r1(ledger['utilizationFraction'] * 100),
         ledgerOutcome=ledger['outcome'], networkEligibility=plan.get('networkEligibility'),
+        # Captured = to EV chargers + to the grid battery; CO2 as on the Battery page (backend/dayplan.py).
+        capturedKwh=r1(ledger['allocatedToChargersGridKwh'] + ledger['allocatedToRealStorageKwh']),
+        co2AvoidedKg=r1((ledger['allocatedToChargersGridKwh'] + (ledger.get('storage') or {}).get('storedKwh', 0)) * GRID_INTENSITY_T_PER_MWH),
         # The simulated grid battery (backend/storage.py): grid kWh it took and its charge before/after, or None.
         gridBattery=grid_battery_facts(ledger.get('storage')),
         gainKwh=r1(alt['improvement']['claimedKwh']), improved=alt['improvement']['improved'],
@@ -254,6 +264,24 @@ def build_card(intent, facts):
             meta.append(dict(label='Main predicted component', value=selected['mainComponent']['name']))
         return dict(title='Renewable energy at risk', note=separate, meta=meta,
                     rows=[row(t['atRiskMwh'], 'MWh', tag(t), t) for t in targets if t['atRiskMwh'] is not None])
+    plan = facts.get('fleetPlan')
+    if intent == 'recovery' and plan:
+        at, battery = dict(targetAt=plan['windowStartAt']), plan.get('gridBattery')
+        rows = [row(plan['plannedKwh'], 'kWh', 'To simulated EV chargers', at),
+                *([row(battery['gridKwh'], 'kWh', 'To the simulated grid battery', at)] if battery else []),
+                row(plan['unallocatedKwh'], 'kWh', 'Eligible forecast energy left unallocated', at)]
+        meta = [dict(label='Forecast', value=f"+{plan['horizonMinutes']} min"),
+                dict(label='Vehicles fully charged', value=f"{plan['vehiclesMet']} of {plan['vehiclesTotal']} (simulated)")]
+        return dict(title='EV fleet and grid battery could capture', rows=rows, meta=meta,
+                    note='The Dashboard plan for this half-hour: a simulated fleet and battery, not measured charging.')
+    if intent == 'impact' and plan:
+        at, battery = dict(targetAt=plan['windowStartAt']), plan.get('gridBattery')
+        rows = [row(plan['capturedKwh'], 'kWh', 'Captured by EVs and the grid battery', at),
+                row(plan['batteryKwh'], 'kWh', 'Into EV batteries (after losses)', at),
+                *([row(battery['storedKwh'], 'kWh', 'Stored in the grid battery', at)] if battery else []),
+                row(plan['co2AvoidedKg'], 'kg CO2', 'Estimated CO2 avoided', at)]
+        return dict(title='Projected impact', rows=rows, meta=[dict(label='Forecast', value=f"+{plan['horizonMinutes']} min")],
+                    note='The Dashboard plan for this half-hour, not measured charging or emissions.')
     if intent == 'recovery':
         rows = [row(t['potentialRecoveryMwh'], 'MWh', f"{tag(t)} · {t['recoveryRatePct']}% of at-risk" if t['recoveryRatePct'] is not None else tag(t), t)
                 for t in targets if t['potentialRecoveryMwh'] is not None]

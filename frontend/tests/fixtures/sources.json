@@ -1,0 +1,1301 @@
+{
+ "coverage": {
+  "archiveFrom": "2021-01-01",
+  "archiveLastHalfHour": "2026-08-31T22:30:00+00:00",
+  "solarFrom": "2023-03-31T23:00:00+00:00",
+  "completeFrom": "2023-04-01",
+  "completeTo": "2026-08-30",
+  "completeDays": 1248,
+  "source": "EirGrid half-hourly dispatch-down workbooks, Ireland (IE), Wind and Solar rows",
+  "notice": "Recorded outcomes only, not predictions. Before solar was first published, days return wind only with solar unknown. Later days are pending until the archive is refreshed.",
+  "from": "2021-01-01",
+  "to": "2026-09-28",
+  "forecastFrom": "2024-04-01",
+  "suggestedDay": "2026-08-30"
+ },
+ "info": {
+  "status": "ok",
+  "version": "2.0.0-sources-experimental",
+  "parentVersion": "2.0.0-daily-experimental",
+  "experimental": true,
+  "method": "physics_share",
+  "plainLanguage": "When the grid must waste renewable power, EirGrid cuts wind and solar roughly in proportion to how much each could produce. This model estimates that from the day-ahead wind and sunshine forecast, scaled by how much wind and solar capacity is installed, and uses it to split V2's predicted daily total.",
+  "formula": "p_wind = 1 / (1 + exp(-(intercept + slope * ln((wind_energy + 1) / (solar_energy + 1))))); solar_energy = solar_capacity_proxy_mw * mean regional forecast irradiance (kWh/m2/day); wind_energy = wind_capacity_proxy_mw * 24 * clip((v - cut_in) / (rated - cut_in), 0, 1) ** exponent, v = mean regional forecast 100 m wind speed (m/s)",
+  "intercept": -0.006300965543418819,
+  "slope": 0.6318734222411123,
+  "fittedOn": [
+   "2024-04-01",
+   "2025-12-31"
+  ],
+  "constants": {
+   "capacity_publication_months": 2,
+   "capacity_window_days": 365,
+   "wind_cut_in_ms": 3.0,
+   "wind_rated_ms": 12.0,
+   "wind_curve_exponent": 1.5
+  },
+  "capacityRule": "Maximum IE availability over the 365 days ending on the last day of calendar month M-2 for an issue day in month M. EirGrid republishes the system workbook monthly, so month M-2 is public by then.",
+  "capacityThrough": "2026-08-31",
+  "requestable": {
+   "from": "2024-04-01",
+   "to": "2026-09-28"
+  },
+  "validation": {
+   "status": "candidate_awaiting_fresh_confirmation",
+   "fresh": {
+    "status": "pending",
+    "rows": 0,
+    "required": 60
+   },
+   "provisional": {
+    "note": "Provisional: 2026-01..08 was viewed while this method was designed, so these figures may be optimistic.",
+    "baseline": "training_monthly_share",
+    "maeMwh": 1784.242847,
+    "baselineMaeMwh": 1820.634849,
+    "solarMaeMwh": 577.806436,
+    "baselineSolarMaeMwh": 633.057268
+   }
+  },
+  "limitations": [
+   "The 2026-01..08 test had been viewed in experiment 1 and in exploratory research, so it cannot certify this candidate on its own.",
+   "The parent's daily total error still dominates; allocation improves Wind/Solar error but cannot fix a wrong total.",
+   "The capacity proxy uses observed availability, not official installed capacity, and assumes EirGrid's monthly publication cadence holds.",
+   "The share is a daily average; it does not describe which half-hours were curtailed."
+  ]
+ },
+ "days": {
+  "2026-05-10": {
+   "date": "2026-05-10",
+   "recorded": {
+    "status": "available",
+    "date": "2026-05-10",
+    "windMwh": 4352.908,
+    "solarMwh": 2564.085,
+    "totalMwh": 6916.993,
+    "windSharePercent": 62.93,
+    "solarSharePercent": 37.07,
+    "completeHalfHours": 48,
+    "archiveLatest": "2026-08-31T22:30:00+00:00",
+    "summary": "On 2026-05-10 (UTC), 6,917.0 MWh of renewable power was curtailed in Ireland: 62.93% wind (4,352.9 MWh) and 37.07% solar (2,564.1 MWh).",
+    "halfHours": [
+     {
+      "at": "2026-05-10T00:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T00:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T01:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T01:30:00Z",
+      "windMwh": 37.201,
+      "solarMwh": 0.042
+     },
+     {
+      "at": "2026-05-10T02:00:00Z",
+      "windMwh": 4.235,
+      "solarMwh": 0.006
+     },
+     {
+      "at": "2026-05-10T02:30:00Z",
+      "windMwh": 0.629,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T03:00:00Z",
+      "windMwh": 0.466,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T03:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T04:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T04:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T05:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T05:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T06:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T06:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T07:00:00Z",
+      "windMwh": 1.708,
+      "solarMwh": 1.027
+     },
+     {
+      "at": "2026-05-10T07:30:00Z",
+      "windMwh": 100.188,
+      "solarMwh": 64.306
+     },
+     {
+      "at": "2026-05-10T08:00:00Z",
+      "windMwh": 197.311,
+      "solarMwh": 91.033
+     },
+     {
+      "at": "2026-05-10T08:30:00Z",
+      "windMwh": 207.058,
+      "solarMwh": 101.187
+     },
+     {
+      "at": "2026-05-10T09:00:00Z",
+      "windMwh": 190.665,
+      "solarMwh": 100.534
+     },
+     {
+      "at": "2026-05-10T09:30:00Z",
+      "windMwh": 227.987,
+      "solarMwh": 135.478
+     },
+     {
+      "at": "2026-05-10T10:00:00Z",
+      "windMwh": 300.704,
+      "solarMwh": 158.616
+     },
+     {
+      "at": "2026-05-10T10:30:00Z",
+      "windMwh": 313.946,
+      "solarMwh": 202.04
+     },
+     {
+      "at": "2026-05-10T11:00:00Z",
+      "windMwh": 309.836,
+      "solarMwh": 204.071
+     },
+     {
+      "at": "2026-05-10T11:30:00Z",
+      "windMwh": 251.625,
+      "solarMwh": 182.221
+     },
+     {
+      "at": "2026-05-10T12:00:00Z",
+      "windMwh": 253.582,
+      "solarMwh": 177.012
+     },
+     {
+      "at": "2026-05-10T12:30:00Z",
+      "windMwh": 262.214,
+      "solarMwh": 180.214
+     },
+     {
+      "at": "2026-05-10T13:00:00Z",
+      "windMwh": 286.274,
+      "solarMwh": 185.444
+     },
+     {
+      "at": "2026-05-10T13:30:00Z",
+      "windMwh": 300.057,
+      "solarMwh": 207.17
+     },
+     {
+      "at": "2026-05-10T14:00:00Z",
+      "windMwh": 292.863,
+      "solarMwh": 190.671
+     },
+     {
+      "at": "2026-05-10T14:30:00Z",
+      "windMwh": 281.28,
+      "solarMwh": 175.109
+     },
+     {
+      "at": "2026-05-10T15:00:00Z",
+      "windMwh": 280.577,
+      "solarMwh": 97.463
+     },
+     {
+      "at": "2026-05-10T15:30:00Z",
+      "windMwh": 186.691,
+      "solarMwh": 69.111
+     },
+     {
+      "at": "2026-05-10T16:00:00Z",
+      "windMwh": 65.803,
+      "solarMwh": 41.33
+     },
+     {
+      "at": "2026-05-10T16:30:00Z",
+      "windMwh": 0.008,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T17:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T17:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T18:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T18:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T19:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T19:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T20:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T20:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T21:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T21:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T22:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T22:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T23:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-05-10T23:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     }
+    ]
+   },
+   "derived": {
+    "profile": {
+     "peak": {
+      "at": "2026-05-10T10:30:00Z",
+      "totalMwh": 515.986,
+      "windMwh": 313.946,
+      "solarMwh": 202.04
+     },
+     "solarHours": {
+      "from": "2026-05-10T07:00:00Z",
+      "to": "2026-05-10T16:30:00Z"
+     },
+     "curtailedHalfHours": 24,
+     "windOnly": false
+    },
+    "bestWindow": {
+     "start": "2026-05-10T10:30:00Z",
+     "end": "2026-05-10T14:30:00Z",
+     "slots": 8,
+     "capacityMw": 100,
+     "absorbableMwh": 400.0,
+     "curtailedMwh": 3799.24,
+     "ev": {
+      "kwh": 400000.0,
+      "charges": 13333.3,
+      "kwhPerCharge": 30,
+      "rangeKm": 2222222,
+      "co2Tonnes": 100.0
+     }
+    },
+    "recordedEv": {
+     "kwh": 6916993.0,
+     "charges": 230566.4,
+     "kwhPerCharge": 30,
+     "rangeKm": 38427739,
+     "co2Tonnes": 1729.2
+    }
+   }
+  },
+  "2026-01-31": {
+   "date": "2026-01-31",
+   "recorded": {
+    "status": "available",
+    "date": "2026-01-31",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "windSharePercent": null,
+    "solarSharePercent": null,
+    "completeHalfHours": 48,
+    "archiveLatest": "2026-08-31T22:30:00+00:00",
+    "summary": "No wind or solar power was curtailed in Ireland on 2026-01-31 (UTC).",
+    "halfHours": [
+     {
+      "at": "2026-01-31T00:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T00:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T01:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T01:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T02:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T02:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T03:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T03:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T04:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T04:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T05:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T05:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T06:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T06:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T07:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T07:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T08:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T08:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T09:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T09:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T10:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T10:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T11:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T11:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T12:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T12:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T13:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T13:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T14:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T14:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T15:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T15:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T16:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T16:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T17:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T17:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T18:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T18:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T19:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T19:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T20:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T20:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T21:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T21:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T22:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T22:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T23:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     },
+     {
+      "at": "2026-01-31T23:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": 0.0
+     }
+    ]
+   },
+   "derived": {
+    "profile": {
+     "peak": null,
+     "solarHours": null,
+     "curtailedHalfHours": 0,
+     "windOnly": false
+    },
+    "bestWindow": null,
+    "recordedEv": {
+     "kwh": 0.0,
+     "charges": 0.0,
+     "kwhPerCharge": 30,
+     "rangeKm": 0,
+     "co2Tonnes": 0.0
+    }
+   }
+  },
+  "2022-06-01": {
+   "date": "2022-06-01",
+   "recorded": {
+    "status": "solar_not_published",
+    "date": "2022-06-01",
+    "windMwh": 0.0,
+    "solarMwh": null,
+    "totalMwh": null,
+    "windSharePercent": null,
+    "solarSharePercent": null,
+    "completeHalfHours": 0,
+    "archiveLatest": "2026-08-31T22:30:00+00:00",
+    "summary": "On 2022-06-01 (UTC), 0.0 MWh of wind power was curtailed. EirGrid did not publish solar figures for Ireland before April 2023, so solar is unknown, not zero.",
+    "halfHours": [
+     {
+      "at": "2022-06-01T00:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T00:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T01:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T01:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T02:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T02:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T03:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T03:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T04:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T04:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T05:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T05:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T06:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T06:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T07:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T07:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T08:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T08:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T09:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T09:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T10:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T10:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T11:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T11:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T12:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T12:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T13:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T13:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T14:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T14:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T15:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T15:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T16:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T16:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T17:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T17:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T18:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T18:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T19:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T19:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T20:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T20:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T21:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T21:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T22:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T22:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T23:00:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     },
+     {
+      "at": "2022-06-01T23:30:00Z",
+      "windMwh": 0.0,
+      "solarMwh": null
+     }
+    ]
+   },
+   "derived": {
+    "profile": {
+     "peak": null,
+     "solarHours": null,
+     "curtailedHalfHours": 0,
+     "windOnly": true
+    },
+    "bestWindow": null,
+    "recordedEv": null
+   }
+  },
+  "2026-09-15": {
+   "date": "2026-09-15",
+   "recorded": {
+    "status": "pending",
+    "date": "2026-09-15",
+    "windMwh": null,
+    "solarMwh": null,
+    "totalMwh": null,
+    "windSharePercent": null,
+    "solarSharePercent": null,
+    "completeHalfHours": 0,
+    "archiveLatest": "2026-08-31T22:30:00+00:00",
+    "summary": "EirGrid has not yet published a complete day of figures for 2026-09-15. Try again after the archive is refreshed.",
+    "halfHours": null
+   },
+   "derived": {
+    "profile": null,
+    "bestWindow": null,
+    "recordedEv": null
+   }
+  }
+ },
+ "forecasts": {
+  "2026-05-10": {
+   "date": "2026-05-10",
+   "forecast": {
+    "status": "ok",
+    "date": "2026-05-10",
+    "version": "2.0.0-sources-experimental",
+    "parentVersion": "2.0.0-daily-experimental",
+    "experimental": true,
+    "validationStatus": "candidate_awaiting_fresh_confirmation",
+    "issuedAt": "2026-05-10T00:00:00+00:00",
+    "weatherAvailableAt": "2026-05-09T23:00:00+00:00",
+    "probability": 0.7925212179296258,
+    "totalMwh": 2034.7337277854094,
+    "windMwh": 1452.4621823242992,
+    "solarMwh": 582.2715454611102,
+    "windSharePercent": 71.38,
+    "solarSharePercent": 28.62,
+    "capacity": {
+     "windMw": 4346.66,
+     "solarMw": 943.105,
+     "dataThrough": "2026-03-31"
+    },
+    "summary": "For 2026-05-10 (UTC), V2 predicts 2,034.7 MWh of curtailment. This experimental model expects about 71% of it from wind (1,452.5 MWh) and 29% from solar (582.3 MWh).",
+    "notice": "Experimental and not yet confirmed on fresh data. The split can only be as good as V2's total, which can miss by thousands of MWh on a single day. Not a dispatch instruction."
+   },
+   "comparison": {
+    "totalErrorMwh": -4882.259,
+    "windErrorMwh": -2900.446,
+    "solarErrorMwh": -1981.813,
+    "shareErrorPoints": 8.45,
+    "nothingCurtailed": false
+   },
+   "potentialRatio": {
+    "x": 1.4563,
+    "ratio": 4.29
+   }
+  },
+  "2026-01-31": {
+   "date": "2026-01-31",
+   "forecast": {
+    "status": "ok",
+    "date": "2026-01-31",
+    "version": "2.0.0-sources-experimental",
+    "parentVersion": "2.0.0-daily-experimental",
+    "experimental": true,
+    "validationStatus": "candidate_awaiting_fresh_confirmation",
+    "issuedAt": "2026-01-31T00:00:00+00:00",
+    "weatherAvailableAt": "2026-01-30T23:00:00+00:00",
+    "probability": 0.20538604244394298,
+    "totalMwh": 52.1704428458432,
+    "windMwh": 43.2610989982862,
+    "solarMwh": 8.909343847556997,
+    "windSharePercent": 82.92,
+    "solarSharePercent": 17.08,
+    "capacity": {
+     "windMw": 4250.385,
+     "solarMw": 902.355,
+     "dataThrough": "2025-11-30"
+    },
+    "summary": "For 2026-01-31 (UTC), V2 predicts 52.2 MWh of curtailment. This experimental model expects about 83% of it from wind (43.3 MWh) and 17% from solar (8.9 MWh).",
+    "notice": "Experimental and not yet confirmed on fresh data. The split can only be as good as V2's total, which can miss by thousands of MWh on a single day. Not a dispatch instruction."
+   },
+   "comparison": {
+    "totalErrorMwh": 52.17,
+    "windErrorMwh": 43.261,
+    "solarErrorMwh": 8.909,
+    "shareErrorPoints": null,
+    "nothingCurtailed": true
+   },
+   "potentialRatio": {
+    "x": 2.5104,
+    "ratio": 12.31
+   }
+  },
+  "2026-09-15": {
+   "date": "2026-09-15",
+   "forecast": {
+    "status": "ok",
+    "date": "2026-09-15",
+    "version": "2.0.0-sources-experimental",
+    "parentVersion": "2.0.0-daily-experimental",
+    "experimental": true,
+    "validationStatus": "candidate_awaiting_fresh_confirmation",
+    "issuedAt": "2026-09-15T00:00:00+00:00",
+    "weatherAvailableAt": "2026-09-14T23:00:00+00:00",
+    "probability": 0.9615857706627287,
+    "totalMwh": 5988.848124366113,
+    "windMwh": 4927.074107176689,
+    "solarMwh": 1061.7740171894238,
+    "windSharePercent": 82.27,
+    "solarSharePercent": 17.73,
+    "capacity": {
+     "windMw": 4346.66,
+     "solarMw": 1321.745,
+     "dataThrough": "2026-07-31"
+    },
+    "summary": "For 2026-09-15 (UTC), V2 predicts 5,988.8 MWh of curtailment. This experimental model expects about 82% of it from wind (4,927.1 MWh) and 18% from solar (1,061.8 MWh).",
+    "notice": "Experimental and not yet confirmed on fresh data. The split can only be as good as V2's total, which can miss by thousands of MWh on a single day. Not a dispatch instruction."
+   },
+   "comparison": null,
+   "potentialRatio": {
+    "x": 2.4389,
+    "ratio": 11.46
+   }
+  },
+  "2022-06-01": {
+   "date": "2022-06-01",
+   "forecast": {
+    "status": "not_forecastable",
+    "message": "The wind/solar forecast starts on 1 April 2024."
+   },
+   "comparison": null,
+   "potentialRatio": null
+  }
+ },
+ "month": {
+  "month": "2026-05",
+  "days": [
+   {
+    "date": "2026-05-01",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-02",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-03",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-04",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-05",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-06",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-07",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-08",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-09",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-10",
+    "status": "available",
+    "windMwh": 4352.908,
+    "solarMwh": 2564.085,
+    "totalMwh": 6916.993,
+    "solarSharePercent": 37.07
+   },
+   {
+    "date": "2026-05-11",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-12",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-13",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-14",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-15",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-16",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-17",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-18",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-19",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-20",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-21",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-22",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-23",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-24",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-25",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-26",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-27",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-28",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-29",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-30",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   },
+   {
+    "date": "2026-05-31",
+    "status": "available",
+    "windMwh": 0.0,
+    "solarMwh": 0.0,
+    "totalMwh": 0.0,
+    "solarSharePercent": null
+   }
+  ],
+  "totals": {
+   "windMwh": 4352.908,
+   "solarMwh": 2564.085,
+   "totalMwh": 6916.993,
+   "solarSharePercent": 37.07,
+   "daysKnown": 31,
+   "daysCurtailed": 1
+  }
+ }
+}

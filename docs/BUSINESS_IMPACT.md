@@ -1,10 +1,18 @@
 # Business and environmental impact (Impact page)
 
 The Impact page (`#business`, labelled **Impact** in the navigation after EV) answers one question for a
-fleet operator: *what could smarter EV charging save?* It shows four headline figures, where the money
-comes from, whether the AI beats a simple rule, a what-if calculator and the investment case.
+charging business: *who saves and who earns when our AI finds cheaper energy?* It has two views, one
+story each, so the two scenarios' figures never sit side by side:
 
-Code: [`backend/business.py`](../backend/business.py) (simulation, money, CO2, annual projection, calculator),
+- **Who earns** (per month, the default): the SaveThePlanet Rewards business case
+  ([below](#savetheplanet-rewards-who-saves-who-earns-issue-56)). The KPI row, labelled "SaveThePlanet Rewards · illustrative replay ·
+  projected revenue, simulated profit · ex VAT", then "where the € goes" as a what-if (presets and three
+  inputs drive the 50/25/25 bar and both profit bridges) beside the energy proof.
+- **Depot savings** (per year): the depot's waterfall, the normal / basic smart / AI comparison and its
+  investment case, following the method described first.
+
+Code: [`backend/business.py`](../backend/business.py) (simulation, money, CO2, annual projection),
+[`backend/offers.py`](../backend/offers.py) (discount windows, settlement, profit, calculator, demo bookings),
 routes in [`backend/server.py`](../backend/server.py), page in [`frontend/business.js`](../frontend/business.js)
 and [`frontend/business.css`](../frontend/business.css).
 Tests: [`backend/tests/test_business.py`](../backend/tests/test_business.py),
@@ -129,7 +137,9 @@ ROI      = 5 × net − implementation         (5-year net return; example imple
 
 Multi-site scaling multiplies one site's figures; each site still needs its own charger and grid check.
 
-## What-if calculator
+## Depot what-if (API only)
+
+The page's calculator is now the discount-window one; this depot estimate stays available on the API.
 
 ```
 energy per day  = what the energy bridge can deliver overnight to N EVs at the example site
@@ -144,9 +154,155 @@ answer's `feasibility` says how many EVs fit and what limited them, and the page
 check. The bridge plans at most 200 vehicles; by then the site is long full, so more EVs add nothing.
 
 The share shifted and the price difference are the user's assumptions, so the result stays
-**illustrative**. The defaults reproduce the depot (the price difference is derived from the simulation),
-so the calculator starts where the page does. Every input changes the result (tested). Inputs are
-validated in the browser for feedback and again on the server, which is authoritative.
+**illustrative**. The defaults reproduce the depot (the price difference is derived from the simulation,
+to five decimals), so the calculator starts where the page does, within a euro of the waterfall. Every
+input changes the result (tested). Inputs are validated in the browser for feedback and again on the
+server, which is authoritative.
+
+## SaveThePlanet Rewards: who saves, who earns (issue #56)
+
+The *Who earns* view of the Impact page is the business case for **SaveThePlanet Rewards** at a
+participating public charger: drivers join for free, book a 07:00-09:00 or 17:00-19:00 **discount
+window**, arrive and plug in. Our AI serves the booking from surplus renewable energy it stored earlier,
+and **only the extra saving over basic smart charging** is shared: 50% to the driver as a discount, 25%
+to the charging operator, 25% to SaveThePlanet as a performance commission. It is a separate, optional
+scenario in [`backend/offers.py`](../backend/offers.py) (`rewards/v1`), run on the same replayed nights as
+the depot; none of the depot figures above depend on it. Tests:
+[`backend/tests/test_offers.py`](../backend/tests/test_offers.py),
+[`frontend/tests/offers.test.js`](../frontend/tests/offers.test.js) and the Impact page tests.
+
+### Commuter windows are not cheap windows
+
+07:00-09:00 and 17:00-19:00 suit commuters; they are not periods of spare or cheap energy. 17:00-19:00
+is Ireland's peak ([SEAI](https://www.seai.ie/plan-your-energy-journey/for-your-home/smart-living/smart-meters-and-tariffs)),
+cheap half-hours on dynamic tariffs move ([CRU](https://www.cru.ie/consumer-information/billing/dynamic-price-tariffs-for-electricity/)),
+and curtailment is often outside both windows and partly local
+([EirGrid](https://www.eirgrid.ie/news/eirgrid-statement-renewable-integration-and-dispatch-down)). So a
+window is offered **only** when surplus is already stored and every check passes; otherwise the EV page
+says *"No discounted window right now — next opportunity: …"* and normal charging stays open. Load is
+never moved into the peak to keep a marketing promise. In the replay, mornings are never discounted:
+off-peak grid energy (EUR 0.205/kWh) is within half a cent of stored surplus (about EUR 0.20/kWh all-in),
+too little to cover the per-session costs.
+
+### The comparable baseline and the eligible pool
+
+Every amount is per delivered session, pre-VAT, avoidable costs only:
+
+```
+basic smart cost   = cheapest tariff half-hours inside the session's own window that still deliver it
+                     at the charger's rate (a 20 kWh session at 11 kW needs almost all of 17:00-19:00,
+                     so it pays the EUR 0.34 peak; mornings mix night and day: EUR 0.205)
+AI all-in cost     = stored energy price / discharge efficiency + battery wear + network charges
+                     + extra site/session costs
+stored energy price= (tariff − surplus credit) / charge efficiency, for energy bought while curtailment
+                     was observed
+eligible pool      = max(0, basic smart cost − AI all-in cost) × kWh, in whole cents
+```
+
+With the illustrative prices, surplus bought at night costs EUR 0.08/kWh, so the delivered cost is
+0.08 / 0.92 / 0.92 + 0.04 wear + 0.04 network + 0.025 session ≈ **EUR 0.20/kWh** against the EUR 0.34 peak.
+Energy is never called free, and surplus coinciding with a window adds nothing: normal charging would
+get the same low price, so there is no extra saving to share (the energy proof shows it as 0 kWh).
+
+### The split, profit and break-even
+
+```
+driver         = half the pool (the odd cent goes to the driver)
+SaveThePlanet  = a quarter of the pool, rounded down (its commission, paid by the operator)
+operator       = the rest; driver + operator + SaveThePlanet = pool exactly
+
+SaveThePlanet operating profit = commission − its per-session cost × sessions − its monthly overhead
+operator's extra profit        = its 25% − its remaining monthly programme costs
+break-even (operator)          = ceil(operator costs ÷ operator share per session)
+break-even (SaveThePlanet)     = ceil(its overhead ÷ (commission − its cost) per session); never, if ≤ 0
+```
+
+Costs already inside the pool (energy, losses, wear, network, session) are never subtracted again.
+
+**Worked examples** (tested exactly in `SettlementTests`):
+
+| | Amount |
+|---|---:|
+| One session: 20 kWh, EUR 0.34 basic smart, EUR 0.24 AI all-in | pool **EUR 2.00** |
+| Driver discount / operator / SaveThePlanet commission | **EUR 1.00 / 0.50 / 0.50** |
+| SaveThePlanet contribution after EUR 0.10 per-session cost | EUR 0.40 |
+| A month: 400 sessions × 20 kWh × EUR 0.10 | pool **EUR 800** |
+| Drivers | EUR 400 |
+| Operator: EUR 200 − EUR 100 programme costs | **EUR 100** profit |
+| SaveThePlanet: EUR 200 − EUR 40 per-session − EUR 120 overhead | **EUR 40** operating profit |
+| Break-even | operator **200**, SaveThePlanet **300** sessions a month |
+| No eligible spare energy | no commission; operator −EUR 100, SaveThePlanet −EUR 120 a month |
+
+The page's KPIs come from the replay, not from this example: in the simulated week the hub sells 94
+sessions (6 of 7 evenings, no mornings), which projects to 403 sessions a month, EUR 1,132 of extra savings,
+EUR 568 for drivers, EUR 182.10 operator profit and EUR 121.80 operating profit for SaveThePlanet from EUR 282.10 gross
+commission. The month is the replayed sessions per day × 30, scaled like the depot by how often
+curtailment happens over a full year when that is known.
+
+### The offer gate (every window, 30 minutes before it starts)
+
+A window is offered only when all of these hold, using only what is known then:
+
+1. **Supply**: settled surplus is already stored. Energy bought on a forecast that turned out wrong
+   (no observed curtailment) is conventional grid energy: it is sold at the normal price and never offered.
+2. **Economics**: the saving, rounded down to 0.1 cent/kWh, is positive and SaveThePlanet's per-session cost is
+   covered, so both businesses have a non-negative unit contribution. If the +30 minute forecast calls
+   surplus in the window itself, the saving is judged as if normal charging got the surplus price too.
+3. **Physics**: sessions = min(assumed demand, what the site fits, battery power, stored energy).
+
+Once locked, the driver's price is honoured. If the window turns out cheaper for normal charging after
+all, the settled pool is smaller: SaveThePlanet's commission is cut first to what is left after the driver, and the
+operator carries the rest as a recorded **shortfall**. Cancelled or failed sessions pay nothing to anyone.
+Only the +30 minute forecast is used; a +60 estimate of the same half-hour is never added (tested).
+
+### Physical limits
+
+The hub has the depot's hardware: 20 × 11 kW chargers and a 180 kW connection. An 11 kW charger delivers
+at most **22 kWh** in a two-hour window, so a 40 kWh charge cannot fit. The energy bridge
+(`optimizer.run_policy` + `check_plan`) plans each window: it fits **16** sessions of 20 kWh (so at most
+960 a month across both windows). Only windows worth offering can sell a discount, so the what-if also
+counts no more than **16 × the windows a month the replay found worth offering** (about 26 in the
+simulated example; evenings only), and says which limit applied.
+
+The **battery is hypothetical** (not built, never shown as working storage): 700 kWh, 180 kW,
+92% charge and 92% discharge efficiency (85% round trip), EUR 0.04/kWh wear (an LFP pack's cost spread over its rated cycles). It fills only while the
+forecast calls surplus and the price could clear a EUR 0.05/kWh saving at the peak (night surplus does, day surplus does not); its charge carries
+from one night to the next. `optimizer.py` still models real storage as 0.
+
+### Prices and provenance
+
+| Item | Value | Status |
+|---|---|---|
+| Tariff and surplus credit | the depot's: night 0.16, day 0.26, peak 0.34, surplus credit 0.08 EUR/kWh | illustrative |
+| Public price (everyone, no booking) | EUR 0.49/kWh | illustrative |
+| Network charges on stored energy, session costs | EUR 0.04 and 0.025/kWh | illustrative |
+| Operator programme costs | EUR 100/month | illustrative |
+| SaveThePlanet costs | EUR 0.10/session, EUR 120/month | illustrative |
+| Demand | 20 drivers want each evening, 10 each morning | assumed |
+| Forecasts, curtailment | GridToEv +30 min replay, observed EirGrid | historical (or simulated when the model is down) |
+| Surplus credit deliverability | curtailment is system-wide; not confirmed with the system operator | conditional |
+
+All money is **ex VAT**; the driver's receipt adds VAT at the applicable rate to both prices. Without real
+settlement data the page says *projected revenue* and *simulated profit*, never money earned.
+
+### Drivers and the EV page
+
+The EV page's **SaveThePlanet Rewards** card is a demo: *Join free* stores a random id on the server
+(`backend/.cache/discount-window-bookings.json`), not an account; there is no reservation or payment.
+Joining is optional: anyone can charge at the public price without it, and prices are shown before
+charging ([AFIR Article 5](https://eur-lex.europa.eu/eli/reg/2023/1804/oj/eng)). A member steps through
+the replayed days, sees both windows, picks 10/15/20/22 kWh (each priced by the server) and reserves.
+Booking the same window again changes the kWh, never adds a second fee; offers carry the scenario id, so
+an offer from an older replay is refused as changed or expired. A member's demo booking is not added to
+the Impact figures.
+
+### Before quoting any of this: pilot validation
+
+- Replace the illustrative tariff, public price and costs with the operator's contract and quotes.
+- Confirm network deliverability of surplus to the site with the system operator (currently conditional).
+- Size and price a real battery (or drop the stored route); until then evening offers are hypothetical.
+- Measure real bookings, arrivals and no-shows instead of assumed demand.
+- Settle real sessions against metered data; only then can the page show earned money.
 
 ## API
 
@@ -157,8 +313,12 @@ prefetch priority, through the shared replay gate). While it runs:
 
 ```
 HTTP 202  {"version": "business-impact/v1", "status": "preparing",
-           "progress": {"done": 3, "total": 9, "stage": "Replaying historical forecasts"}}
+           "progress": {"done": 3, "total": 10, "stage": "Replaying historical forecasts"}}
 ```
+
+`total` is one step per evaluation day replayed, then `Checking a full year of observed curtailment`
+(the seasonal adjustment), then `Scoring three charging strategies` (which also builds the discount
+windows). The page turns these into a three-step checklist with a progress bar and the replay's time left.
 
 Then `HTTP 200` with the result below, cached for the life of the server (the dataset is fixed).
 `refresh=1` retries after a failure or a simulated fallback; a real result is kept. An unexpected error
@@ -198,6 +358,25 @@ Example strategy (historical replay against a local mock of GridToEv, not hosted
             "absorbedKwh": 3240.0, "co2Kg": 608.3, "unscoredKwh": 0.0, "peakKw": 180.0},
  "requirements": {"met": 140, "total": 140, "unmetKwh": 0.0, "allMet": true}}
 ```
+
+### `GET /api/v1/business/offers/estimate?sessions=&kwhPerSession=&savingEurPerKwh=[&operatorFixedEur=&platformVariableEur=&platformFixedEur=]`
+
+The Impact page's what-if calculator. Sessions 0-100,000 (whole), kWh 1-100, saving EUR 0-1/kWh; omitted
+costs use the defaults above. Sessions are capped by the site and, once the replay has finished, by the
+windows it found worth offering a month. `200 {"month": {...split, operator, platform, yearly}, "capacity":
+{"sessionsPerWindow", "maxPerMonth", "siteMaxPerMonth", "eligibleWindowsPerMonth", "requested", "counted",
+"capped", "limitedBy": "windows" | "site" | "session-kwh" | null, "limit"}, "noSpareEnergy"}` or `400` with `fields`.
+
+### `GET /api/v1/business/offers?member=` and `POST /api/v1/business/offers`
+
+The EV page card. GET returns `202` while the week is replayed, then the offers of the replay (each with
+its status, reason, next opportunity, locked prices and server-priced `quotes`) and the demo member's
+bookings. POST `{"member", "action": "join" | "leave" | "book" | "cancel", "offerId", "kwh"}` returns the
+member, or `409 OFFER_UNAVAILABLE` with a message for the driver.
+
+The discount-window section of `GET /api/v1/business/impact` is `discountWindows`: `kpis`, `month`, `scenarios`
+(`expected`, `evaluationWeek`, `noSurplus`, `example`), `calculator`, `offers`, `ledger` (settled sessions and
+euros, `balanced`), `energy` (sources, battery, calls, network) and the labelled assumptions.
 
 ### `GET /api/v1/business/estimate?evs=&shiftablePct=&priceDiffEurPerKwh=&operatingDays=[&implementationEur=&annualEur=]`
 

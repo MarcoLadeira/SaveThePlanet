@@ -16,7 +16,7 @@
 }
 
 /* Small green text needs the lighter green to stay readable on dark cards. */
-[data-current-page="business"][data-theme="dark"] :is(.bz-req.is-met,.bz-wf-col.is-down .bz-wf-bar em,.bz-out-label,.bz-link:not(.is-quiet),.bz-range-values .is-mid small,.bz-chip.is-busy,.bz-scn-icon){color:var(--green-top)}
+[data-current-page="business"][data-theme="dark"] :is(.bz-req.is-met,.bz-wf-col.is-down .bz-wf-bar em,.bz-updating,.bz-link:not(.is-quiet),.bz-chip.is-busy,.bz-scn-icon,.is-profit>b,b.is-profit,span.is-profit,.bz-kpi.is-profit .bz-kpi-figure strong){color:var(--green-top)}
 
 /* ---------- Header scenario indicator ---------- */
 [data-current-page="business"] .studio-header{min-height:64px}
@@ -37,27 +37,44 @@
 @keyframes bz-pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:none}}
 
 /* ---------- Layout ---------- */
-/* The bottom row has a fixed height in every state, so loading, editing and errors never shift the page. */
-.bz-layout{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) 250px;gap:12px;flex:1;min-height:0}
-.bz-kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;min-width:0}
-.bz-money{grid-column:1;grid-row:2}
-.bz-compare{grid-column:2;grid-row:2}
-.bz-calc{grid-column:1;grid-row:3}
-.bz-invest{grid-column:2;grid-row:3}
-.bz-layout.is-details .bz-invest{grid-row:2/4}
+/* Two views, one story each. Who earns: the view switcher, the KPIs, then where the € goes (with its
+   what-if) beside the energy proof. Depot savings: the waterfall beside the comparison, the investment
+   case below. Cards fill fixed cells, so editing, loading and errors never shift the page. */
+.bz-layout{display:grid;gap:12px;flex:1;min-height:0}
+.bz-layout.is-earn{grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+.bz-layout.is-depot{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.bz-views,.bz-kpis{grid-column:1/-1}
+.bz-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;min-width:0}
+.bz-layout.is-earn>.bz-split-card{grid-column:1;grid-row:3}
+.bz-layout.is-earn>.bz-energy{grid-column:2;grid-row:3}
+.bz-layout.is-depot>.bz-money{grid-column:1;grid-row:2}
+.bz-layout.is-depot>.bz-compare{grid-column:2;grid-row:2}
+.bz-layout.is-depot>.bz-invest{grid-column:1/-1;grid-row:3}
 .bz-card{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0;padding:16px 18px;border-radius:22px}
 .bz-layout>.dash-card,.bz-kpi{transition:transform .25s ease,box-shadow .25s ease}
 .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:translateY(-2px)}
-.bz-layout>.bz-invest.is-open:hover{transform:none}
 .bz-head{gap:11px;align-items:center}
 .bz-head .dash-head-copy{min-width:0;flex:1}
 .bz-head .dash-head-copy h2{font-size:16.5px;font-weight:780;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bz-head .dash-head-copy p{margin-top:1px;font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-head .dash-head-copy p{margin-top:1px;font-size:13px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- View switcher: which story, and what its figures are ---------- */
+.bz-views{display:flex;align-items:center;gap:14px;min-width:0}
+.bz-seg.is-views{flex:0 0 auto;padding:4px;border-radius:14px;background:var(--surface);box-shadow:0 2px 0 var(--edge),0 8px 22px rgba(18,74,68,.06)}
+.bz-seg.is-views button{display:flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:10px;font-size:13.5px;line-height:1}
+.bz-seg.is-views button small{font-size:11.5px;font-weight:700;opacity:.72}
+.bz-views-label{display:flex;align-items:center;gap:7px;min-width:0;margin:0!important;font-size:12.5px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-views-label svg{flex:0 0 auto}
 .bz-head-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:12px}
-.bz-head-icon.is-green,.bz-kpi.is-green .bz-kpi-icon{background:var(--green-soft);color:var(--green-deep)}
+.bz-head-icon.is-green,.bz-kpi.is-green .bz-kpi-icon,.bz-kpi.is-profit .bz-kpi-icon{background:var(--green-soft);color:var(--green-deep)}
 .bz-head-icon.is-blue,.bz-kpi.is-blue .bz-kpi-icon{background:var(--bz-blue-soft);color:var(--bz-blue)}
 .bz-head-icon.is-amber,.bz-kpi.is-amber .bz-kpi-icon{background:var(--amber-soft);color:var(--amber-deep)}
 .bz-kpi.is-teal .bz-kpi-icon{background:var(--bz-teal-soft);color:var(--bz-teal)}
+.bz-kpi.is-loss .bz-kpi-icon{background:var(--bz-bad-soft);color:var(--bz-bad)}
+.bz-kpi.is-zero .bz-kpi-icon{background:var(--surface-2);color:var(--ink-3)}
+.bz-kpi.is-profit .bz-kpi-figure strong{color:var(--green-deep)}
+.bz-kpi.is-loss .bz-kpi-figure strong{color:var(--bz-bad)}
+.bz-head-link{margin-left:auto;align-self:flex-start;padding-top:4px}
 
 /* ---------- KPI cards ---------- */
 .bz-kpi{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:12px;row-gap:2px;align-items:center;min-width:0;min-height:98px;padding:14px 16px 12px;border-radius:20px}
@@ -68,17 +85,17 @@
 .bz-kpi-figure strong.is-text{font-size:22px;color:var(--amber-ink)}
 .bz-kpi-figure small{margin-left:5px;font-size:13px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
 .bz-kpi-foot{grid-column:1/-1;grid-row:3;margin:4px 0 0!important;min-width:0}
-.bz-kpi-foot em{display:block;font-size:12px;font-style:normal;line-height:1.3;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-kpi-foot em{display:block;font-size:12.5px;font-style:normal;line-height:1.3;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- Waterfall ---------- */
 .bz-wf-chart{flex:1;min-height:0;display:flex}
-.bz-wf{position:relative;flex:1;display:grid;grid-template-columns:52px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 34px;min-height:0;padding-top:24px}
+.bz-wf{position:relative;flex:1;display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 22px;min-height:0;padding-top:22px}
 .bz-wf-grid{position:relative;grid-column:1/-1;grid-row:1}
-.bz-tick{position:absolute;left:52px;right:0;height:0;border-top:1px dashed var(--bz-grid)}
+.bz-tick{position:absolute;left:44px;right:0;height:0;border-top:1px dashed var(--bz-grid)}
 .bz-tick b{position:absolute;right:calc(100% + 8px);top:-8px;font-size:11px;font-weight:650;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
 .bz-tick:first-child{border-top:1.5px solid var(--edge)}
 .bz-wf-cols{position:relative;grid-column:2;grid-row:1;display:grid;min-height:0}
-.bz-wf-col{--bw:min(62px,52%);position:relative;min-width:0;outline:none;cursor:default}
+.bz-wf-col{--bw:min(46px,58%);position:relative;min-width:0;outline:none;cursor:default}
 .bz-wf-bar{position:absolute;left:calc(50% - var(--bw) / 2);width:var(--bw);border-radius:9px;background:linear-gradient(180deg,var(--top),var(--fill));box-shadow:0 8px 18px -8px var(--glow),inset 0 1px 0 rgba(255,255,255,.45)}
 .bz-wf-col.is-base{--top:var(--bz-orange-top);--fill:var(--bz-orange);--glow:rgba(255,136,62,.55)}
 .bz-wf-col.is-down{--top:var(--bz-green-top);--fill:var(--bz-green);--glow:rgba(22,155,98,.5)}
@@ -108,12 +125,13 @@
 .bz-seg button{height:32px;padding:0 12px;border:0;border-radius:9px;background:none;color:var(--ink-2);font-size:12px;font-weight:800;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,color .2s ease}
 .bz-seg button:hover:not(.is-active){color:var(--ink)}
 .bz-seg button.is-active{background:var(--forest);color:#fff;box-shadow:0 2px 5px rgba(10,53,43,.2)}
-.bz-cmp-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
-.bz-cmp-unit{display:flex;flex-direction:column;align-items:flex-end;min-width:0;margin:0!important;text-align:right}
+.bz-cmp-bar{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0}
+.bz-cmp-bar .bz-seg{align-self:flex-start}
+.bz-cmp-unit{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0;margin:0!important}
 .bz-cmp-unit span{max-width:100%;font-size:12.5px;font-weight:750;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bz-cmp-unit em{font-size:11.5px;font-style:normal;font-weight:700;color:var(--ink-3);white-space:nowrap}
 .bz-cmp-chart{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:6px;min-height:0}
-.bz-cmp-row{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:15px;background:var(--surface-2)}
+.bz-cmp-row{display:flex;flex-direction:column;gap:7px;padding:9px 11px;border-radius:15px;background:var(--surface-2)}
 .bz-cmp-row.is-ai{background:linear-gradient(90deg,var(--bz-blue-soft),var(--surface-2))}
 .bz-cmp-name{display:flex;align-items:center;gap:8px;min-width:0}
 .bz-cmp-name b{font-size:13px;font-weight:800;color:var(--ink);white-space:nowrap}
@@ -121,25 +139,27 @@
 .bz-req svg{flex:0 0 auto}
 .bz-req.is-met{color:var(--green-deep)}
 .bz-req.is-missed{color:var(--bz-bad)}
-.bz-cmp-track{position:relative;height:16px;margin-right:92px;border-radius:99px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.bz-cmp-track{position:relative;height:14px;margin-right:72px;border-radius:99px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
 .bz-cmp-track i{position:absolute;left:0;top:0;bottom:0;min-width:6px;border-radius:99px;background:linear-gradient(180deg,var(--bz-orange-top),var(--bz-orange));box-shadow:0 6px 14px -6px rgba(255,136,62,.55)}
 .bz-cmp-row.is-basic .bz-cmp-track i{background:linear-gradient(180deg,var(--bz-green-top),var(--bz-green));box-shadow:0 6px 14px -6px rgba(22,155,98,.55)}
 .bz-cmp-row.is-ai .bz-cmp-track i{background:linear-gradient(180deg,var(--bz-blue-top),var(--bz-blue));box-shadow:0 6px 14px -6px rgba(47,123,224,.6)}
 .bz-cmp-track strong{position:absolute;top:50%;margin-left:10px;transform:translateY(-50%);font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s ease}
 .bz-cmp-delta{flex:0 0 auto;padding:2px 8px;border-radius:99px;background:var(--bz-blue);color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.bz-cmp-delta.is-basic.is-good{background:var(--green-deep)}
 .bz-cmp-delta.is-bad{background:var(--bz-bad)}
 .bz-cmp-delta.is-same{background:var(--grey-deep)}
 .bz-foot{display:flex;align-items:center;gap:7px;margin:0!important;font-size:12px;line-height:1.35;color:var(--ink-3)}
 .bz-foot svg{flex:0 0 auto}
+.bz-foot.is-invest{gap:6px}
 .bz-foot span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ---------- Calculator ---------- */
-.bz-calc{gap:10px}
-.bz-form{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:14px;flex:1;min-height:0;margin:0}
-.bz-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;align-content:start}
+/* ---------- What-if inputs (inside where the € goes) ---------- */
+.bz-form{flex:0 0 auto;margin:0}
+.bz-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;align-content:start}
+.bz-seg.is-small button{height:28px;padding:0 10px;font-size:11.5px}
 .bz-field{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;min-width:0}
 /* Labels may take two lines (the wording is the brief's); inputs in a row stay aligned. */
-.bz-field-label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:11.5px;font-weight:750;line-height:1.22;color:var(--ink-2)}
+.bz-field-label{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:12px;font-weight:750;line-height:1.22;color:var(--ink-2)}
 .bz-input{display:flex;align-items:center;height:36px;padding:0 10px 0 2px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);transition:border-color .15s ease,box-shadow .15s ease}
 .bz-input:focus-within{border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft);background:var(--surface)}
 .bz-input input{flex:1;min-width:0;height:100%;padding:0 8px;border:0;background:none;color:var(--ink);font:inherit;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;outline:none}
@@ -157,49 +177,78 @@
 .bz-link.is-quiet{color:var(--ink-3)}
 .bz-link small{font-weight:600;color:var(--ink-3)}
 .bz-link:hover{text-decoration:underline}
-.bz-out{display:flex;flex-direction:column;gap:4px;min-width:0;padding:14px 16px;border-radius:17px;background:linear-gradient(160deg,var(--green-soft),var(--surface-2))}
-.bz-out-label{font-size:12.5px;font-weight:750;color:var(--green-deep)}
-.bz-out-label small{display:block;font-size:11px;font-weight:650;color:var(--ink-3)}
-.bz-out-figure strong{display:block;font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.035em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;transition:opacity .2s ease}
-.bz-out-figure small{margin-left:5px;font-size:13px;font-weight:700;letter-spacing:0;color:var(--ink-2)}
-.bz-calc.is-pending .bz-out-figure strong{opacity:.55}
-.bz-out-detail{min-height:0}
-.bz-out-list{display:flex;flex-direction:column;gap:3px;margin:4px 0 0;padding:0;list-style:none}
-.bz-out-list li{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-2);white-space:nowrap}
-.bz-out-list b{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-.bz-out-list li.is-warn b{color:var(--bz-bad)}
 .bz-out-note{display:flex;align-items:flex-start;gap:6px;margin:4px 0 0!important;font-size:12px;line-height:1.35;color:var(--ink-3)}
 .bz-out-note.is-warn{color:var(--bz-bad)}
 .bz-out-note svg{flex:0 0 auto;margin-top:1px}
-.bz-link.is-reset{align-self:flex-start;margin-top:auto;color:var(--ink-3)}
+/* Spins while a new answer is on its way; the bar and the bridges then move to it. */
+.bz-updating{display:none;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto;font-size:12px;font-weight:750;color:var(--green-deep)}
+.bz-split-card.is-pending .bz-updating{display:inline-flex}
+.bz-out-spin{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%}
+.bz-split-card.is-pending .bz-out-spin{animation:bz-spin .7s linear infinite}
+.bz-split-card :is(.bz-split-chart,.bz-whatif .bz-bridges){transition:opacity .2s ease}
+.bz-split-card:is(.is-pending,.is-stale) :is(.bz-split-chart,.bz-whatif .bz-bridges){opacity:.55}
 
-/* ---------- Investment ---------- */
-.bz-range-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:2px 0 0!important;font-size:12.5px;font-weight:750;color:var(--ink-2)}
-.bz-range-title small{font-size:11.5px;font-weight:650;color:var(--ink-3)}
-.bz-range-chart{flex:1;display:flex;align-items:center;min-height:0}
-.bz-range{width:100%;padding:4px 2px 0}
-.bz-range-track{position:relative;display:block;height:14px;border-radius:99px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)}
-.bz-range-track i{position:absolute;top:0;bottom:0;min-width:4px;border-radius:99px;background:linear-gradient(90deg,rgba(31,174,108,.4),rgba(31,174,108,.8))}
-.bz-range-track b{position:absolute;top:50%;width:22px;height:22px;margin-left:-11px;border:4px solid var(--surface);border-radius:50%;background:var(--forest);box-shadow:0 3px 8px rgba(10,53,43,.35);transform:translateY(-50%)}
-.bz-range-zero{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;border-radius:2px;background:var(--bz-bad)}
-.bz-range-scale{display:flex;justify-content:space-between;margin-top:4px}
-.bz-range-scale small{font-size:10.5px;font-weight:650;color:var(--ink-3);font-variant-numeric:tabular-nums}
-.bz-range-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
-.bz-range-values>span{display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-radius:12px;background:var(--surface-2)}
-.bz-range-values>span.is-mid{background:var(--green-soft)}
-.bz-range-values small{font-size:11px;font-weight:700;color:var(--ink-3);white-space:nowrap}
-.bz-range-values b{font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
-.bz-range-values .is-mid small{color:var(--green-deep)}
-.bz-details-btn{display:flex;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;height:40px;padding:0 16px;border:0;border-radius:12px;background:var(--forest);box-shadow:0 3px 0 var(--forest-edge);color:#fff;font-size:12.5px;font-weight:800;white-space:nowrap;cursor:pointer;transition:background-color .2s ease}
-.bz-details-btn:hover{background:var(--forest-2)}
-.bz-invest.is-open{gap:12px;animation:bz-open .28s cubic-bezier(.16,.84,.38,1) both}
-.bz-invest.is-open .bz-details-btn{height:34px;padding:0 12px;background:var(--surface-2);box-shadow:none;color:var(--ink-2)}
-@keyframes bz-open{from{opacity:0;transform:translateY(8px)}}
-.bz-roi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.bz-roi div{padding:10px 12px;border-radius:14px;background:var(--surface-2)}
+/* ---------- Where the € goes ---------- */
+.bz-split-card{gap:16px}
+.bz-split-chart{flex:0 0 auto}
+.bz-split-sum{display:flex;align-items:baseline;gap:10px;min-width:0;margin:0 0 8px!important}
+.bz-split-sum b{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-split-sum span{min-width:0;font-size:14px;font-weight:700;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-split{display:flex;height:60px;gap:3px;padding:3px;border-radius:15px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)}
+.bz-split i{position:relative;display:flex;font-style:normal;align-items:center;justify-content:center;min-width:0;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,var(--top),var(--fill));box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.bz-split i.is-driver{--top:var(--bz-green-top);--fill:var(--bz-green)}
+.bz-split i.is-operator,.bz-bridge.is-operator{--top:#7fd8c9;--fill:var(--bz-teal)}
+.bz-split i.is-platform,.bz-bridge.is-platform{--top:var(--bz-blue-top);--fill:var(--bz-blue)}
+.bz-split b{min-width:0;padding:0 8px;overflow:hidden;text-overflow:ellipsis;font-size:15px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.18);font-variant-numeric:tabular-nums;transition:opacity .2s ease}
+.bz-split b span{font-weight:700;opacity:.92}
+.bz-split.is-empty{align-items:center;justify-content:center;padding:0 14px;font-size:12.5px;font-weight:700;color:var(--ink-3);text-align:center}
+.bz-whatif{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+.bz-bridges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;flex:1;min-height:0}
+.bz-bridge{display:flex;flex-direction:column;gap:8px;min-width:0;padding:16px 18px;border-radius:15px;background:var(--surface-2)}
+.bz-bridge h3{display:flex;align-items:center;gap:7px;margin:0;font-size:15px;font-weight:800;color:var(--ink)}
+.bz-bridge h3 i{width:10px;height:10px;border-radius:3px;background:var(--fill)}
+.bz-bridge ul{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.bz-bridge li{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--ink-2)}
+.bz-bridge li b{color:var(--ink);font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-bridge-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:4px 0 0!important;padding-top:10px;border-top:1.5px solid var(--line);font-size:14.5px;font-weight:800;color:var(--ink)}
+.bz-bridge-total b{font-size:23px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.is-profit>b,b.is-profit,span.is-profit{color:var(--green-deep)}
+.is-loss>b,b.is-loss,span.is-loss{color:var(--bz-bad)}
+.is-zero>b,b.is-zero,span.is-zero{color:var(--ink-3)}
+.bz-bridge small{margin-top:auto;font-size:13px;font-weight:650;color:var(--ink-3)}
+.bz-bridge small span{font-weight:800}
+
+/* ---------- Energy behind the offers ---------- */
+.bz-energy{gap:16px;cursor:help}
+.bz-energy-top{display:flex;align-items:baseline;gap:8px;margin:0!important;min-width:0}
+.bz-energy-top b{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-energy-top span{min-width:0;font-size:13px;font-weight:650;line-height:1.25;color:var(--ink-3)}
+.bz-mix{display:flex;gap:2px;height:18px;border-radius:99px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.bz-mix i{display:block;height:100%;min-width:4px}
+.bz-mix .is-stored,.bz-mix-legend .is-stored i{background:var(--bz-green)}
+.bz-mix .is-direct,.bz-mix-legend .is-direct i{background:var(--bz-teal)}
+.bz-mix .is-grid,.bz-mix-legend .is-grid i{background:var(--bz-grey)}
+.bz-mix-legend{display:flex;flex-direction:column;gap:9px;margin:0;padding:0;list-style:none}
+.bz-mix-legend li{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:650;color:var(--ink-2)}
+.bz-mix-legend li i{flex:0 0 auto;width:10px;height:10px;border-radius:3px}
+.bz-mix-legend b{margin-left:auto;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bz-facts{display:flex;flex-direction:column;gap:9px;margin:auto 0 0;padding:14px 16px;border-radius:12px;background:var(--surface-2)}
+.bz-facts div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-width:0}
+.bz-facts dt{flex:0 0 auto;font-size:13px;font-weight:650;color:var(--ink-3);white-space:nowrap}
+.bz-facts dd{min-width:0;margin:0;font-size:14px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.bz-chip.is-hypo{flex:0 0 auto;height:26px;padding:0 10px;font-size:11px;background:var(--amber-soft);color:var(--amber-ink);cursor:help}
+
+/* ---------- Depot investment details ---------- */
+.bz-invest{gap:10px}
+.bz-invest-body{display:grid;grid-template-columns:minmax(0,.62fr) minmax(0,2.38fr);gap:18px;min-height:0}
+.bz-roi{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-content:start}
+.bz-roi div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 12px;border-radius:12px;background:var(--surface-2)}
 .bz-roi span{display:block;font-size:11.5px;font-weight:700;color:var(--ink-3)}
-.bz-roi strong{display:block;margin-top:2px;font-size:18px;font-weight:800;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
-.bz-table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.bz-roi strong{display:block;font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-tables{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-height:0}
+.bz-tables .bz-table th,.bz-tables .bz-table td{padding:5px 4px}
+.bz-invest .bz-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.bz-table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
 .bz-table caption{padding:0 0 4px;font-size:12.5px;font-weight:800;text-align:left;color:var(--ink)}
 .bz-table caption small{margin-left:6px;font-weight:650;color:var(--ink-3)}
 .bz-table th,.bz-table td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
@@ -217,19 +266,92 @@
 .bz-provenance{display:flex;align-items:center;gap:6px;margin:0!important;font-size:11.5px;line-height:1.4;color:var(--ink-3);cursor:help}
 .bz-provenance span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bz-provenance svg{flex:0 0 auto}
-.bz-skel{display:block;width:60%;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--grey-soft) 25%,var(--surface) 50%,var(--grey-soft) 75%) 0 0/200% 100%;animation:bz-shimmer 1.3s linear infinite}
-.bz-skel.is-short{width:36%}
-.bz-skel.is-block{width:42px;height:42px;border-radius:13px}
-.bz-skel.is-fill{flex:1;width:100%;min-height:40px;border-radius:14px}
-.bz-kpi.is-skeleton{display:flex;flex-direction:column;gap:10px}
-@keyframes bz-shimmer{to{background-position:-200% 0}}
-.bz-progress{align-items:center;justify-content:center;gap:10px;text-align:center}
-.bz-progress-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--bz-blue-soft);color:var(--bz-blue);animation:bz-pulse 1.6s ease-in-out infinite}
-.bz-progress h2{font-size:18px;font-weight:800;letter-spacing:-.02em}
-.bz-progress p{max-width:440px;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
-.bz-bar{display:block;width:min(360px,80%);height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
-.bz-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green));transition:width .4s ease}
-.bz-message{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;flex:1;padding:30px;border-radius:22px;text-align:center}
+/* Loading placeholders, shaped like the cards they stand for; a light sweeps across them. */
+.bz-skel{display:block;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--grey-soft) 30%,var(--surface-2) 50%,var(--grey-soft) 70%) 0 0/300% 100%;animation:bz-shimmer 1.6s ease-in-out infinite}
+/* A quick answer never shows the placeholders: they fade in only after a moment. */
+.bz-layout.is-waiting>*{animation:bz-fade-in .35s ease .2s backwards}
+@keyframes bz-fade-in{from{opacity:0}}
+.bz-skel-head{display:flex;align-items:center;gap:11px}
+.bz-skel-copy{display:flex;flex-direction:column;gap:7px;flex:1;min-width:0}
+.bz-skel.is-icon{flex:0 0 38px;width:38px;height:38px;border-radius:12px}
+.bz-skel.is-title{width:46%;height:13px}
+.bz-skel.is-sub{width:68%;height:10px}
+.bz-kpi.is-skeleton .is-kpi-icon{grid-column:1;grid-row:1/3;width:42px;height:42px;border-radius:13px}
+.bz-kpi.is-skeleton .bz-skel-copy{grid-column:2/4;grid-row:1/3;gap:9px}
+.bz-skel.is-label{width:66%;height:11px}
+.bz-skel.is-figure{width:52%;height:22px;border-radius:8px}
+.bz-skel.is-foot{grid-column:1/-1;grid-row:3;width:74%;height:10px;margin-top:8px}
+.bz-skel.is-stack{height:34px;margin-top:10px;border-radius:12px}
+.bz-skel-pair{flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-height:0}
+.bz-skel.is-block{height:auto;border-radius:14px}
+.bz-invest.is-skeleton{min-height:210px}
+.bz-invest.is-skeleton .bz-skel-pair{min-height:120px}
+.bz-skel-bars{flex:1;display:flex;align-items:flex-end;justify-content:space-around;min-height:0;margin:16px 0 26px 44px;border-bottom:1.5px solid var(--grey-soft)}
+.bz-skel-bars .bz-skel{flex:0 0 min(46px,12%);border-radius:9px 9px 0 0}
+.bz-skel.is-seg{width:78%;height:38px;border-radius:12px}
+.bz-skel-rows{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:6px;min-height:0}
+.bz-skel-rows.is-tight{justify-content:flex-start;gap:14px;padding-top:6px}
+.bz-skel-row{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:15px;background:var(--surface-2)}
+.bz-skel.is-row-label{width:34%;height:11px}
+.bz-skel.is-row-bar{height:16px}
+.bz-skel-calc{flex:1;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;min-height:0}
+.bz-skel-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 12px;align-content:start;padding-top:18px}
+.bz-skel.is-field{height:36px;border-radius:11px}
+.bz-skel.is-out{height:auto;border-radius:17px}
+@keyframes bz-shimmer{from{background-position:100% 0}to{background-position:0 0}}
+/* The build's progress: three steps, a bar and the replay's time left. Updated in place between
+   polls, so the spinner and the bar keep moving rather than restarting. */
+.bz-progress{justify-content:center;gap:14px;padding:18px 22px}
+.bz-progress>*{width:100%;max-width:480px;margin-inline:auto}
+.bz-progress-head{display:flex;align-items:center;gap:14px}
+.bz-progress-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:15px;background:var(--bz-blue-soft);color:var(--bz-blue);animation:bz-breathe 2s ease-in-out infinite}
+@keyframes bz-breathe{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(47,123,224,.3)}50%{transform:scale(1.05);box-shadow:0 0 0 12px rgba(47,123,224,0)}}
+.bz-progress h2{font-size:17px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.bz-progress-head p{margin-top:3px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.bz-steps{display:flex;flex-direction:column;gap:3px;margin-block:0;padding:0;list-style:none}
+.bz-steps li{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:13px;transition:background-color .3s ease}
+.bz-steps li.is-active{background:var(--surface-2)}
+.bz-step-mark{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;border-radius:50%}
+.bz-steps li.is-done .bz-step-mark{background:var(--green);color:#fff;animation:bz-pop .4s cubic-bezier(.3,1.6,.5,1) backwards}
+.bz-steps li.is-pending .bz-step-mark{background:var(--surface-2)}
+.bz-step-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
+.bz-step-copy b{font-size:13px;font-weight:780;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bz-step-copy small{font-size:11.5px;font-weight:650;color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.bz-steps li.is-pending b{color:var(--ink-3)}
+.bz-spin{display:block;width:18px;height:18px;border:2.5px solid var(--bz-blue-soft);border-top-color:var(--bz-blue);border-radius:50%;animation:bz-spin .8s linear infinite}
+.bz-dot{display:block;width:7px;height:7px;border-radius:50%;background:var(--grey)}
+@keyframes bz-spin{to{transform:rotate(1turn)}}
+@keyframes bz-pop{from{opacity:0;transform:scale(.4)}}
+.bz-progress-foot{display:flex;align-items:center;gap:14px}
+.bz-bar{display:block;flex:1;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bz-bar i{position:relative;display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--bz-green-top),var(--bz-green));overflow:hidden;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.bz-bar b{position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);transform:translateX(-100%);animation:bz-sweep 1.6s ease-in-out infinite}
+@keyframes bz-sweep{to{transform:translateX(100%)}}
+.bz-progress-meta{flex:0 0 auto;font-size:12px;font-weight:750;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ---------- Entrance: the results rise in card by card when they first appear ----------
+   --d staggers the cards; --bz-t (negative, set by business.js) is how far the entrance has already
+   played, so a re-render while it plays continues it instead of cutting it short. That includes a
+   live model refresh (a first load, typically): those switch animations off (studio.css) so as not
+   to replay them, and this one is only continued, hence the !important. */
+.app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card{animation:bz-card-in .6s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.app-shell .bz-layout.is-intro .bz-kpi-icon,.app-shell .bz-layout.is-intro .bz-head-icon{animation:bz-pop .45s cubic-bezier(.3,1.5,.5,1) calc(var(--d,0s) + .18s + var(--bz-t,0s)) backwards!important}
+.bz-layout.is-intro .bz-kpi:nth-child(2){--d:.06s}
+.bz-layout.is-intro .bz-kpi:nth-child(3){--d:.12s}
+.bz-layout.is-intro .bz-kpi:nth-child(4){--d:.18s}
+.bz-layout.is-intro>.bz-split-card{--d:.16s}
+.bz-layout.is-intro>.bz-energy{--d:.24s}
+.bz-layout.is-intro>.bz-money{--d:.04s}
+.bz-layout.is-intro>.bz-compare{--d:.12s}
+.bz-layout.is-intro>.bz-invest{--d:.2s}
+@keyframes bz-card-in{from{opacity:0;transform:translateY(16px) scale(.985)}}
+.app-shell .bz-scenario.is-intro>*{animation:bz-rise .5s cubic-bezier(.16,.84,.38,1) calc(var(--d,0s) + var(--bz-t,0s)) backwards!important}
+.bz-scenario.is-intro>:nth-child(2){--d:.08s}
+.bz-scenario.is-intro>:nth-child(3){--d:.16s}
+.bz-scenario.is-intro>:nth-child(4){--d:.24s}
+@keyframes bz-rise{from{opacity:0;transform:translateY(6px)}}
+.app-shell .bz-provenance.is-intro{animation:bz-fade-in .6s ease calc(.45s + var(--bz-t,0s)) backwards!important}
+.bz-message{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;flex:1;padding:30px;border-radius:22px;text-align:center;animation:bz-card-in .5s cubic-bezier(.16,.84,.38,1) backwards}
 .bz-message-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:18px;background:var(--amber-soft);color:var(--amber-deep)}
 .bz-message.is-error .bz-message-icon{background:var(--bz-bad-soft);color:var(--bz-bad)}
 .bz-message h2{font-size:22px;font-weight:800;letter-spacing:-.02em}
@@ -278,9 +400,8 @@
 .app-shell.is-phone .bz-foot span{white-space:normal}
 .app-shell.is-phone .bz-card .bz-head{flex-wrap:wrap}
 .app-shell.is-phone .bz-card .bz-head .dash-head-copy{flex:1 1 calc(100% - 52px)}
-.app-shell.is-phone .bz-form{grid-template-columns:minmax(0,1fr)}
-.app-shell.is-phone .bz-range-title{flex-direction:column;gap:2px}
-.app-shell.is-phone .bz-range-values b{font-size:13px}
+.app-shell.is-phone .bz-form,.app-shell.is-phone .bz-bridges,.app-shell.is-phone .bz-tables{grid-template-columns:minmax(0,1fr)}
+.app-shell.is-phone .bz-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
 .app-shell.is-phone .bz-roi strong{font-size:15px}
 .app-shell.is-phone .bz-table th,.app-shell.is-phone .bz-table td{padding:5px 3px;font-size:11.5px}
 .app-shell.is-phone .bz-table tbody th small{white-space:normal}
@@ -290,7 +411,10 @@
 .app-shell.is-phone .bz-layout.is-loading .bz-card{min-height:160px}
 
 @media (prefers-reduced-motion:reduce){
-  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-invest.is-open{animation:none}
-  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-out-figure strong,.bz-details-btn{transition:none}
+  .bz-skel,.bz-chip.is-busy i,.bz-progress-icon,.bz-spin,.bz-out-spin,.bz-bar b,.bz-step-mark,.bz-message,
+  .bz-layout.is-waiting>*,.bz-split-card.is-pending .bz-out-spin,.bz-steps li.is-done .bz-step-mark{animation:none}
+  .app-shell .bz-layout.is-intro .bz-kpi,.app-shell .bz-layout.is-intro>.dash-card,.app-shell .bz-layout.is-intro .bz-kpi-icon,
+  .app-shell .bz-layout.is-intro .bz-head-icon,.app-shell .bz-scenario.is-intro>*,.app-shell .bz-provenance.is-intro{animation:none!important}
+  .bz-layout>.dash-card,.bz-kpi,.bz-tip,.bz-seg button,.bz-input,.bz-bar i,.bz-wf-bar em,.bz-join,.bz-cmp-track strong,.bz-split b,.bz-split-card :is(.bz-split-chart,.bz-whatif .bz-bridges),.bz-steps li,.bz-out-spin{transition:none}
   .bz-layout>.dash-card:hover,.bz-kpi:hover{transform:none}
 }

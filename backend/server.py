@@ -13,14 +13,17 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
-from scenario import build_day, build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
-from demo import demo_day_rows, demo_payload
+from scenario import build_scenario, validate_demand, validate_ev, DEFAULT_KWH_PER_CHARGE, DEFAULT_CHARGER_KW, worked_example
+import dayplan
+from demo import demo_payload
 from http.client import HTTPException
 from config import load_env
 import business
 import chat
 import explorer
+import sources
 import fleet as fleets
+import offers
 import optimizer
 import storage
 import synthetic
@@ -248,15 +251,6 @@ def _replay_day(day, capacity):
     return dict(date=day.isoformat(), range=dict(min=first.date().isoformat(), max=last.date().isoformat()),
                 source='grid-to-ev-model', modelVersion=points[0]['modelVersion'], intervalMinutes=30,
                 horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
-
-
-def demo_day_replay(day, capacity):
-    """Synthetic day replay used when the model cannot be reached, so the Impact page keeps its full layout."""
-    last = default_replay_day()
-    points = [normalize_row(row, capacity) for row in demo_day_rows(capacity, day)]
-    return dict(date=day.isoformat(), range=dict(min=(last - timedelta(days=364)).isoformat(), max=last.isoformat()),
-                source='local-demo-fixture', dataMode='simulated', modelVersion=points[0]['modelVersion'],
-                intervalMinutes=30, horizonMinutes=30, flexibleCapacityMw=capacity, predictions=points)
 
 
 def neighbour_days(day, first, last, span=None):
@@ -523,6 +517,9 @@ class ProductServer(ThreadingHTTPServer):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
+DAY_PLAN_PRESET = 'depot-and-retail'  # the Dashboard's default fleet preset
+
+
 class Handler(SimpleHTTPRequestHandler):
     def send_json(self, status, body, headers=None):
         encoded = json.dumps(body, allow_nan=False).encode()
@@ -612,6 +609,9 @@ class Handler(SimpleHTTPRequestHandler):
         if urlsplit(self.path).path == '/api/v1/synthetic-v1':
             self.synthetic_v1()
             return
+        if urlsplit(self.path).path == '/api/v1/business/offers':
+            self.offers_action()
+            return
         if urlsplit(self.path).path != '/api/v1/chat':
             self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
             return
@@ -656,31 +656,93 @@ class Handler(SimpleHTTPRequestHandler):
             return
         self.send_json(200, business.estimate(**values))
 
+    def offers_section(self):
+        """The discount-window section of the Impact result, or None after answering 202/500/200-empty."""
+        body = business.current()
+        if body['status'] == 'preparing':
+            self.send_json(202, {'status': 'preparing', 'progress': body.get('progress')}, {'Retry-After': '2'})
+        elif body['status'] == 'failed':
+            self.send_json(500, {'error': {'code': 'IMPACT_FAILED', 'message': body['message']}})
+        elif body['status'] == 'empty' or not body.get('discountWindows'):
+            self.send_json(200, {'status': 'empty', 'message': body.get('message') or 'No replayed nights to offer windows from.'})
+        else:
+            return body
+        return None
+
+    def business_offers(self, query):
+        """EV page: the discount windows of the replayed week and this demo member's bookings."""
+        body = self.offers_section()
+        if body is None:
+            return
+        section = body['discountWindows']
+        member = query.get('member', [''])[0]
+        self.send_json(200, {
+            'status': 'ready', 'version': section['version'], 'scenarioId': body['scenarioId'], 'dataMode': body['dataMode'],
+            'label': section['label'], 'hub': section['hub'], 'battery': section['battery'], 'prices': section['prices'],
+            'split': section['split'], 'windows': section['windows'], 'offers': section['offers'], 'sessionKwh': section['sessionKwh'],
+            'member': offers.member_view(member) if offers.MEMBER_ID.match(member) else {'joined': False, 'bookings': []},
+        })
+
+    def offers_action(self):
+        """EV page demo: join, leave, book or cancel a discount window. Not a real account or payment."""
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+            if not 0 < length <= 4000:
+                raise ValueError('Invalid body size')
+            request = json.loads(self.rfile.read(length))
+            if not isinstance(request, dict):
+                raise ValueError('Body must be an object')
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Send a member, an action and, to book, an offer and kWh.'}})
+            return
+        body = self.offers_section()
+        if body is None:
+            return
+        try:
+            member = offers.act(body['discountWindows'], request.get('member'), request.get('action'),
+                                request.get('offerId'), request.get('kwh'))
+        except ValueError as error:
+            self.send_json(409, {'error': {'code': 'OFFER_UNAVAILABLE', 'message': str(error)}})
+            return
+        self.send_json(200, {'status': 'ready', 'member': member})
+
+    def offers_estimate(self, query):
+        """Impact page calculator: an illustrative month of discount windows for one site."""
+        values, errors = offers.parse_calculator({key: value[0] for key, value in query.items()})
+        if errors:
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Check the highlighted inputs.', 'fields': errors}})
+            return
+        result = business.ready()  # never starts a build: without a finished replay only the site caps sessions
+        known = ((result or {}).get('discountWindows') or {}).get('calculator', {}).get('capacity', {}).get('eligibleWindowsPerMonth')
+        self.send_json(200, offers.calculate(**values, eligible_windows=known))
+
     def impact_day(self, query):
+        """The Dashboard's fleet + grid battery plan for each half-hour of a replayed day (backend/dayplan.py),
+        for the Battery and EV pages: ?date=YYYY-MM-DD&capacityMw=&preset= (a fleet preset id)."""
         try:
             capacity = float(query.get('capacityMw', ['100'])[0])
             number(capacity, 'capacity', minimum=0.001, maximum=10000)
-            total = float(query.get('totalDemandKwh', ['1000'])[0])
-            flexible = float(query.get('flexibleDemandKwh', ['500'])[0])
-            validate_demand(total, flexible)
+            preset = query.get('preset', [DAY_PLAN_PRESET])[0]
+            fleet = fleets.preset(preset)
             requested = query.get('date', [None])[0]
             day = date.fromisoformat(requested) if requested else default_replay_day()
         except (ValueError, TypeError):
-            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use date YYYY-MM-DD, capacity 0.001-10000 MW, and demand 0-1000000000 kWh with flexible demand no greater than total demand.'}})
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use date YYYY-MM-DD, capacity 0.001-10000 MW, and a fleet preset from /api/v1/charging/presets.'}})
             return
         try:
             with user_replay():
-                status, body = 200, build_day(fetch_day_replay(day, capacity), total, flexible)
+                status, body = 200, dayplan.build(fetch_day_replay(day, capacity), fleet, preset)
         except Busy:
             self.send_json(503, {'error': {'code': 'MODEL_BUSY', 'message': 'The model is busy with other replays; retry shortly.'}},
                            {'Retry-After': str(Busy.retry_after)})
             return
         except DateOutOfRange as error:
             status, body = 400, {'error': {'code': 'DATE_OUT_OF_RANGE', 'message': str(error)}}
-        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError):
-            status, body = 200, build_day(demo_day_replay(day, capacity), total, flexible)
-            body['dataMode'] = 'simulated'
-        if status == 200 and body.get('dataMode') != 'simulated':
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            # No demo day: made-up intervals would be drawn as if they were the model's (see backend/README.md).
+            diagnosis = diagnose(error)
+            status, body = 502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}}
+        if status == 200:
             try:
                 schedule_prefetch(day, capacity)
             except Exception:  # prefetch is only an optimisation
@@ -741,6 +803,41 @@ class Handler(SimpleHTTPRequestHandler):
             diagnosis = diagnose(error)
             self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
 
+    def sources(self, route):
+        """Wind & Solar page (issue #65): recorded wind/solar curtailment plus the experimental split forecast."""
+        query = {k: v[0] for k, v in parse_qs(route.query).items()}
+        try:
+            name = route.path.removeprefix('/api/v1/sources/')
+            if name == 'coverage':
+                action = sources.page_coverage
+            elif name == 'info':
+                action = sources.split_info
+            elif name == 'day':
+                capacity = float(query.get('capacityMw', '100'))
+                number(capacity, 'capacity', minimum=0.001, maximum=10000)
+                action = partial(sources.recorded_view, date.fromisoformat(query.get('date', '')).isoformat(), capacity)
+            elif name == 'forecast':
+                action = partial(sources.forecast_view, date.fromisoformat(query.get('date', '')).isoformat())
+            elif name == 'month':
+                month = query.get('month', '')
+                date.fromisoformat(f'{month}-01')
+                if len(month) != 7:
+                    raise ValueError('Month must be YYYY-MM')
+                action = partial(sources.month, month)
+            else:
+                self.send_json(404, {'error': {'code': 'NOT_FOUND', 'message': 'Unknown API endpoint.'}})
+                return
+        except (ValueError, TypeError):
+            self.send_json(400, {'error': {'code': 'INVALID_REQUEST', 'message': 'Use a date (YYYY-MM-DD), a month (YYYY-MM) and capacity 0.001-10000 MW.'}})
+            return
+        try:
+            self.send_json(200, action())
+        except sources.OutOfRange as error:
+            self.send_json(404, {'error': {'code': 'NOT_IN_DATASET', 'message': str(error.args[0] if error.args else error)}})
+        except (URLError, TimeoutError, OSError, HTTPException, ValueError, KeyError, TypeError, OverflowError) as error:
+            diagnosis = diagnose(error)
+            self.send_json(502, {'error': {'code': diagnosis['code'], 'message': diagnosis['message'], 'detail': diagnosis['detail']}})
+
     def do_GET(self):
         route = urlsplit(self.path)
         if route.path in ('/api/v1/forecast', '/api/v1/scenario'):
@@ -782,9 +879,18 @@ class Handler(SimpleHTTPRequestHandler):
         if route.path == '/api/v1/business/estimate':
             self.business_estimate(parse_qs(route.query))
             return
+        if route.path == '/api/v1/business/offers':
+            self.business_offers(parse_qs(route.query))
+            return
+        if route.path == '/api/v1/business/offers/estimate':
+            self.offers_estimate(parse_qs(route.query))
+            return
 
         if route.path == '/api/v1/about/example':
             self.send_json(200, worked_example())  # About page: the real formulas on fixed example inputs
+            return
+        if route.path.startswith('/api/v1/sources/'):
+            self.sources(route)
             return
         if route.path.startswith('/api/v1/explorer/'):
             self.explorer(route)

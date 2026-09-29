@@ -153,6 +153,17 @@ target time labels the start or the end of its half-hour is not yet confirmed.
 Day replay intervals (`/api/v1/impact/day`) also carry the model `probability`, used by
 the Charging page's "Best half-hours to charge" ranking.
 
+They also carry the model's `risk` and P10/P50/P90 (`lowerMwh`, `medianMwh`, `upperMwh`) and an
+`expected` outcome that uses the whole forecast, not only the point forecast (GridToEv V1 serves the
+point as a trend blend with ML weight 0, so it reads 0 whenever the last observation did, even at a
+~100% event probability). `expected` re-runs the same plan and battery ledger on the P10, P50 and P90
+scenarios, combines them 30/40/30 (Swanson's rule) and multiplies by the event probability:
+`capturedKwh`, `evGridKwh`, `evBatteryKwh`, `storageGridKwh`, `storedKwh`, `co2AvoidedKg`, `evRangeKm`,
+`atRiskKwh` and `capturedShare` (null unless dispatch-down is more likely than not). A scenario keeps its
+point forecast's curtailment/constraint split, or the day's split when the point forecast is 0. The
+Battery page's day curves and KPI sparklines show `expected`, with the plan as a dashed reference; the
+plan-level figures (headlines, Dashboard) are unchanged.
+
 ## Automatic demo fallback
 
 No setup or model connection is required for fallback. Every request first tries
@@ -288,9 +299,37 @@ calling it, and pairs each prediction with the observed EirGrid actual.
   tests and frontend checks run on every pull request.
 - Explorer calls allow up to 60 s, because a full-day replay can take ~15 s on the hosted service.
 
+## Wind & Solar page (issue #65)
+
+Opened from the Forecast header (`#sources`). `sources.py` wraps GridToEv's wind/solar routes;
+the API key stays on the server and every derived number (peak, best charging window, errors,
+EV equivalents) is computed here, once.
+
+| Route | Model call(s) | Cache |
+| --- | --- | --- |
+| `GET /api/v1/sources/coverage` | `/actuals/curtailment/sources/coverage`, plus up to 14 recorded days to find the latest day with curtailment (`suggestedDay`) | 10 min |
+| `GET /api/v1/sources/day?date=YYYY-MM-DD&capacityMw=100` | `/actuals/curtailment/sources?include_half_hours=true`: the recorded day, its peak, solar hours, best charging window and EV equivalent | published days forever, `pending`/`missing` 10 min |
+| `GET /api/v1/sources/forecast?date=YYYY-MM-DD` | `POST /predict/curtailment/sources/day` (experimental split) + the recorded day + model info: the split, forecast minus recorded, and the formula worked backwards to the wind:solar potential ratio | successes forever, failures never |
+| `GET /api/v1/sources/info` | `/model-info/curtailment/sources`: formula, fitted `a`/`b`, constants, capacity rule, fresh-confirmation progress, provisional accuracy, limitations | 10 min |
+| `GET /api/v1/sources/month?month=YYYY-MM` | the recorded route for each day of the month, 6 at a time, sharing the per-day cache | per day |
+
+- Days run from the archive start (2021-01-01; wind only before April 2023) to today (UTC).
+  Days after the archive have no recorded figures yet but can still have a forecast.
+- The forecast is optional: it answers 200 with `status` `ok`, `not_forecastable` (the model's 422
+  reason, e.g. before 2024-04-01) or `unavailable` (503/timeout). It is a separate route because a
+  cold forecast takes ~7 s upstream against ~0.6 s for a recorded day.
+- A `null` from the API stays `null` (unknown), never 0. A published day without 48 half-hours is
+  a 502; a date outside the range is a 404 `NOT_IN_DATASET`; bad input is a 400.
+- Best charging window: up to 8 consecutive half-hours maximising Σ min(curtailed, capacity × 0.5 h);
+  ties go to the most curtailed energy, then the shortest run, then the earliest. An upper bound,
+  not energy saved.
+- Tests (`tests/test_sources.py`) run on real responses saved in `tests/fixtures/sources`.
+
 ## Impact page: business and environmental impact
 
-`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`). Three charging
+`GET /api/v1/business/impact` and `GET /api/v1/business/estimate` (`business.py`), plus the discount-window
+business case in `offers.py` (`GET /api/v1/business/offers[/estimate]`, `POST /api/v1/business/offers`; see
+docs/BUSINESS_IMPACT.md). Three charging
 strategies (normal, basic smart and AI) charge the same simulated depot fleet over the latest week of
 V1 +30 minute replays, with no look-ahead, and are scored against observed curtailment for money
 (illustrative tariff), estimated CO2 and surplus renewable energy. The year is scaled by how often
