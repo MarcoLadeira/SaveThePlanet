@@ -504,11 +504,11 @@ def _shown(params, change):
     group, key, _ = change
     if group == 'sites':
         n = params['sites']
-        return f'{n} hub{"s" if n > 1 else ""} · EUR {overhead_per_site(n):g} overhead each'
+        return f'{n} hub{"s" if n > 1 else ""} · €{overhead_per_site(n):g} overhead each'
     if group == 'battery':
         return f'{params["battery"]["capacityKwh"]:,.0f} kWh · {params["battery"]["powerKw"]:g} kW'
     unit = '/session' if key == 'platformVariableEurPerSession' else '/kWh'
-    return f'EUR {params[group][key]:g}{unit}'
+    return f'€{params[group][key]:g}{unit}'
 
 
 def _run_case(nights, factor, tariff, params):

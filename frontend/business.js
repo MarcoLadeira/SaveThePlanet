@@ -1,24 +1,24 @@
-// Impact page: who saves and who earns when our AI finds cheaper energy, for a simulated site.
-// Every figure comes from /api/v1/business/impact (backend/business.py and backend/offers.py), replayed
-// on the same nights of Carlson's historical GridToEv forecasts, in two views so that one screen tells
-// one story:
-//  - "Who earns" (per month): the SaveThePlanet Rewards business case (drivers book discount windows).
-//    KPIs, where the € goes (a what-if the
-//    server answers: /api/v1/business/offers/estimate) with both profit bridges, and the energy proof.
-//  - "Depot savings" (per year): the depot's normal / basic smart / AI comparison, its waterfall and
-//    the investment case.
+// Impact page: Business & Environmental Impact (issue #67). Every figure comes from
+// /api/v1/business/impact (backend/business.py and backend/offers.py), replayed on the same nights of
+// Carlson's historical GridToEv forecasts. One scrolling story in three numbered sections:
+//  01 Who saves, who earns: SaveThePlanet's profit as hubs are added, where each € goes (50/25/25) and a
+//     what-if drawer the server answers (/api/v1/business/offers/estimate).
+//  02 Why operators partner: the operator's margin before and after, and an illustrative 1/10/100-hub scale.
+//  03 What the planet gets: the hub battery's energy flow and modelled CO2.
+// The depot's normal / basic smart / AI comparison stays one click away as supporting evidence.
 // The page draws the backend's figures and never recomputes them.
 const bz = {
   status: 'idle', // idle | loading | preparing | ready | empty | failed
   result: null, progress: null, error: '', token: 0, timer: null, inFlight: false,
   progressSince: null, // {at, done, total}: when this page first saw the build's progress, for the time left
-  metric: 'money', // comparison chart: money | co2 | renewable
-  view: 'earn', // earn: who earns, per month | depot: the depot's savings, per year
-  // view: which inputs show (main | costs)
-  calc: { values: null, errors: {}, view: 'main', result: null, seq: 0, pending: false, error: '', timer: null },
+  metric: 'money', // depot comparison chart: money | co2 | renewable
+  view: 'story', // story: the three sections | depot: the depot's savings, per year (supporting evidence)
+  seen: {}, // sections that have scrolled into view (their charts animate once, then stay)
+  sites: 100, // the scaling scenario's number of hubs
+  // open: the what-if drawer; view: which inputs show (main | costs)
+  calc: { values: null, errors: {}, view: 'main', open: false, result: null, seq: 0, pending: false, error: '', timer: null },
 };
 try { const m = localStorage.getItem('impact-metric'); if (['money', 'co2', 'renewable'].includes(m)) bz.metric = m; } catch {}
-try { const v = localStorage.getItem('impact-view'); if (['earn', 'depot'].includes(v)) bz.view = v; } catch {}
 
 const bzGlyphs = {
   euro: '<path d="M17.5 6.3A7 7 0 1 0 17.5 17.7"/><path d="M4 10.2h9M4 13.8h9"/>',
@@ -136,7 +136,7 @@ function bzTrackProgress(now) {
 }
 
 // Re-render and put keyboard focus back where it was, since render() rebuilds <main>.
-const BZ_FOCUS = ['data-bz-metric', 'data-bz-view', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset'];
+const BZ_FOCUS = ['data-bz-metric', 'data-bz-view', 'data-bz-costs', 'data-bz-retry', 'data-bz-input', 'data-bz-preset', 'data-bz-sites', 'data-bz-whatif', 'data-bz-goto'];
 function bzRender() {
   if (pageFromHash() !== 'business') return;
   const el = document.activeElement, attr = el && BZ_FOCUS.find((a) => el.hasAttribute?.(a));
@@ -154,26 +154,9 @@ function bzChart(name, chart) { dashCharts[name] = { standalone: true, ...chart 
 const bzR = () => bz.result;
 const bzD = () => bz.result?.discountWindows;
 
-// Animated KPI figures; money counts up in whole euros.
-function bzFigure(name, get) {
-  bzChart(name, {
-    values: () => { const f = get(); return { v: bzHas(f?.v) ? f.v : 0, kind: f?.kind || 'none', text: f?.text || '' }; },
-    start: (t) => ({ ...t, v: 0 }),
-    draw({ v, kind, text }) {
-      if (kind === 'text') return `<strong class="is-text">${text}</strong>`;
-      if (kind === 'eur') return `<strong>${bzEur(v)}<small>/year</small></strong>`;
-      if (kind === 'month') return `<strong>${bzEur(v)}<small>/month</small></strong>`;
-      return '<strong>—</strong>';
-    },
-  });
-}
-bzFigure('bzExtra', () => bzD() && { v: bzD().kpis.aiExtraSavingsEur, kind: 'month' });
-bzFigure('bzDrivers', () => bzD() && { v: bzD().kpis.driversSavedEur, kind: 'month' });
-bzFigure('bzOperator', () => bzD() && { v: bzD().kpis.operatorProfitEur, kind: 'month' });
-bzFigure('bzPlatform', () => bzD() && { v: bzD().kpis.platformProfitEur, kind: 'month' });
-
-// Where the € goes: one stacked bar of the month's extra AI savings, 50 / 25 / 25, named in the bar.
+// Where each € goes: one donut of a hub's month of extra AI savings, 50 / 25 / 25, with euros beside it.
 const BZ_PARTS = [['driver', 'Drivers'], ['operator', 'Operator'], ['platform', 'SaveThePlanet']];
+const BZ_ROLES = { driver: 'discount', operator: 'extra margin', platform: 'commission' };
 function bzParts(m) {
   return { driver: m.driversEur, operator: m.operator.retainedEur, platform: m.platform.grossEur };
 }
@@ -182,19 +165,27 @@ const bzShownMonth = () => bz.calc.result?.month || bzD()?.month;
 bzChart('bzSplit', {
   values() {
     const m = bzShownMonth();
-    if (!m) return { w: [0, 0, 0], amounts: [0, 0, 0], pool: 0, sessions: '0', empty: '1', reveal: 0 };
+    if (!m || !bzSeen('s1')) return { w: [0, 0, 0], amounts: [0, 0, 0], pool: 0, empty: m && m.poolEur > 0 ? '' : '1', reveal: 0 };
     const parts = bzParts(m), pool = m.poolEur;
     return {
       w: BZ_PARTS.map(([id]) => (pool > 0 ? Math.max(0, parts[id]) / pool : 0)), amounts: BZ_PARTS.map(([id]) => parts[id]),
-      pool, sessions: String(m.sessions), empty: pool > 0 ? '' : '1', reveal: 1,
+      pool, empty: pool > 0 ? '' : '1', reveal: 1,
     };
   },
   start: (t) => ({ ...t, w: t.w.map(() => 0), amounts: t.amounts.map(() => 0), pool: 0, reveal: 0 }),
-  draw({ w, amounts, pool, sessions, empty, reveal }) {
-    const sum = `<p class="bz-split-sum"><b>${bzCents(pool)}</b><span>extra AI savings a month</span></p>`;
-    if (empty) return `${sum}<div class="bz-split is-empty"><span>No eligible extra savings: nothing to share, no commission.</span></div>`;
-    const segs = BZ_PARTS.map(([id, label], i) => `<i class="is-${id}" style="width:${(w[i] * 100).toFixed(2)}%"><b style="opacity:${reveal > 0.85 ? 1 : 0}"><span>${label}</span> ${bzEur(amounts[i])}</b></i>`).join('');
-    return `${sum}<div class="bz-split">${segs}</div>`;
+  draw({ w, amounts, pool, empty, reveal }) {
+    const R = 76, C = 2 * Math.PI * R;
+    let at = 0;
+    const arcs = empty ? '' : BZ_PARTS.map(([id], i) => {
+      const len = w[i] * C * reveal, arc = `<circle class="bz-donut-arc is-${id}" r="${R}" cx="100" cy="100" stroke-dasharray="${Math.max(0, len - 4).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-at).toFixed(2)}"/>`;
+      at += len;
+      return arc;
+    }).join('');
+    const center = empty
+      ? '<p class="bz-donut-center is-empty"><b>€0</b><span>No eligible savings:<br>no commission</span></p>'
+      : `<p class="bz-donut-center"><b>${bzEur(pool)}</b><span>extra savings<br>a month</span></p>`;
+    const legend = BZ_PARTS.map(([id, label], i) => `<li class="is-${id}"><i></i><span>${label}<em>${BZ_ROLES[id]} · ${empty ? 0 : Math.round(w[i] * 100)}%</em></span><b>${bzEur(amounts[i])}</b></li>`).join('');
+    return `<div class="bz-donut"><svg viewBox="0 0 200 200" aria-hidden="true"><g transform="rotate(-90 100 100)"><circle class="bz-donut-track" r="${R}" cx="100" cy="100"/>${arcs}</g></svg>${center}</div><ul class="bz-donut-legend">${legend}</ul>`;
   },
 });
 
@@ -424,7 +415,7 @@ function bzCalcPaint() {
     field.querySelector('.bz-input em').textContent = error ? bzShortError(error) : BZ_FIELDS[name][4];
     field.querySelector('.bz-err').textContent = bzFieldError(name);
   }
-  const chart = card.querySelector('[data-chart="bzSplit"]');
+  const chart = main.querySelector('[data-chart="bzSplit"]'); // the donut on the page follows the what-if
   if (chart) { chart.setAttribute('aria-label', bzSplitLabel()); chartsSync(chart.parentElement); }
 }
 
@@ -450,24 +441,9 @@ function bzScenario(intro = '') {
     ? `<button type="button" class="bz-chip is-sim" data-bz-retry="model" title="GridToEv is unavailable (${escapeHtml(r.fallback?.reason || '')}); this is a fixed simulated example. Click to try the model again.">${bzIcon('alert', 14)}Simulated data · retry model</button>`
     : '';
   return `<div class="bz-scenario${intro ? ' is-intro' : ''}"${intro} aria-label="Scenario">
-    <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>Example site</b><small>${n(d.hub.chargers)} × ${n(d.hub.chargerKw)} kW · simulated</small></span></span>
+    <span class="bz-scn"><span class="bz-scn-icon">${bzIcon('building', 17)}</span><span><b>Example hub</b><small>${n(d.hub.chargers)} × ${n(d.hub.chargerKw)} kW · simulated</small></span></span>
     <span class="bz-scn"><span class="bz-scn-icon">${icon('calendar', 17)}</span><span>${sim ? `<b>Example week</b><small>${n(r.period.nights)} nights · fixed weather</small>` : `<b>${bzPeriod(r.period)}</b><small title="GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts, scored against observed EirGrid curtailment">${n(r.period.nights)} nights · GridToEv ${escapeHtml(r.modelVersion || '')} replay</small>`}</span></span>
     ${mode}</div>`;
-}
-
-function bzKpiRow(r) {
-  const d = r.discountWindows, k = d.kpis, m = d.month, per = m.perSession;
-  const loss = (v, tone) => (bzTone(v) === 'profit' ? tone : bzTone(v));
-  const extraFoot = k.sessions ? `vs basic smart charging · ${n(k.sessions)} sessions` : 'no eligible sessions: nothing extra to share';
-  const driverFoot = k.sessions ? `${bzCents(per.driverEur)} off each ${n(d.sessionKwh)} kWh charge` : 'normal prices apply';
-  const opFoot = `after ${bzEur(m.operator.fixedEur)} programme costs`;
-  const usFoot = `from ${bzCents(m.platform.grossEur)} gross commission`;
-  return `<section class="bz-kpis" aria-label="Monthly business case at the example site, projected from the replay">
-    ${bzKpi('blue', 'spark', 'Extra savings from our AI', 'bzExtra', `Extra savings from our AI ${bzEur(k.aiExtraSavingsEur)} a month versus basic smart charging`, `<em>${extraFoot}</em>`)}
-    ${bzKpi('green', 'car', 'Drivers saved', 'bzDrivers', `Drivers saved ${bzEur(k.driversSavedEur)} a month`, `<em>${driverFoot}</em>`)}
-    ${bzKpi(loss(k.operatorProfitEur, 'teal'), 'building', 'Charging operator profit', 'bzOperator', `Charging operator profit ${bzEur(k.operatorProfitEur)} a month after its programme costs`, `<em>${opFoot}</em>`)}
-    ${bzKpi(loss(k.platformProfitEur, 'profit'), 'euro', 'SaveThePlanet operating profit', 'bzPlatform', `SaveThePlanet operating profit ${bzEur(k.platformProfitEur)} a month, from ${bzEur(k.platformGrossEur)} gross commission`, `<em>${usFoot}</em>`)}
-  </section>`;
 }
 
 // One profit bridge: revenue, then costs, then the profit (or loss) that is left.
@@ -481,27 +457,290 @@ function bzBridge(id, title, rows, total, breakEven, yearly) {
 }
 function bzSplitLabel() {
   const m = bzShownMonth();
-  if (!m) return 'Where the € goes';
+  if (!m) return 'Where each € goes';
   const parts = bzParts(m);
   return `Of ${bzCents(m.poolEur)} extra savings a month: drivers ${bzCents(parts.driver)}, charging operator ${bzCents(parts.operator)}, SaveThePlanet ${bzCents(parts.platform)}`;
 }
-// Where the € goes, as a what-if: presets and three inputs drive the bar and both profit bridges, so the
-// split is shown once. It starts from the replay (the KPIs above); the server answers every change.
-function bzSplitCard(r) {
+// The what-if drawer: presets and three inputs (or the costs) drive the donut on the page and both profit
+// bridges. It starts from the replay (one hub, one month); the server answers every change.
+function bzDrawer(r) {
   const c = bz.calc, d = r.discountWindows, costs = c.view === 'costs', active = bzActivePreset();
   const presets = `<div class="bz-seg is-small" role="group" aria-label="Start from">${BZ_PRESETS.map(([id, label]) => `<button type="button" data-bz-preset="${id}" aria-pressed="${active === id}" class="${active === id ? 'is-active' : ''}">${label}</button>`).join('')}</div>`;
-  // The cost inputs replace the main inputs in the same space, so the card never reflows.
+  // The cost inputs replace the main inputs in the same space, so the drawer never reflows.
   const updating = '<span class="bz-updating" aria-hidden="true"><i class="bz-out-spin motion-loop"></i>Updating</span>';
   const fields = costs
     ? `${BZ_COSTS.map(bzField).join('')}<div class="bz-adv"><span class="bz-adv-note">Savings are shared first; these costs come out of each share.</span><button type="button" class="bz-link" data-bz-costs="done">${icon('check', 14)}Done</button>${updating}</div>`
     : `${BZ_MAIN.map(bzField).join('')}<div class="bz-adv"><button type="button" class="bz-link" data-bz-costs="open">Edit costs</button>${updating}</div>`;
   const stale = Object.keys(c.errors).length || c.error;
-  return `<section class="dash-card bz-card bz-split-card${c.pending ? ' is-pending' : ''}${stale ? ' is-stale' : ''}">
-    ${bzHead('split', 'blue', 'Where the € goes', `One site, one month · split ${d.split.driver} / ${d.split.operator} / ${d.split.platform}`, presets)}
+  return `<div class="bz-scrim" data-bz-whatif="close" aria-hidden="true"></div>
+  <aside class="bz-drawer bz-split-card${c.pending ? ' is-pending' : ''}${stale ? ' is-stale' : ''}" role="dialog" aria-modal="false" aria-labelledby="bz-drawer-title">
+    <div class="bz-drawer-head"><div><h2 id="bz-drawer-title">What if…</h2><p>One hub, one month · split ${d.split.driver} / ${d.split.operator} / ${d.split.platform}</p></div>
+      <button type="button" class="bz-close" data-bz-whatif="close" aria-label="Close the what-if">${bzIcon('close', 18)}</button></div>
+    ${presets}
     <form class="bz-form" novalidate onsubmit="return false"><div class="bz-fields${costs ? ' is-costs' : ''}">${fields}</div></form>
-    ${chartSlot('bzSplit', bzSplitLabel(), 'bz-split-chart')}
     <div class="bz-whatif" aria-live="polite">${bzWhatIf()}</div>
+  </aside>`;
+}
+
+// ---------------------------------------------------------------- the story (issue #67)
+// Three sections, one question each. A section's charts animate the first time it scrolls into view.
+const BZ_SECTIONS = [['s1', '01', 'Business'], ['s2', '02', 'Operators'], ['s3', '03', 'Planet']];
+const bzCanWatch = () => typeof IntersectionObserver !== 'undefined';
+const bzSeen = (id) => !bzCanWatch() || Boolean(bz.seen[id]);
+const bzCases = () => bzD()?.businessCase?.cases || [];
+const bzScaleRow = () => bzD()?.scale?.sites.find((x) => x.sites === bz.sites) || bzD()?.scale?.sites.at(-1);
+// Large money, compactly: €1.03M, €102k, €6,588.
+function bzBig(v) {
+  if (!bzHas(v)) return '—';
+  const a = Math.abs(v), sign = v < 0 ? '−' : '';
+  return a >= 1e6 ? `${sign}€${n(Math.round(a / 1e4) / 100)}M` : a >= 1e4 ? `${sign}€${n(Math.round(a / 1e3))}k` : `${sign}€${n(Math.round(a))}`;
+}
+function bzEnergy(kwh) {
+  return kwh >= 1e6 ? `${n(Math.round(kwh / 1e5) / 10)}<small>GWh</small>` : kwh >= 1e4 ? `${n(Math.round(kwh / 100) / 10)}<small>MWh</small>` : `${n(Math.round(kwh))}<small>kWh</small>`;
+}
+const bzTonnes = (kg) => `${n(kg >= 1e5 ? Math.round(kg / 1000) : Math.round(kg / 100) / 10)}<small>t CO₂</small>`;
+// A figure that counts up from zero when its section first shows.
+function bzCount(name, section, get, draw) {
+  bzChart(name, {
+    values: () => ({ v: bzSeen(section) ? (get() ?? 0) : 0 }),
+    start: () => ({ v: 0 }),
+    draw: ({ v }) => `<strong>${draw(v)}</strong>`,
+  });
+}
+bzCount('bzHero', 's1', () => bzCases().at(-1)?.company.profitYearEur, bzBig);
+bzCount('bzEnvCo2', 's3', () => bzD()?.environment.kpis.co2AvoidedKg, bzTonnes);
+
+// 01: SaveThePlanet's yearly operating profit as hubs are added. Bars rise one after another; the per-hub
+// unit economics sit under each bar.
+bzChart('bzGrowth', {
+  values: () => ({ key: bzCases().map((c) => c.company.profitYearEur).join('|'), reveal: bzSeen('s1') ? 1 : 0 }),
+  start: (t) => ({ ...t, reveal: 0 }),
+  draw({ reveal }) {
+    const cases = bzCases();
+    if (!cases.length) return '';
+    const max = Math.max(...cases.map((c) => c.company.profitYearEur), 1);
+    const cols = cases.map((c, i) => {
+      const g = Math.min(1, Math.max(0, (reveal - i * 0.14) / 0.58)), v = c.company.profitYearEur, top = i === cases.length - 1;
+      const h = (v > 0 ? Math.max(1.6, (v / max) * 100) : 0) * g;
+      const tip = `${c.label} · ${n(c.sites)} ${c.sites === 1 ? 'hub' : 'hubs'}: ${bzBig(v)} a year. Per hub ${bzEur(c.profitEur)} a month, ${c.marginPct}% margin, breaks even at ${n(c.breakEvenSessions)} sessions.`;
+      return `<div class="bz-gr-col${top ? ' is-top' : ''}${v < 0 ? ' is-loss' : ''}" tabindex="0" aria-label="${escapeHtml(tip)}">
+        <span class="bz-gr-val" style="bottom:${h.toFixed(2)}%;opacity:${g.toFixed(2)}">${bzBig(v * g)}</span>
+        <span class="bz-gr-bar" style="height:${h.toFixed(2)}%"></span></div>`;
+    }).join('');
+    const axis = cases.map((c) => `<div class="bz-gr-x"><b>${c.label}</b><span>${n(c.sites)} ${c.sites === 1 ? 'hub' : 'hubs'}</span><em>${bzEur(c.profitEur)}/hub/month · ${c.marginPct}%</em></div>`).join('');
+    return `<div class="bz-gr"><div class="bz-gr-plot">${cols}</div><div class="bz-gr-axis">${axis}</div></div>`;
+  },
+});
+
+// 02: the operator's margin on the same charges, basic smart charging against AI + Rewards.
+bzChart('bzOpCompare', {
+  values() {
+    const o = bzD()?.operatorCase;
+    return o && bzSeen('s2') ? { b: o.before.marginEur, a: o.after.marginEur, reveal: 1 } : { b: 0, a: 0, reveal: 0 };
+  },
+  start: (t) => ({ ...t, b: 0, a: 0, reveal: 0 }),
+  draw({ b, a, reveal }) {
+    const o = bzD()?.operatorCase;
+    if (!o) return '';
+    const max = Math.max(o.before.marginEur, o.after.marginEur, 1) * 1.02, wb = (Math.max(0, b) / max) * 100, wa = (Math.max(0, a) / max) * 100;
+    const pct = o.before.marginEur > 0 ? Math.round((o.extraProfitEur / o.before.marginEur) * 100) : null;
+    return `<div class="bz-op">
+      <div class="bz-op-row is-before"><span class="bz-op-name">${o.before.label}</span><div class="bz-op-track"><i style="width:${wb.toFixed(2)}%"></i></div><b>${bzEur(b)}</b></div>
+      <div class="bz-op-row is-after"><span class="bz-op-name">${o.after.label}</span><div class="bz-op-track"><i style="width:${Math.min(wa, wb).toFixed(2)}%"></i><i class="is-up" style="left:${Math.min(wa, wb).toFixed(2)}%;width:${Math.max(0, wa - wb).toFixed(2)}%"></i></div><b>${bzEur(a)}</b></div>
+      <p class="bz-op-badge" style="opacity:${reveal > 0.9 ? 1 : 0}"><b>${bzEur(o.extraProfitEur, true)}</b> a month${pct !== null ? ` · ${pct > 0 ? '+' : ''}${pct}%` : ''}</p></div>`;
+  },
+});
+
+// 02: the illustrative scale: one hub's replayed month times the number of hubs, a year.
+bzChart('bzScale', {
+  values() {
+    const row = bzScaleRow(), on = bzSeen('s2') && row ? 1 : 0;
+    return row ? { op: row.operatorProfitEur * 12 * on, drivers: row.driversEur * 12 * on, kwh: row.kwh * 12 * on, co2: row.co2Kg * 12 * on, share: row.peakHalfHourShare * on }
+      : { op: 0, drivers: 0, kwh: 0, co2: 0, share: 0 };
+  },
+  start: (t) => ({ ...t, op: 0, drivers: 0, kwh: 0, co2: 0, share: 0 }),
+  draw({ op, drivers, kwh, co2, share }) {
+    const stat = (label, value, tone) => `<div class="bz-sc-stat is-${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+    const pct = Math.min(100, share * 100);
+    return `<div class="bz-sc-stats">${stat('Operators earn', bzBig(op), 'teal')}${stat('Drivers save', bzBig(drivers), 'green')}${stat('Clean charging', bzEnergy(kwh), 'blue')}${stat('CO₂ avoided', bzTonnes(co2), 'leaf')}</div>
+      <div class="bz-sc-meter" title="The largest share of Ireland's curtailment that all hubs together would draw in any half-hour of the replay"><span>Peak share of curtailed energy</span><i><b style="width:${pct.toFixed(2)}%"></b></i><em>${n(Math.round(pct * 10) / 10)}%</em></div>`;
+  },
+});
+
+// 03: the hub battery's energy flow for the month: sources, the battery, where it went. Green is
+// curtailed surplus; grey is ordinary grid energy (bought on false alarms, sold at the normal price).
+const BZ_FLOW_IN = [['surplusInKwh', 'Curtailed renewables', 'is-green'], ['gridInKwh', 'Grid energy (false alarms)', 'is-grey']];
+const BZ_FLOW_OUT = [['rewardsOutKwh', 'Rewards EV charging', 'is-green'], ['normalOutKwh', 'Sold at the normal price', 'is-grey'],
+  ['lossKwh', 'Storage losses', 'is-amber'], ['storedKwh', 'Still in the battery', 'is-pale']];
+function bzFlowLayout(flows, height = 300) {
+  const stack = (items, gap) => {
+    let y = (height - (items.reduce((a, it) => a + it.h, 0) + gap * (items.length - 1))) / 2;
+    return items.map((it) => { const out = { ...it, y }; y += it.h + gap; return out; });
+  };
+  const min = 10, gapIn = 26, gapOut = 16;
+  const total = Math.max(1, BZ_FLOW_IN.reduce((a, [k]) => a + (flows[k] || 0), 0));
+  const scaleIn = (height - gapIn - min * 2) / total, scaleOut = (height - gapOut * 3 - min * 4) / total, scale = Math.min(scaleIn, scaleOut);
+  const size = (defs) => defs.map(([key, label, tone]) => ({ key, label, tone, v: flows[key] || 0, h: min + (flows[key] || 0) * scale }));
+  return { ins: stack(size(BZ_FLOW_IN), gapIn), outs: stack(size(BZ_FLOW_OUT), gapOut) };
+}
+function bzRibbon(x1, y1a, y1b, x2, y2a, y2b) {
+  const m = (x1 + x2) / 2;
+  return `M${x1} ${y1a.toFixed(1)}C${m} ${y1a.toFixed(1)} ${m} ${y2a.toFixed(1)} ${x2} ${y2a.toFixed(1)}L${x2} ${y2b.toFixed(1)}C${m} ${y2b.toFixed(1)} ${m} ${y1b.toFixed(1)} ${x1} ${y1b.toFixed(1)}Z`;
+}
+bzChart('bzFlow', {
+  values: () => ({ key: JSON.stringify(bzD()?.environment?.flows || {}), reveal: bzSeen('s3') ? 1 : 0 }),
+  start: (t) => ({ ...t, reveal: 0 }),
+  draw({ reveal }) {
+    const env = bzD()?.environment;
+    if (!env) return '';
+    const W = 760, H = 300, bx = 356, bw = 48, { ins, outs } = bzFlowLayout(env.flows, H);
+    const inH = ins.reduce((a, it) => a + it.h, 0), outH = outs.reduce((a, it) => a + it.h, 0), bh = Math.max(inH, outH), by = (H - bh) / 2;
+    let yin = by, yout = by;
+    const ribbons = [], dots = [];
+    for (const it of ins) {
+      ribbons.push(`<path class="bz-rib ${it.tone}" d="${bzRibbon(14, it.y, it.y + it.h, bx, yin, yin + it.h)}"/>`);
+      if (it.tone === 'is-green') dots.push(`<path class="bz-flow-dots" d="M14 ${(it.y + it.h / 2).toFixed(1)}C${(14 + bx) / 2} ${(it.y + it.h / 2).toFixed(1)} ${(14 + bx) / 2} ${(yin + it.h / 2).toFixed(1)} ${bx} ${(yin + it.h / 2).toFixed(1)}"/>`);
+      yin += it.h;
+    }
+    for (const it of outs) {
+      ribbons.push(`<path class="bz-rib ${it.tone}" d="${bzRibbon(bx + bw, yout, yout + it.h, W - 14, it.y, it.y + it.h)}"/>`);
+      if (it.tone === 'is-green') dots.push(`<path class="bz-flow-dots" d="M${bx + bw} ${(yout + it.h / 2).toFixed(1)}C${(bx + bw + W - 14) / 2} ${(yout + it.h / 2).toFixed(1)} ${(bx + bw + W - 14) / 2} ${(it.y + it.h / 2).toFixed(1)} ${W - 14} ${(it.y + it.h / 2).toFixed(1)}"/>`);
+      yout += it.h;
+    }
+    const node = (x, it) => `<rect class="bz-node ${it.tone}" x="${x}" y="${it.y.toFixed(1)}" width="14" height="${it.h.toFixed(1)}" rx="4"/>`;
+    const label = (x, it, anchor) => `<text class="bz-flow-label ${it.tone}" x="${x}" y="${(it.y + it.h / 2 - 3).toFixed(1)}" text-anchor="${anchor}">${escapeHtml(it.label)}</text><text class="bz-flow-kwh ${it.tone}" x="${x}" y="${(it.y + it.h / 2 + 13).toFixed(1)}" text-anchor="${anchor}">${n(Math.round(it.v))} kWh</text>`;
+    const clip = (W * Math.min(1, reveal)).toFixed(1);
+    return `<svg class="bz-flow" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(`Energy flow for a month: ${ins.map((i) => `${i.label} ${n(Math.round(i.v))} kWh`).join(', ')} into the hub battery; out: ${outs.map((o) => `${o.label} ${n(Math.round(o.v))} kWh`).join(', ')}`)}">
+      <defs><clipPath id="bz-flow-clip"><rect x="0" y="0" width="${clip}" height="${H}"/></clipPath>
+        <linearGradient id="bz-flow-green" x1="0" x2="1"><stop offset="0" class="bz-stop-a"/><stop offset="1" class="bz-stop-b"/></linearGradient></defs>
+      <g clip-path="url(#bz-flow-clip)">${ribbons.join('')}${reveal >= 1 ? dots.join('') : ''}
+        ${ins.map((it) => node(0, it)).join('')}${outs.map((it) => node(W - 14, it)).join('')}
+        <rect class="bz-node is-battery" x="${bx}" y="${by.toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" rx="10"/>
+        <text class="bz-flow-battery" x="${bx + bw / 2}" y="${(by - 10).toFixed(1)}" text-anchor="middle">Hub battery</text>
+        ${ins.map((it) => label(24, it, 'start')).join('')}${outs.map((it) => label(W - 24, it, 'end')).join('')}</g></svg>`;
+  },
+});
+
+function bzSecHead(num, title, line, tag, extra = '') {
+  return `<header class="bz-sec-head"><span class="bz-sec-num" aria-hidden="true">${num}</span><div class="bz-sec-copy"><h2>${title}</h2><p>${line}</p></div>${extra}<span class="bz-sec-tag">${tag}</span></header>`;
+}
+function bzCardHead(title, sub, extra = '') {
+  return `<div class="bz-card-head"><div><h3>${title}</h3><p>${sub}</p></div>${extra}</div>`;
+}
+
+function bzSection1(r) {
+  const d = r.discountWindows, bc = d.businessCase, cases = bc.cases, top = cases.at(-1), today = cases[0], k = d.kpis, per = d.month.perSession;
+  const hero = `<article class="bz-hero">
+    <span class="bz-hero-label">${bzIcon('euro', 16)}SaveThePlanet operating profit</span>
+    ${chartSlot('bzHero', `${bzBig(top.company.profitYearEur)} a year at ${n(top.sites)} hubs`, 'bz-hero-figure')}
+    <span class="bz-hero-unit">a year at ${n(top.sites)} hubs</span>
+    <div class="bz-hero-facts"><span><b>${top.marginPct}%</b>margin</span><span><b>${bzEur(today.profitEur)}</b>a month from one hub today</span><span><b>${n(top.breakEvenSessions)}</b>charges a month to break even</span></div>
+  </article>`;
+  const steps = bc.steps.slice(1).map((s) => `<li><span>${escapeHtml(s.label)}</span><small>${escapeHtml(bc.cases.flatMap((c) => c.changes).find((c) => c.id === s.id)?.to || '')}</small><b class="is-${bzTone(s.deltaEur)}">${bzEur(s.deltaEur, true)}</b></li>`).join('');
+  const growth = `<article class="bz-card bz-growth">
+    ${bzCardHead('Profit as we add hubs', 'A year · same hub, same 50/25/25 split · illustrative')}
+    ${chartSlot('bzGrowth', `SaveThePlanet operating profit a year: ${cases.map((c) => `${c.label} ${bzBig(c.company.profitYearEur)}`).join(', ')}`, 'bz-growth-chart', 'group')}
+    <details class="bz-levers"><summary>What changes, per hub a month</summary><ol>${steps}</ol></details>
+  </article>`;
+  const engage = `<p class="bz-engage"><b>Why drivers come back</b><span>${bzCents(per.driverEur)} off every charge</span><span>${n(k.sessions)} charges a month</span><span>${n(d.calculator.capacity.eligibleWindowsPerMonth)} discount evenings a month</span><span class="is-muted" title="Demand is assumed (${n(d.demand.evening)} drivers want each evening window); no real offers were made, so conversion is not tracked">Conversion: not tracked</span></p>`;
+  const split = `<article class="bz-card bz-share">
+    ${bzCardHead('Where each € goes', `SaveThePlanet Rewards · the extra savings of one hub, a month · vs basic smart charging`, `<button type="button" class="bz-cta" data-bz-whatif="open">${bzIcon('calc', 16)}What if…</button>`)}
+    ${chartSlot('bzSplit', bzSplitLabel(), 'bz-donut-chart')}
+    ${engage}
+  </article>`;
+  return `<section class="bz-sec${bzSeen('s1') ? ' is-seen' : ''}" data-bz-section="s1" id="bz-s1" aria-labelledby="bz-s1-title">
+    ${bzSecHead('01', '<span id="bz-s1-title">Who saves, who earns</span>', 'Every extra euro our AI finds: 50% to drivers, 25% to the operator, 25% to us.', r.dataMode === 'simulated' ? 'Simulated example · illustrative' : 'Projected · illustrative')}
+    <div class="bz-s1">${hero}${growth}${split}</div>
   </section>`;
+}
+
+function bzSection2(r) {
+  const d = r.discountWindows, o = d.operatorCase, u = o.utilisation, sc = d.scale;
+  const seg = `<div class="bz-seg is-small" role="group" aria-label="Number of hubs">${sc.sites.map((x) => `<button type="button" data-bz-sites="${x.sites}" aria-pressed="${bz.sites === x.sites}" class="${bz.sites === x.sites ? 'is-active' : ''}">${n(x.sites)} ${x.sites === 1 ? 'hub' : 'hubs'}</button>`).join('')}</div>`;
+  const row = bzScaleRow();
+  return `<section class="bz-sec${bzSeen('s2') ? ' is-seen' : ''}" data-bz-section="s2" id="bz-s2" aria-labelledby="bz-s2-title">
+    ${bzSecHead('02', '<span id="bz-s2-title">Why operators partner</span>', 'They bring chargers and prices. We bring the AI and the drivers. Both share the extra savings.', 'Per hub · a month',
+      '<button type="button" class="bz-link is-evidence" data-bz-view="depot">Depot evidence →</button>')}
+    <div class="bz-s2">
+      <article class="bz-card bz-opcard">${bzCardHead('Same charges, more margin', `The operator's margin on ${n(o.sessions)} charges a month`)}
+        ${chartSlot('bzOpCompare', `Operator margin: ${o.before.label} ${bzEur(o.before.marginEur)}, ${o.after.label} ${bzEur(o.after.marginEur)} a month`, 'bz-op-chart')}
+        <p class="bz-op-note"><span>${bzEur(o.shareEur)} share − ${bzEur(o.programmeCostsEur)} programme costs</span><span>Breaks even at ${n(o.breakEvenSessions)} charges</span><span title="${escapeHtml(u.note)}">Windows ${Math.round(u.share * 100)}% full · uplift not measured</span></p></article>
+      <article class="bz-card bz-scalecard">
+        ${bzCardHead('From pilot to 100 hubs', `${escapeHtml(sc.label)} · a year`, seg)}
+        ${chartSlot('bzScale', row ? `${n(row.sites)} hubs a year: operators ${bzBig(row.operatorProfitEur * 12)}, drivers ${bzBig(row.driversEur * 12)}` : 'Scaling', 'bz-scale-chart')}
+        <p class="bz-verify"><b>A pilot must verify</b>${sc.verify.map((v) => `<span>${escapeHtml(v)}</span>`).join('')}</p>
+      </article>
+    </div>
+  </section>`;
+}
+
+function bzSection3(r) {
+  const env = r.discountWindows.environment, rep = env.replay;
+  const share = rep.curtailedShare === null ? '' : `One hub uses <b>${n(Math.round(rep.curtailedShare * 10000) / 100)}%</b> of Ireland's curtailed wind: room for hundreds more.`;
+  const big = r.discountWindows.scale?.sites.at(-1);
+  const how = `<details class="bz-how"><summary>How we count</summary><p><b>Baseline:</b> ${escapeHtml(env.baseline)} Direct surplus in the windows: ${n(env.directSurplusKwh)} kWh.</p><ul>${[...env.method, ...env.caveats].map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul></details>`;
+  return `<section class="bz-sec${bzSeen('s3') ? ' is-seen' : ''}" data-bz-section="s3" id="bz-s3" aria-labelledby="bz-s3-title">
+    ${bzSecHead('03', '<span id="bz-s3-title">What the planet gets</span>', 'Wind that would be switched off, stored and delivered to EVs.', 'Per hub · a month · modelled')}
+    <div class="bz-s3">
+      <article class="bz-card bz-flowcard">${bzCardHead('Where the energy goes', 'Hub battery (hypothetical) · a month', env.balanced ? '<span class="bz-chip is-ok">Ledger balances</span>' : '')}
+        ${chartSlot('bzFlow', 'Energy flow of the hub battery for a month', 'bz-flow-chart', 'group')}${how}</article>
+      <article class="bz-co2">
+        <span class="bz-co2-label">${bzIcon('leaf', 16)}CO₂ avoided</span>
+        ${chartSlot('bzEnvCo2', `Estimated CO₂ avoided ${n(Math.round(env.kpis.co2AvoidedKg))} kg a month per hub`, 'bz-co2-figure')}
+        <span class="bz-co2-unit">a month, per hub</span>
+        ${big ? `<p class="bz-co2-scale"><b>${n(Math.round(big.co2Kg * 12 / 1000))} t</b> a year at ${n(big.sites)} hubs</p>` : ''}
+        <p class="bz-co2-note">${share}</p>
+        <small>vs grid charging at ${n(env.intensityKgPerKwh)} kg/kWh · modelled, not verified</small>
+      </article>
+    </div>
+  </section>`;
+}
+
+function bzNav() {
+  return `<nav class="bz-nav" aria-label="Impact sections">${BZ_SECTIONS.map(([id, num, label]) => `<button type="button" data-bz-goto="${id}" class="${(bz.navAt || 's1') === id ? 'is-active' : ''}"><b>${num}</b>${label}</button>`).join('')}</nav>`;
+}
+function bzStory(r, intro) {
+  return `<div class="bz-story${intro ? ' is-intro' : ''}"${intro}>${bzNav()}${bzSection1(r)}${bzSection2(r)}${bzSection3(r)}${bzProvenance(r)}</div>${bz.calc.open ? bzDrawer(r) : ''}`;
+}
+// Watches the sections: the first time one scrolls into view its charts animate in, and the navigator
+// follows the section being read. Runs after each render (the page is rebuilt), without re-rendering.
+let bzObserver = null;
+function bzWatch() {
+  bzObserver?.disconnect();
+  const main = document.querySelector('main[data-current-page="business"]');
+  if (!main || !bzCanWatch()) return;
+  const sections = [...main.querySelectorAll('[data-bz-section]')];
+  if (!sections.length) return;
+  bzObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const id = e.target.dataset.bzSection;
+      if (e.isIntersecting && !bz.seen[id]) {
+        bz.seen[id] = true;
+        e.target.classList.add('is-seen', 'is-revealing');
+        setTimeout(() => e.target.classList.remove('is-revealing'), 1400);
+        chartsSync(e.target);
+      }
+    }
+  }, { root: main, rootMargin: '0px 0px -12% 0px', threshold: 0 }); // any part of it in the upper 88% of the view
+  sections.forEach((s) => bzObserver.observe(s));
+  main.addEventListener('scroll', () => bzFollow(main), { passive: true });
+  bzFollow(main);
+}
+// Keeps the navigator on the section being read while scrolling.
+function bzFollow(main) {
+  const sections = [...main.querySelectorAll('[data-bz-section]')];
+  if (!sections.length) return;
+  const top = main.getBoundingClientRect().top + 90;
+  const at = sections.reduce((best, s) => (s.getBoundingClientRect().top - top <= 1 ? s : best), sections[0]).dataset.bzSection;
+  if (at === bz.navAt) return;
+  bz.navAt = at;
+  main.querySelectorAll('[data-bz-goto]').forEach((b) => b.classList.toggle('is-active', b.dataset.bzGoto === at));
+}
+function bzGoto(id) {
+  const main = document.querySelector('main[data-current-page="business"]'), target = main?.querySelector(`[data-bz-section="${id}"]`);
+  if (!target) return;
+  const nav = main.querySelector('.bz-nav');
+  main.scrollTo({ top: target.offsetTop - (nav ? nav.offsetHeight + 8 : 0), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 function bzMoneyCard(r) {
@@ -525,29 +764,6 @@ function bzCompareCard(r) {
     <div class="bz-cmp-bar">${seg}<p class="bz-cmp-unit"><span>${m.unit}</span><em>${m.better === 'lower' ? 'lower is better' : 'higher is better'}</em></p></div>
     ${chartSlot('bzCompare', `${m.unit} for normal, basic smart and AI charging`, 'bz-cmp-chart')}
     <p class="bz-foot" title="Each call is a half-hour with vans plugged in where the +30 minute forecast predicted enough curtailment to cover the site's full draw; checked against observed curtailment.">${bzIcon('info', 14)}<span>${calls}</span></p>
-  </section>`;
-}
-
-function bzEnergyCard(r) {
-  const d = r.discountWindows, e = d.energy, b = e.battery, l = d.ledger;
-  const src = [['stored', 'Stored surplus', e.sources.storedSurplusKwh], ['direct', 'Direct surplus', e.sources.directSurplusKwh], ['grid', 'Conventional grid', e.sources.conventionalKwh]];
-  const sum = src.reduce((a, s) => a + s[2], 0);
-  const bar = src.map(([id, , kwh]) => (sum > 0 && kwh > 0 ? `<i class="is-${id}" style="width:${((kwh / sum) * 100).toFixed(1)}%"></i>` : '')).join('');
-  const legend = src.map(([id, label, kwh]) => `<li class="is-${id}"><i></i><span>${label}</span><b>${n(Math.round(kwh))} kWh</b></li>`).join('');
-  const kwh = (v) => n(Math.round(v));
-  const facts = [
-    ['Battery in · out · left', `${kwh(b.gridChargedKwh)} · ${kwh(b.dischargedKwh)} · ${kwh(b.unallocatedSurplusKwh + b.unallocatedConventionalKwh)} kWh`, 'Grid energy into the battery, energy out at the chargers, and energy still stored (unallocated) at the end of the replay.'],
-    ['Lost in storage', `${kwh(b.chargeLossKwh + b.dischargeLossKwh)} kWh · ${Math.round(b.roundTripEfficiency * 100)}% round trip`, 'Charging and discharging losses: stored kWh are not all recovered kWh.'],
-    ['Bought on false alarms', `${kwh(b.falseAlarmKwh)} kWh · never offered`, 'Energy bought when the forecast called surplus but none was observed: conventional grid energy, sold at the normal price.'],
-    ['Network access', e.network.status === 'conditional' ? 'Conditional · not verified' : escapeHtml(e.network.status), e.network.reason],
-  ].map(([label, value, tip]) => `<div title="${escapeHtml(tip)}"><dt>${label}</dt><dd>${value}</dd></div>`).join('');
-  const offers = `offers on ${n(l.byWindow.evening.offers)}/${n(l.byWindow.evening.windows)} evenings, ${n(l.byWindow.morning.offers)}/${n(l.byWindow.morning.windows)} mornings`;
-  return `<section class="dash-card bz-card bz-energy" title="${escapeHtml(e.notes.join('\n'))}">
-    ${bzHead('battery', 'green', 'Energy proof', 'Apart from the money', `<span class="bz-chip is-hypo" title="${escapeHtml(d.battery.note)}">Hypothetical battery</span>`)}
-    <p class="bz-energy-top"><b>${kwh(e.qualifyingKwh)} kWh</b><span>qualifying · ${n(l.sessions)} sessions · ${offers}</span></p>
-    <div class="bz-mix" role="img" aria-label="${escapeHtml(src.map(([, label, kwh]) => `${label} ${n(Math.round(kwh))} kWh`).join(', '))}">${bar}</div>
-    <ul class="bz-mix-legend">${legend}</ul>
-    <dl class="bz-facts">${facts}</dl>
   </section>`;
 }
 
@@ -578,15 +794,11 @@ function bzInvestCard(r) {
   </section>`;
 }
 
-// Two views, one story each. The label says what the figures below are.
-const BZ_VIEWS = [['earn', 'Who earns', 'per month'], ['depot', 'Depot savings', 'per year']];
+// The depot evidence view: its own label and a way back to the story.
 function bzViews(r) {
-  const tabs = BZ_VIEWS.map(([id, label, unit]) => `<button type="button" data-bz-view="${id}" aria-pressed="${bz.view === id}" class="${bz.view === id ? 'is-active' : ''}">${label}<small>${unit}</small></button>`).join('');
   const sim = r?.dataMode === 'simulated';
-  const label = !r ? '' : bz.view === 'earn'
-    ? `SaveThePlanet Rewards · ${sim ? 'illustrative example' : 'illustrative replay'} · projected revenue, simulated profit · ex VAT`
-    : `${sim ? 'Simulated example' : 'Historical replay'} · ${n(r.company.vehicles)} simulated vans · illustrative tariff`;
-  return `<div class="bz-views"><div class="bz-seg is-views" role="group" aria-label="Impact view">${tabs}</div>${label ? `<p class="bz-views-label">${bzIcon('info', 14)}${label}</p>` : ''}</div>`;
+  const label = r ? `Depot savings · ${sim ? 'simulated example' : 'historical replay'} · ${n(r.company.vehicles)} simulated vans · illustrative tariff · per year` : 'Depot savings';
+  return `<div class="bz-views"><button type="button" class="bz-back" data-bz-view="story">${bzIcon('chevron', 16)}Back to Impact</button><p class="bz-views-label">${bzIcon('info', 14)}${label}</p></div>`;
 }
 
 function bzProvenance(r, intro = '') {
@@ -595,9 +807,9 @@ function bzProvenance(r, intro = '') {
   const how = r.dataMode === 'simulated'
     ? 'Simulated example (GridToEv unavailable): fixed weather'
     : `GridToEv ${escapeHtml(r.modelVersion || '')} historical forecasts vs observed EirGrid curtailment`;
-  const d = r.discountWindows, earn = bz.view === 'earn';
-  const tip = (earn ? [...(d.methodology || []), ...(d.limitations || []), d.prices.vat] : [...(r.methodology || []), ...(r.limitations || [])]).join('\n');
-  const what = earn ? 'hypothetical battery · illustrative prices, costs and demand' : `simulated fleet · illustrative prices · CO₂ estimated at ${n(r.emissions.gridIntensityKgPerKwh)} kg/kWh`;
+  const d = r.discountWindows, story = bz.view === 'story';
+  const tip = (story ? [...(d.methodology || []), ...(d.businessCase?.notes || []), ...(d.limitations || []), d.prices.vat] : [...(r.methodology || []), ...(r.limitations || [])]).join('\n');
+  const what = story ? 'hypothetical hub battery · illustrative prices, costs and demand' : `simulated fleet · illustrative prices · CO₂ estimated at ${n(r.emissions.gridIntensityKgPerKwh)} kg/kWh`;
   return `<p class="bz-provenance${intro ? ' is-intro' : ''}"${intro} title="${escapeHtml(tip)}">${bzIcon('info', 13)}<span>${how} · ${what} · network access not verified${gaps}</span></p>`;
 }
 
@@ -668,17 +880,18 @@ function bzProgressPaint() {
 function bzSkeleton() {
   const line = (cls, style = '') => `<span class="bz-skel motion-loop ${cls}"${style ? ` style="${style}"` : ''}></span>`;
   const head = `<div class="bz-skel-head">${line('is-icon')}<span class="bz-skel-copy">${line('is-title')}${line('is-sub')}</span></div>`;
-  const kpi = `<article class="dash-card bz-kpi is-skeleton">${line('is-kpi-icon')}<span class="bz-skel-copy">${line('is-label')}${line('is-figure')}</span>${line('is-foot')}</article>`;
   const card = (cls, body) => `<section class="dash-card bz-card ${cls} is-skeleton">${head}${body}</section>`;
   const preparing = bz.status === 'preparing';
   const rows = (widths) => `<div class="bz-skel-rows">${widths.map((w) => `<div class="bz-skel-row">${line('is-row-label')}${line('is-row-bar', `width:${w}%`)}</div>`).join('')}</div>`;
-  const cards = bz.view === 'depot'
-    ? `${preparing ? bzProgressCard(bz.progress, 'bz-money') : card('bz-money', `<div class="bz-skel-bars">${[84, 44, 10, 7, 42].map((h) => line('', `height:${h}%`)).join('')}</div>`)}
-      ${card('bz-compare', `${line('is-seg')}${rows([88, 46, 42])}`)}${card('bz-invest', `<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`)}`
-    : `<section class="bz-kpis">${kpi.repeat(4)}</section>
-      ${preparing ? bzProgressCard(bz.progress, 'bz-split-card') : card('bz-split-card', `<div class="bz-skel-fields">${line('is-field').repeat(3)}</div>${line('is-stack')}<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`)}
-      ${card('bz-energy', `${line('is-title')}${line('is-stack')}${rows([90, 55, 30])}`)}`;
-  return `<div class="bz-layout is-loading is-${bz.view}${preparing ? '' : ' is-waiting'}" aria-busy="true">${bzViews(null)}${cards}</div>`;
+  if (bz.view === 'depot') {
+    const cards = `${preparing ? bzProgressCard(bz.progress, 'bz-money') : card('bz-money', `<div class="bz-skel-bars">${[84, 44, 10, 7, 42].map((h) => line('', `height:${h}%`)).join('')}</div>`)}
+      ${card('bz-compare', `${line('is-seg')}${rows([88, 46, 42])}`)}${card('bz-invest', `<div class="bz-skel-pair">${line('is-block')}${line('is-block')}</div>`)}`;
+    return `<div class="bz-layout is-loading is-depot${preparing ? '' : ' is-waiting'}" aria-busy="true">${bzViews(null)}${cards}</div>`;
+  }
+  const secHead = (num) => `<header class="bz-sec-head"><span class="bz-sec-num" aria-hidden="true">${num}</span><span class="bz-skel-copy">${line('is-title')}${line('is-sub')}</span></header>`;
+  const body = preparing ? bzProgressCard(bz.progress, 'bz-hero-wait')
+    : `<div class="bz-s1">${`<article class="dash-card bz-card is-skeleton">${line('is-block')}</article>`.repeat(2)}<article class="dash-card bz-card bz-share is-skeleton">${line('is-stack')}</article></div>`;
+  return `<div class="bz-story is-loading${preparing ? '' : ' is-waiting'}" aria-busy="true"><section class="bz-sec">${secHead('01')}${body}</section></div>`;
 }
 function bzMessage(kind, title, text, action = '') {
   return `<section class="dash-card bz-message is-${kind}" role="${kind === 'error' ? 'alert' : 'status'}"><span class="bz-message-icon">${bzIcon(kind === 'error' ? 'alert' : 'info', 26)}</span><h2>${title}</h2><p>${text}</p>${action}</section>`;
@@ -693,17 +906,20 @@ function renderBusiness() {
   // results already shown: while the entrance still plays (a live model update, say) it continues
   // from the same point; after that the cards stay still.
   const live = typeof liveRender !== 'undefined' && liveRender, now = Date.now();
-  if (shown && !live && !document.querySelector(`#app .bz-layout.is-ready.is-${bz.view}`)) bz.introAt = now; // arrival or a new view
+  if (shown && !live && !document.querySelector(`#app .is-ready.is-${bz.view}`)) bz.introAt = now; // arrival or a new view
   const since = shown && bz.introAt !== undefined ? now - bz.introAt : Infinity;
   const intro = since < BZ_INTRO_MS ? (since > 0 ? ` style="--bz-t:-${since}ms"` : ' ') : '';
-  const top = studioHeader('Impact', 'Who saves and who earns from our AI.', bzScenario(intro));
+  const top = studioHeader('Business &amp; Environmental Impact', 'Drivers save. Operators earn. We profit from clean energy that would be wasted.', bzScenario(intro));
   if (bz.status === 'failed' && !r) {
     return top + bzMessage('error', 'The impact figures are unavailable', escapeHtml(bz.error || 'Something went wrong.'), `<button type="button" class="studio-button" data-bz-retry="load">Try again ${icon('arrow', 17)}</button>`);
   }
   if (bz.status === 'empty' && r) return top + bzMessage('empty', 'Nothing to evaluate yet', escapeHtml(r.message || 'No complete night of forecasts was available.'), '<button type="button" class="studio-button" data-bz-retry="model">Check again</button>');
   if (!shown) return top + bzSkeleton();
-  const cards = bz.view === 'depot' ? `${bzMoneyCard(r)}${bzCompareCard(r)}${bzInvestCard(r)}` : `${bzKpiRow(r)}${bzSplitCard(r)}${bzEnergyCard(r)}`;
-  return `${top}<div class="bz-layout is-ready is-${bz.view}${intro ? ' is-intro' : ''}"${intro}>${bzViews(r)}${cards}</div>${bzProvenance(r, intro)}`;
+  if (bz.view === 'depot') {
+    return `${top}<div class="bz-layout is-ready is-depot${intro ? ' is-intro' : ''}"${intro}>${bzViews(r)}${bzMoneyCard(r)}${bzCompareCard(r)}${bzInvestCard(r)}</div>${bzProvenance(r, intro)}`;
+  }
+  queueMicrotask(bzWatch); // after render() has put the page in place
+  return `${top}<div class="is-ready is-story">${bzStory(r, intro)}</div>`;
 }
 const BZ_INTRO_MS = 1000; // the entrance's longest delay plus its animation
 // Cost inputs: open, or done (back to the main inputs once they are valid).
@@ -735,13 +951,35 @@ document.addEventListener('click', (event) => {
   if ((el = pick('data-bz-view'))) {
     if (bz.view === el.dataset.bzView) return;
     bz.view = el.dataset.bzView;
-    try { localStorage.setItem('impact-view', bz.view); } catch {}
-    bzRender(); return;
+    bz.calc.open = false;
+    bzRender();
+    document.querySelector('main[data-current-page="business"]')?.scrollTo({ top: 0 });
+    return;
   }
+  if ((el = pick('data-bz-goto'))) { bzGoto(el.dataset.bzGoto); return; }
+  if ((el = pick('data-bz-sites'))) {
+    bz.sites = Number(el.dataset.bzSites);
+    const main = document.querySelector('main[data-current-page="business"]');
+    main?.querySelectorAll('[data-bz-sites]').forEach((b) => { const on = Number(b.dataset.bzSites) === bz.sites; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', String(on)); });
+    const chart = main?.querySelector('[data-chart="bzScale"]');
+    if (chart) chartsSync(chart.parentElement); // the numbers glide to the new scale, nothing else moves
+    return;
+  }
+  if ((el = pick('data-bz-whatif'))) { bzWhatIfOpen(el.dataset.bzWhatif === 'open'); return; }
   if ((el = pick('data-bz-costs'))) { bzCosts(el.dataset.bzCosts); return; }
   if ((el = pick('data-bz-preset'))) { bzPreset(el.dataset.bzPreset); bzRender(); return; }
   if ((el = pick('data-bz-retry'))) { bzLoad(el.dataset.bzRetry === 'model'); }
 });
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && bz.calc.open && pageFromHash() === 'business') bzWhatIfOpen(false);
+});
+// Opens or closes the what-if drawer; the donut on the page follows its inputs while it is open.
+function bzWhatIfOpen(open) {
+  bz.calc.open = open;
+  bzRender();
+  if (open) document.querySelector('main [data-bz-input="sessions"]')?.focus({ preventScroll: true });
+  else document.querySelector('main [data-bz-whatif="open"]')?.focus({ preventScroll: true });
+}
 document.addEventListener('input', (event) => {
   const el = event.target.closest?.('[data-bz-input]');
   if (!el || pageFromHash() !== 'business' || !bz.calc.values) return;

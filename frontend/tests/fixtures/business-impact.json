@@ -1674,32 +1674,32 @@
        "id": "network",
        "case": "pilot",
        "label": "Network charges on stored energy",
-       "from": "EUR 0.04/kWh",
-       "to": "EUR 0.02/kWh",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
        "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
       },
       {
        "id": "session",
        "case": "pilot",
        "label": "Operator session costs",
-       "from": "EUR 0.025/kWh",
-       "to": "EUR 0.015/kWh",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
        "why": "App check-in and automatic settlement replace manual handling."
       },
       {
        "id": "perSession",
        "case": "pilot",
        "label": "SaveThePlanet cost per session",
-       "from": "EUR 0.1/session",
-       "to": "EUR 0.05/session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
        "why": "Batched payments and automated messages."
       },
       {
        "id": "sites3",
        "case": "pilot",
        "label": "Partner hubs sharing the platform",
-       "from": "1 hub · EUR 120 overhead each",
-       "to": "3 hubs · EUR 60 overhead each",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
        "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
       }
      ]
@@ -1738,40 +1738,40 @@
        "id": "network",
        "case": "pilot",
        "label": "Network charges on stored energy",
-       "from": "EUR 0.04/kWh",
-       "to": "EUR 0.02/kWh",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
        "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
       },
       {
        "id": "session",
        "case": "pilot",
        "label": "Operator session costs",
-       "from": "EUR 0.025/kWh",
-       "to": "EUR 0.015/kWh",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
        "why": "App check-in and automatic settlement replace manual handling."
       },
       {
        "id": "perSession",
        "case": "pilot",
        "label": "SaveThePlanet cost per session",
-       "from": "EUR 0.1/session",
-       "to": "EUR 0.05/session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
        "why": "Batched payments and automated messages."
       },
       {
        "id": "sites3",
        "case": "pilot",
        "label": "Partner hubs sharing the platform",
-       "from": "1 hub · EUR 120 overhead each",
-       "to": "3 hubs · EUR 60 overhead each",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
        "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
       },
       {
        "id": "sites10",
        "case": "growth",
        "label": "Partner hubs sharing the platform",
-       "from": "3 hubs · EUR 60 overhead each",
-       "to": "10 hubs · EUR 39 overhead each",
+       "from": "3 hubs · €60 overhead each",
+       "to": "10 hubs · €39 overhead each",
        "why": "Ten hubs share the platform core; support stays EUR 30 per hub."
       }
      ]
@@ -1810,48 +1810,48 @@
        "id": "network",
        "case": "pilot",
        "label": "Network charges on stored energy",
-       "from": "EUR 0.04/kWh",
-       "to": "EUR 0.02/kWh",
+       "from": "€0.04/kWh",
+       "to": "€0.02/kWh",
        "why": "The battery charges off-peak inside the site's existing capacity, so it adds no demand charges."
       },
       {
        "id": "session",
        "case": "pilot",
        "label": "Operator session costs",
-       "from": "EUR 0.025/kWh",
-       "to": "EUR 0.015/kWh",
+       "from": "€0.025/kWh",
+       "to": "€0.015/kWh",
        "why": "App check-in and automatic settlement replace manual handling."
       },
       {
        "id": "perSession",
        "case": "pilot",
        "label": "SaveThePlanet cost per session",
-       "from": "EUR 0.1/session",
-       "to": "EUR 0.05/session",
+       "from": "€0.1/session",
+       "to": "€0.05/session",
        "why": "Batched payments and automated messages."
       },
       {
        "id": "sites3",
        "case": "pilot",
        "label": "Partner hubs sharing the platform",
-       "from": "1 hub · EUR 120 overhead each",
-       "to": "3 hubs · EUR 60 overhead each",
+       "from": "1 hub · €120 overhead each",
+       "to": "3 hubs · €60 overhead each",
        "why": "A three-hub pilot shares the EUR 90 platform core; each hub keeps its own EUR 30 of support."
       },
       {
        "id": "sites10",
        "case": "growth",
        "label": "Partner hubs sharing the platform",
-       "from": "3 hubs · EUR 60 overhead each",
-       "to": "10 hubs · EUR 39 overhead each",
+       "from": "3 hubs · €60 overhead each",
+       "to": "10 hubs · €39 overhead each",
        "why": "Ten hubs share the platform core; support stays EUR 30 per hub."
       },
       {
        "id": "sites100",
        "case": "scale",
        "label": "Partner hubs sharing the platform",
-       "from": "10 hubs · EUR 39 overhead each",
-       "to": "100 hubs · EUR 30.9 overhead each",
+       "from": "10 hubs · €39 overhead each",
+       "to": "100 hubs · €30.9 overhead each",
        "why": "A hundred hubs share the platform core; support stays EUR 30 per hub."
       }
      ]
