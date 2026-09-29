@@ -93,6 +93,9 @@ that is not claimed still happens and still counts towards meeting deadlines.
 - `conservative`: both components scaled down to the P10 quantity. P10 is a model estimate, not
   a guaranteed minimum (see GridToEv's purged benchmark for its calibration limits).
 - The dispatch-down **event probability** is reported beside the plan and never multiplied in.
+- The Battery page's day plan (`/api/v1/impact/day`) adds an `expected` readout beside the plan: the
+  same plan on the P10/P50/P90 scenarios, weighted 30/40/30 and by the event probability. The plan
+  itself is unchanged.
 
 ## Policies and objective
 
